@@ -65,9 +65,16 @@ typedef struct ts_mir_lowering_policy_s {
  * Loop stack for break/continue
  * ========================================================================= */
 
+typedef struct ts_mir_managed_slot_snapshot_s ts_mir_managed_slot_snapshot_t;
+typedef struct ts_mir_loop_edge_state_s ts_mir_loop_edge_state_t;
+
 typedef struct {
   MIR_label_t break_label;
   MIR_label_t continue_label;
+  size_t first_managed_slot;
+  ts_mir_managed_slot_snapshot_t *entry_state;
+  ts_mir_loop_edge_state_t *break_edges;
+  ts_mir_loop_edge_state_t *continue_edges;
 } loop_frame_t;
 
 /* =========================================================================
@@ -109,6 +116,7 @@ struct ts_mir_externals_s {
   MIR_item_t call_assign_proto, call_assign_import;
   MIR_item_t call_value_assign_proto, call_value_assign_import;
   MIR_item_t value_expr_proto, value_expr_import;
+  MIR_item_t value_slot_destroy_proto, value_slot_destroy_import;
   MIR_item_t value_expr_assign_proto, value_expr_assign_import;
   MIR_item_t await_value_proto, await_value_import;
   MIR_item_t await_assign_proto, await_assign_import;
@@ -130,17 +138,9 @@ struct ts_mir_externals_s {
   MIR_item_t member_get_proto, member_get_import;
   MIR_item_t member_get_assign_proto, member_get_assign_import;
 
-  // Vector data pointer
-  MIR_item_t vec_data_proto, vec_data_import;
-
-  // Map access by key
-  MIR_item_t map_get_key_proto, map_get_key_import;
   MIR_item_t map_assign_proto, map_assign_import;
   MIR_item_t map_value_assign_proto, map_value_assign_import;
   MIR_item_t map_rest_assign_proto, map_rest_assign_import;
-
-  // Map field pointer (for native direct load)
-  MIR_item_t map_num_ptr_proto, map_num_ptr_import;
 
   // Closure support
   MIR_item_t load_captured_proto, load_captured_import;
@@ -224,7 +224,7 @@ typedef struct {
  * ========================================================================= */
 
 typedef struct {
-  toad_instance_t *instance;
+  exprtk_instance_t *instance;
   size_t index;
 } ts_mir_oop_slot_cache_t;
 
@@ -256,6 +256,30 @@ typedef struct {
   toad_function_reflection_t reflection;
 } ts_mir_builtin_admission_t;
 
+typedef enum ts_mir_managed_slot_state_e {
+  TS_MIR_MANAGED_SLOT_ZERO = 0,
+  TS_MIR_MANAGED_SLOT_LIVE,
+  TS_MIR_MANAGED_SLOT_MOVED,
+  TS_MIR_MANAGED_SLOT_CLEANED
+} ts_mir_managed_slot_state_t;
+
+typedef struct {
+  MIR_reg_t ptr_reg;
+  const cmeta_data_desc *data;
+  size_t size;
+  ts_mir_managed_slot_state_t state;
+} ts_mir_managed_slot_entry_t;
+
+struct ts_mir_managed_slot_snapshot_s {
+  size_t count;
+  ts_mir_managed_slot_state_t *states;
+};
+
+struct ts_mir_loop_edge_state_s {
+  ts_mir_managed_slot_snapshot_t *snapshot;
+  ts_mir_loop_edge_state_t *next;
+};
+
 /* =========================================================================
  * Compile frame (for nested function compilation)
  * ========================================================================= */
@@ -271,9 +295,9 @@ struct ts_mir_compile_frame_s {
   MIR_reg_t closure_env_reg;
   ts_mir_func_alias_t *func_aliases;
   size_t func_alias_count;
-  int vec_ptr_count;
-  int map_ptr_count;
-  int oop_ptr_count;
+  ts_mir_managed_slot_entry_t *managed_slots;
+  int managed_slot_count;
+  int managed_slot_capacity;
   char **class_names;
   int class_name_count;
   int class_name_capacity;
@@ -323,20 +347,10 @@ struct ts_mir_compiler_s {
   int compiled_func_count;
   int compiled_func_capacity;
 
-  // Cached vector data pointers
-  ts_mir_vec_ptr_entry_t *vec_ptrs;
-  int vec_ptr_count;
-  int vec_ptr_capacity;
-
-  // Cached map field pointers
-  ts_mir_map_ptr_entry_t *map_ptrs;
-  int map_ptr_count;
-  int map_ptr_capacity;
-
-  // Cached public numeric OOP field pointers
-  ts_mir_oop_ptr_entry_t *oop_ptrs;
-  int oop_ptr_count;
-  int oop_ptr_capacity;
+  // Compiler-owned managed storage, allocated once per function invocation.
+  ts_mir_managed_slot_entry_t *managed_slots;
+  int managed_slot_count;
+  int managed_slot_capacity;
 
   // Closure support
   void *closure_analysis; // ts_closure_analysis_t*
@@ -428,10 +442,34 @@ void ts_mir_restore_frame(ts_mir_compiler_t *c, const ts_mir_compile_frame_t *fr
 ts_mir_owned_string_block_t *ts_mir_take_owned_strings(ts_mir_compiler_t *c);
 void ts_mir_owned_string_blocks_destroy(ts_mir_owned_string_block_t *block);
 void ts_mir_destroy_compiler_storage(ts_mir_compiler_t *c);
+MIR_reg_t ts_mir_new_managed_slot(ts_mir_compiler_t *c, const cmeta_data_desc *data);
+int ts_mir_managed_slot_publish(ts_mir_compiler_t *c, MIR_reg_t slot);
+int ts_mir_managed_slot_require_readable(ts_mir_compiler_t *c, MIR_reg_t slot);
+int ts_mir_managed_slot_move(ts_mir_compiler_t *c, MIR_reg_t slot);
+int ts_mir_managed_slot_cleanup(ts_mir_compiler_t *c, MIR_reg_t slot);
+int ts_mir_managed_slot_snapshot_capture(
+    ts_mir_compiler_t *c, size_t count, ts_mir_managed_slot_snapshot_t *snapshot);
+int ts_mir_managed_slot_snapshot_restore(
+    ts_mir_compiler_t *c, const ts_mir_managed_slot_snapshot_t *snapshot);
+int ts_mir_managed_slot_snapshot_join(
+    ts_mir_compiler_t *c, const ts_mir_managed_slot_snapshot_t *left,
+    const ts_mir_managed_slot_snapshot_t *right);
+int ts_mir_managed_slot_snapshot_loop_join(
+    ts_mir_compiler_t *c, const ts_mir_managed_slot_snapshot_t *entry,
+    const ts_mir_managed_slot_snapshot_t *backedge);
+int ts_mir_managed_slot_record_loop_edge(ts_mir_compiler_t *c, int is_continue);
+int ts_mir_managed_slot_validate_loop_edges(
+    ts_mir_compiler_t *c, const loop_frame_t *frame,
+    const ts_mir_managed_slot_snapshot_t *entry_state,
+    const ts_mir_managed_slot_snapshot_t *continue_expected);
+void ts_mir_loop_edge_states_destroy(loop_frame_t *frame);
+int ts_mir_managed_slots_require_terminal_at_return(ts_mir_compiler_t *c);
+int ts_mir_managed_slots_require_terminal_at_throw(ts_mir_compiler_t *c);
+int ts_mir_managed_slots_require_terminal_since(ts_mir_compiler_t *c, size_t first_slot);
+void ts_mir_managed_slot_snapshot_destroy(ts_mir_managed_slot_snapshot_t *snapshot);
+void ts_emit_managed_slot_prologue(ts_mir_compiler_t *c);
 void ts_emit_var_prologue(ts_mir_compiler_t *c);
 void ts_emit_var_epilogue(ts_mir_compiler_t *c);
-void ts_emit_vec_prologue(ts_mir_compiler_t *c);
-void ts_emit_map_prologue(ts_mir_compiler_t *c);
 
 // Error reporting
 void ts_mir_fail(ts_mir_compiler_t *c, const char *fmt, ...);
@@ -492,8 +530,6 @@ MIR_reg_t ts_emit_runtime_call_assign(ts_mir_compiler_t *c, const char *target_n
 MIR_reg_t ts_mir_get_or_add_vec_ptr(ts_mir_compiler_t *c, const char *name);
 MIR_reg_t ts_emit_index_access(ts_mir_compiler_t *c, const char *name, toad_node_t *index_node);
 
-MIR_reg_t ts_mir_get_or_add_map_ptr(ts_mir_compiler_t *c, const char *obj_name,
-                                    const char *key_name);
 MIR_reg_t ts_try_emit_oop_member_get_slot(ts_mir_compiler_t *c, const char *object_name,
                                           const char *member_name, toad_node_t *object_node);
 MIR_reg_t ts_emit_member_access(ts_mir_compiler_t *c, const char *obj_name, const char *member,
@@ -541,10 +577,6 @@ MIR_reg_t ts_try_emit_oop_inline_method_call(ts_mir_compiler_t *c, const char *o
                                              size_t argc, const MIR_reg_t *arg_regs);
 MIR_reg_t ts_emit_oop_instanceof(ts_mir_compiler_t *c, const char *object_name,
                                  const char *class_name);
-
-// OOP slot pointer cache
-MIR_reg_t ts_mir_get_or_add_oop_ptr(ts_mir_compiler_t *c, const char *obj_name,
-                                    const char *member_name);
 
 /* =========================================================================
  * Module: mir_closure.c - Closure compilation
@@ -595,14 +627,11 @@ double ts_mir_member_get(void *ctx_ptr, const char *obj_name, const char *member
                          void *object_node);
 double ts_mir_member_get_assign(void *ctx_ptr, const char *target_name, const char *obj_name,
                                 const char *member, void *cache_ptr, void *object_node);
-void *ts_mir_vec_data(void *ctx_ptr, const char *name);
-double ts_mir_map_get_key(void *ctx_ptr, const char *obj_name, const char *key);
 double ts_mir_map_assign(void *ctx_ptr, const char *target, void *node, int64_t count,
                          double *values);
 double ts_mir_map_value_assign(void *ctx_ptr, const char *target, void *node);
 double ts_mir_map_rest_assign(void *ctx_ptr, const char *target, const char *rest_src,
                               int64_t count, const char **keys);
-void *ts_mir_map_num_ptr(void *ctx_ptr, const char *obj_name, const char *key);
 double ts_mir_load_captured_var(void *ctx_ptr, const char *var_name, void *closure_env_ptr);
 double ts_mir_call_native(void *ctx_ptr, void *fn_ptr, void *user_data, int64_t argc, double *argv);
 double ts_mir_call_host_slot(void *registry_owner_ptr, void *runtime_ctx_ptr, int64_t slot,
@@ -629,8 +658,8 @@ double ts_mir_oop_member_get(void *ctx_ptr, const char *obj, const char *field, 
                              void *object_node);
 double ts_mir_oop_member_set(void *ctx_ptr, const char *obj, const char *field, void *cache_ptr,
                              void *object_node, double value);
-void *ts_mir_oop_num_ptr(void *ctx_ptr, const char *obj, const char *field, void *object_node,
-                         int64_t create_if_missing, void *slot_cache_ptr);
+void *ts_mir_oop_num_ptr(void *ctx_ptr, const char *obj, const char *field,
+                         int64_t create_if_missing);
 double ts_mir_oop_instanceof(void *ctx_ptr, const char *obj, const char *class_name);
 double ts_mir_oop_predicate(void *ctx_ptr, int64_t kind, const char *name, const char *member,
                             void *object_node);

@@ -317,12 +317,14 @@
       "configurePreset": "gcc-release-user"
     },
     {
-      "name": "native-benchmark-user",
-      "inherits": [
-        "base-test",
-        "test-windows"
-      ],
-      "configurePreset": "native-benchmark-user"
+      "name": "ci-linux-sanitizer-user",
+      "inherits": "base-test",
+      "configurePreset": "ci-linux-sanitizer-user",
+      "filter": {
+        "include": {
+          "name": "^(test_turbo_script_host_(result|registry|module|instance|call|state|limits)|test_turbo_script_cflow_(mir_kernel|lower|qualification))$"
+        }
+      }
     },
     {
       "name": "llvm-native-benchmark-user",

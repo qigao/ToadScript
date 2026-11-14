@@ -449,6 +449,35 @@ spec("toad_script_mir_oop") {
       toad_script_free(ctx_jit);
     }
 
+    it("should refresh typed numeric field slots after receiver reassignment") {
+      turbo_script_ctx_t *ctx_interp = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      turbo_script_ctx_t *ctx_jit = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      const char *script =
+          "class Point {"
+          "  x: number = 1.0;"
+          "  y: number = 2.0;"
+          "};"
+          "class Reordered {"
+          "  y: number = 30.0;"
+          "  x: number = 40.0;"
+          "};"
+          "p = Point();"
+          "first = p.x;"
+          "p = Reordered();"
+          "second = p.x;"
+          "result = first + second;";
+
+      check((turbo_script_run(ctx_interp, script)) == (0));
+      check((turbo_script_run_jit(ctx_jit, script)) == (0));
+      check(fabs((double)(ts_get_num(ctx_interp, "result")) - (double)(41.0)) <=
+            (double)(EPS));
+      check(fabs((double)(ts_get_num(ctx_jit, "result")) -
+                 (double)(ts_get_num(ctx_interp, "result"))) <= (double)(EPS));
+
+      turbo_script_free(ctx_interp);
+      turbo_script_free(ctx_jit);
+    }
+
     it("should preserve int64 fields outside the double slot fast path") {
       toad_script_ctx_t *ctx_interp = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       toad_script_ctx_t *ctx_jit = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);

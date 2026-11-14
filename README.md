@@ -95,9 +95,35 @@ be rebuilt together when their dependency ABI changes.
 
 ## Build and test
 
-Copy `.env.example` to an ignored `.env` and update the machine paths. Preserve
-any existing credentials and unrelated settings. On Windows, run in one
-PowerShell session with Python 3.12+, GitHub CLI, CMake and Ninja on `PATH`:
+The build consumes the latest published Salts, SaltsUtils, CHttp and TurboDB
+native SDKs, with floating NuGet versions resolved on every restore. Third-party
+libraries, including MIR, come from `vcpkg.json` and the shared
+[vcpkg-cache](https://github.com/qigao/vcpkg-cache) toolchain. TurboScript does not
+require Lua or QuickJS. CNet supplies HTTP TLS through GmSSL; this project no
+longer installs BoringSSL.
+
+TRE is supplied by the shared `vcpkg-cache` overlay through the `tre` manifest
+dependency and `unofficial::tre::tre` CMake target. It retains the previous
+0.9.0 engine, static linkage, wide-character and approximate matching support;
+the source snapshot and existing Windows alignment patch are maintained in
+the shared port. Update the cache checkout before configuring this migration.
+For local port development, configure with the usual user preset plus
+`-DVCPKG_OVERLAY_PORTS=<vcpkg-cache-checkout>/ports`.
+Native CI checks out the shared cache contract at an immutable revision and
+uses the repository-local curl-only setup action in
+`.github/actions/setup-native-ci`.
+
+The current MIR port supports Linux, macOS and Android. It explicitly rejects
+Windows; the Windows presets retained in this repository cannot currently build
+the latest source tree. Earlier Windows test results do not apply to this tree.
+
+On Linux, install CMake 3.25+, Ninja, Python 3, curl, PowerShell 7 and the
+native C/C++ toolchain. Mono is not required. .NET SDK 8 is needed only when
+packing or publishing the NuGet artifact, not for native dependency restore.
+Set `GITHUB_TOKEN` with `read:packages` access,
+`PROJECT_ROOT` and `VCPKG_ROOT`. Keep the shared cache checkout at
+`$HOME/.cache/qigao/vcpkg-cache`. Credentials remain in the process environment.
+In one PowerShell session:
 
 ```powershell
 ./cmake/ci/restore-native-sdks.ps1 -Rid windows-x64 -Local
@@ -107,10 +133,14 @@ PowerShell session with Python 3.12+, GitHub CLI, CMake and Ninja on `PATH`:
 ./cmake/WithVs.cmd cmake --build --preset install-msvc-release-user
 ```
 
-The configure command currently fails at the SaltsUtils boundary described
-above; build, test and install require the dependency blockers to be resolved.
-`WithVs.cmd` loads `VSDEVCMD_BAT` in the same process as CMake/CTest,
-preserves the configured vcpkg checkout and propagates command failures.
+The restore wrapper delegates to `cmake/ci/github_packages.py`, which reads
+NuGet v3 metadata but downloads package payloads with curl. It publishes
+`SALTS_ROOT`, `SALTS_UTILS_ROOT`, `CHTTP_ROOT`, `TURBODB_ROOT` and
+`RE2C_ROOT` only after the complete SDK set is validated.
+A separately launched IDE or shell must receive these variables too. Package
+payloads live under ignored `stage/nuget`; installation goes to
+`$PROJECT_ROOT/external/pkgs/turbo_script/release`. Debug profiles require
+explicitly selected matching SDK roots; published packages contain Release SDKs.
 
 Use `llvm-native-release-user` for Linux Clang/macOS with
 `LLVM_NATIVE_TARGET_TRIPLET` set to the matching published triplet. Linux GCC
@@ -121,13 +151,13 @@ For Android use `-Rid android-arm64-v8a -HostRid linux-x64` and
 Android execution requires a separate device runner. Other advertised compiler
 profiles require matching published SDKs; unsupported asset selections fail.
 
-All bundled modules are assembled unconditionally. `BUILD_TESTS` controls
-formal suites, while `BUILD_BENCHMARK` controls benchmarks registered in CTest
-with the `benchmark` label. CI builds the complete configured graph, runs host
-CTest suites, and installs/packages the same graph. No independent installed
-consumer or smoke project is invoked. Installation defaults to
-`build/<preset>/stage`; changing SDK/compiler/triplet requires an explicit
-`cmake --fresh --preset <user-preset>`.
+PR checks also build and install the native SDKs with `ci-linux-sdk-user`,
+`ci-macos-sdk-user` and `ci-android-sdk-user`; each has an `install-` build preset.
+All platforms use the same curl-based GitHub Packages restore helper. Android
+uses a native `ci-host-tools-user` build for Lemon and the host re2c package.
+TurboDB is included
+on Linux and Android; its published SDK has no macOS slice, so the existing
+macOS package continues to omit the database module.
 
 Base owns `Salts::Core`, native file/process/thread/time/UUID APIs, parsers
 and coroutine execution. CMeta owns `CMeta::CMeta`, `CMeta::CFlow`,

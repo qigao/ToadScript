@@ -1884,8 +1884,12 @@ MIR_reg_t ts_compile_expr(ts_mir_compiler_t *c, toad_node_t *node) {
     ts_register_helper_written_vars(c, node);
     return ts_emit_runtime_value_node(c, node);
 
-  case TOAD_NODE_THROW:
-    return ts_emit_runtime_value_node(c, node);
+  case EXPRTK_NODE_THROW: {
+    MIR_reg_t result = ts_emit_runtime_value_node(c, node);
+    if (!c->failed)
+      (void)ts_mir_managed_slots_require_terminal_at_throw(c);
+    return result;
+  }
 
   /* Complex assignment/control nodes are rejected unless explicitly lowered above. */
   case TOAD_NODE_MEMBER_SET:
@@ -2075,7 +2079,56 @@ static void ts_compile_branch_true(ts_mir_compiler_t *c, toad_node_t *node,
  * Statement Compiler (Phase 1-5)
  * ========================================================================= */
 
-void ts_compile_stmt(ts_mir_compiler_t *c, toad_node_t *node) {
+static loop_frame_t *ts_mir_push_loop_frame(
+    ts_mir_compiler_t *c, MIR_label_t break_label, MIR_label_t continue_label,
+    size_t first_slot, ts_mir_managed_slot_snapshot_t *entry_state) {
+  loop_frame_t *frame;
+
+  if (!c || !entry_state || c->loop_depth < 0 ||
+      c->loop_depth >= TS_MIR_MAX_LOOP_DEPTH) {
+    if (c) ts_mir_fail(c, "MIR lowering error: maximum loop nesting depth exceeded");
+    return NULL;
+  }
+  frame = &c->loop_stack[c->loop_depth];
+  memset(frame, 0, sizeof(*frame));
+  frame->break_label = break_label;
+  frame->continue_label = continue_label;
+  frame->first_managed_slot = first_slot;
+  frame->entry_state = entry_state;
+  c->loop_depth++;
+  return frame;
+}
+
+static void ts_mir_pop_loop_frame(
+    ts_mir_compiler_t *c, loop_frame_t *frame, int previous_depth) {
+  if (!c) return;
+  if (frame) {
+    ts_mir_loop_edge_states_destroy(frame);
+    memset(frame, 0, sizeof(*frame));
+  }
+  c->loop_depth = previous_depth;
+}
+
+static int ts_mir_validate_loop_backedge(
+    ts_mir_compiler_t *c, size_t first_slot,
+    const ts_mir_managed_slot_snapshot_t *entry_state) {
+  ts_mir_managed_slot_snapshot_t backedge_state = {0};
+  int valid = 0;
+
+  if (!c || c->failed || !entry_state || first_slot != entry_state->count) return 0;
+  if (!ts_mir_managed_slots_require_terminal_since(c, first_slot)) goto done;
+  if (!ts_mir_managed_slot_snapshot_capture(c, entry_state->count, &backedge_state))
+    goto done;
+  if (!ts_mir_managed_slot_snapshot_loop_join(c, entry_state, &backedge_state))
+    goto done;
+  valid = 1;
+
+done:
+  ts_mir_managed_slot_snapshot_destroy(&backedge_state);
+  return valid;
+}
+
+void ts_compile_stmt(ts_mir_compiler_t *c, exprtk_node_t *node) {
   if (!c || c->failed || !node) return;
 
   /* Host export declarations are compile-time metadata. Comparing node
@@ -2099,115 +2152,192 @@ void ts_compile_stmt(ts_mir_compiler_t *c, toad_node_t *node) {
   case TOAD_NODE_IF: {
     MIR_label_t else_label = node->data.if_stmt.else_branch ? MIR_new_label(c->ctx) : NULL;
     MIR_label_t end_label = MIR_new_label(c->ctx);
+    ts_mir_managed_slot_snapshot_t baseline = {0};
+    ts_mir_managed_slot_snapshot_t then_state = {0};
+    ts_mir_managed_slot_snapshot_t else_state = {0};
+    size_t branch_first_slot = 0u;
 
-    /*  direct branch — no I2D + DBEQ round-trip */
+    /* Direct branch — no I2D + DBEQ round-trip. */
     ts_compile_branch_false(c, node->data.if_stmt.condition, else_label ? else_label : end_label);
+    if (c->failed) goto if_state_cleanup;
+
+    /*
+     * The condition is evaluated before the branch state baseline. Each arm
+     * then starts from the same prefix state; branch-local slots are retained
+     * in the registry for function-entry allocation but must leave no LIVE
+     * cleanup obligation at the arm boundary.
+     */
+    branch_first_slot = (size_t)c->managed_slot_count;
+    if (!ts_mir_managed_slot_snapshot_capture(c, branch_first_slot, &baseline))
+      goto if_state_cleanup;
 
     if (node->data.if_stmt.if_branch) ts_compile_stmt(c, node->data.if_stmt.if_branch);
+    if (c->failed ||
+        !ts_mir_managed_slots_require_terminal_since(c, branch_first_slot) ||
+        !ts_mir_managed_slot_snapshot_capture(c, baseline.count, &then_state))
+      goto if_state_cleanup;
 
     if (else_label) {
       MIR_append_insn(c->ctx, c->func,
                       MIR_new_insn(c->ctx, MIR_JMP, MIR_new_label_op(c->ctx, end_label)));
       MIR_append_insn(c->ctx, c->func, else_label);
+
+      /* Compile the alternate arm from the identical incoming ownership state. */
+      if (!ts_mir_managed_slot_snapshot_restore(c, &baseline))
+        goto if_state_cleanup;
       ts_compile_stmt(c, node->data.if_stmt.else_branch);
+      if (c->failed ||
+          !ts_mir_managed_slots_require_terminal_since(c, branch_first_slot) ||
+          !ts_mir_managed_slot_snapshot_capture(c, baseline.count, &else_state) ||
+          !ts_mir_managed_slot_snapshot_join(c, &then_state, &else_state))
+        goto if_state_cleanup;
+    } else {
+      /* An omitted else is an implicit path that preserves the incoming state. */
+      if (!ts_mir_managed_slot_snapshot_join(c, &then_state, &baseline))
+        goto if_state_cleanup;
     }
 
     MIR_append_insn(c->ctx, c->func, end_label);
+
+  if_state_cleanup:
+    ts_mir_managed_slot_snapshot_destroy(&baseline);
+    ts_mir_managed_slot_snapshot_destroy(&then_state);
+    ts_mir_managed_slot_snapshot_destroy(&else_state);
     break;
   }
 
   case TOAD_NODE_WHILE: {
     MIR_label_t loop_label = MIR_new_label(c->ctx);
     MIR_label_t end_label = MIR_new_label(c->ctx);
+    ts_mir_managed_slot_snapshot_t entry_state = {0};
+    size_t first_slot = (size_t)c->managed_slot_count;
+    int loop_depth_before = c->loop_depth;
+    loop_frame_t *loop_frame = NULL;
 
-    /* Push loop frame for break/continue */
-    if (c->loop_depth < TS_MIR_MAX_LOOP_DEPTH) {
-      c->loop_stack[c->loop_depth].break_label = end_label;
-      c->loop_stack[c->loop_depth].continue_label = loop_label;
-      c->loop_depth++;
-    }
+    if (!ts_mir_managed_slot_snapshot_capture(c, first_slot, &entry_state))
+      goto while_state_cleanup;
+    loop_frame = ts_mir_push_loop_frame(
+        c, end_label, loop_label, first_slot, &entry_state);
+    if (!loop_frame) goto while_state_cleanup;
 
     MIR_append_insn(c->ctx, c->func, loop_label);
-
-    /*  direct branch */
     ts_compile_branch_false(c, node->data.while_loop.condition, end_label);
+    if (!c->failed && node->data.while_loop.body)
+      ts_compile_stmt(c, node->data.while_loop.body);
+    if (!c->failed)
+      (void)ts_mir_managed_slot_validate_loop_edges(
+          c, loop_frame, &entry_state, &entry_state);
+    if (!c->failed)
+      (void)ts_mir_validate_loop_backedge(c, first_slot, &entry_state);
 
-    if (node->data.while_loop.body) ts_compile_stmt(c, node->data.while_loop.body);
-
-    MIR_append_insn(c->ctx, c->func,
-                    MIR_new_insn(c->ctx, MIR_JMP, MIR_new_label_op(c->ctx, loop_label)));
+    if (!c->failed)
+      MIR_append_insn(c->ctx, c->func,
+                      MIR_new_insn(c->ctx, MIR_JMP, MIR_new_label_op(c->ctx, loop_label)));
     MIR_append_insn(c->ctx, c->func, end_label);
 
-    if (c->loop_depth > 0) c->loop_depth--;
+  while_state_cleanup:
+    ts_mir_pop_loop_frame(c, loop_frame, loop_depth_before);
+    ts_mir_managed_slot_snapshot_destroy(&entry_state);
     break;
   }
 
   case TOAD_NODE_FOR: {
     if (node->data.for_loop.init) ts_compile_stmt(c, node->data.for_loop.init);
+    if (c->failed) break;
 
     MIR_label_t loop_label = MIR_new_label(c->ctx);
     MIR_label_t continue_label = MIR_new_label(c->ctx);
     MIR_label_t end_label = MIR_new_label(c->ctx);
+    ts_mir_managed_slot_snapshot_t entry_state = {0};
+    ts_mir_managed_slot_snapshot_t body_state = {0};
+    size_t first_slot = (size_t)c->managed_slot_count;
+    int loop_depth_before = c->loop_depth;
+    loop_frame_t *loop_frame = NULL;
 
-    /* Push loop frame: continue jumps to post, break jumps to end */
-    if (c->loop_depth < TS_MIR_MAX_LOOP_DEPTH) {
-      c->loop_stack[c->loop_depth].break_label = end_label;
-      c->loop_stack[c->loop_depth].continue_label = continue_label;
-      c->loop_depth++;
-    }
+    if (!ts_mir_managed_slot_snapshot_capture(c, first_slot, &entry_state))
+      goto for_state_cleanup;
+    loop_frame = ts_mir_push_loop_frame(
+        c, end_label, continue_label, first_slot, &entry_state);
+    if (!loop_frame) goto for_state_cleanup;
 
     MIR_append_insn(c->ctx, c->func, loop_label);
-
-    if (node->data.for_loop.condition) {
-      /*  direct branch */
+    if (node->data.for_loop.condition)
       ts_compile_branch_false(c, node->data.for_loop.condition, end_label);
-    }
-
-    if (node->data.for_loop.body) ts_compile_stmt(c, node->data.for_loop.body);
+    if (!c->failed && node->data.for_loop.body)
+      ts_compile_stmt(c, node->data.for_loop.body);
+    if (!c->failed)
+      (void)ts_mir_managed_slot_snapshot_capture(c, first_slot, &body_state);
 
     MIR_append_insn(c->ctx, c->func, continue_label);
-    if (node->data.for_loop.post) ts_compile_stmt(c, node->data.for_loop.post);
+    if (!c->failed && node->data.for_loop.post)
+      ts_compile_stmt(c, node->data.for_loop.post);
+    if (!c->failed)
+      (void)ts_mir_managed_slot_validate_loop_edges(
+          c, loop_frame, &entry_state, &body_state);
+    if (!c->failed)
+      (void)ts_mir_validate_loop_backedge(c, first_slot, &entry_state);
 
-    MIR_append_insn(c->ctx, c->func,
-                    MIR_new_insn(c->ctx, MIR_JMP, MIR_new_label_op(c->ctx, loop_label)));
+    if (!c->failed)
+      MIR_append_insn(c->ctx, c->func,
+                      MIR_new_insn(c->ctx, MIR_JMP, MIR_new_label_op(c->ctx, loop_label)));
     MIR_append_insn(c->ctx, c->func, end_label);
 
-    if (c->loop_depth > 0) c->loop_depth--;
+  for_state_cleanup:
+    ts_mir_pop_loop_frame(c, loop_frame, loop_depth_before);
+    ts_mir_managed_slot_snapshot_destroy(&body_state);
+    ts_mir_managed_slot_snapshot_destroy(&entry_state);
     break;
   }
 
   /*  do-while loop */
   case TOAD_NODE_DO_WHILE: {
     MIR_label_t loop_label = MIR_new_label(c->ctx);
+    MIR_label_t continue_label = MIR_new_label(c->ctx);
     MIR_label_t end_label = MIR_new_label(c->ctx);
+    ts_mir_managed_slot_snapshot_t entry_state = {0};
+    ts_mir_managed_slot_snapshot_t body_state = {0};
+    size_t first_slot = (size_t)c->managed_slot_count;
+    int loop_depth_before = c->loop_depth;
+    loop_frame_t *loop_frame = NULL;
 
-    if (c->loop_depth < TS_MIR_MAX_LOOP_DEPTH) {
-      c->loop_stack[c->loop_depth].break_label = end_label;
-      c->loop_stack[c->loop_depth].continue_label = loop_label;
-      c->loop_depth++;
-    }
+    if (!ts_mir_managed_slot_snapshot_capture(c, first_slot, &entry_state))
+      goto do_while_state_cleanup;
+    loop_frame = ts_mir_push_loop_frame(
+        c, end_label, continue_label, first_slot, &entry_state);
+    if (!loop_frame) goto do_while_state_cleanup;
 
     MIR_append_insn(c->ctx, c->func, loop_label);
-
     if (node->data.do_while.body) ts_compile_stmt(c, node->data.do_while.body);
-
-    /*  direct branch back when condition is true */
-    ts_compile_branch_true(c, node->data.do_while.condition, loop_label);
+    if (!c->failed)
+      (void)ts_mir_managed_slot_snapshot_capture(c, first_slot, &body_state);
+    MIR_append_insn(c->ctx, c->func, continue_label);
+    if (!c->failed)
+      ts_compile_branch_true(c, node->data.do_while.condition, loop_label);
+    if (!c->failed)
+      (void)ts_mir_managed_slot_validate_loop_edges(
+          c, loop_frame, &entry_state, &body_state);
+    if (!c->failed)
+      (void)ts_mir_validate_loop_backedge(c, first_slot, &entry_state);
 
     MIR_append_insn(c->ctx, c->func, end_label);
 
-    if (c->loop_depth > 0) c->loop_depth--;
+  do_while_state_cleanup:
+    ts_mir_pop_loop_frame(c, loop_frame, loop_depth_before);
+    ts_mir_managed_slot_snapshot_destroy(&body_state);
+    ts_mir_managed_slot_snapshot_destroy(&entry_state);
     break;
   }
 
   /*  break/continue/return */
-  case TOAD_NODE_FLOW: {
-    if (node->data.flow.type == toad_TOKEN_BREAK && c->loop_depth > 0) {
+  case EXPRTK_NODE_FLOW: {
+    if (node->data.flow.type == exprtk_TOKEN_BREAK && c->loop_depth > 0) {
+      if (!ts_mir_managed_slot_record_loop_edge(c, 0)) break;
       MIR_append_insn(
           c->ctx, c->func,
           MIR_new_insn(c->ctx, MIR_JMP,
                        MIR_new_label_op(c->ctx, c->loop_stack[c->loop_depth - 1].break_label)));
-    } else if (node->data.flow.type == toad_TOKEN_CONTINUE && c->loop_depth > 0) {
+    } else if (node->data.flow.type == exprtk_TOKEN_CONTINUE && c->loop_depth > 0) {
+      if (!ts_mir_managed_slot_record_loop_edge(c, 1)) break;
       MIR_append_insn(
           c->ctx, c->func,
           MIR_new_insn(c->ctx, MIR_JMP,
@@ -2223,6 +2353,9 @@ void ts_compile_stmt(ts_mir_compiler_t *c, toad_node_t *node) {
                         MIR_new_insn(c->ctx, MIR_DMOV, MIR_new_reg_op(c->ctx, ret_val),
                                      MIR_new_double_op(c->ctx, 0.0)));
       }
+      /* Return edges may not abandon any compiler-owned cleanup obligation. */
+      if (!ts_mir_managed_slots_require_terminal_at_return(c)) break;
+
       /* Store all variables back to env before returning (skip in compiled functions) */
       if (c->ctx_reg) {
         for (int i = 0; i < c->var_count; i++) {
@@ -2256,80 +2389,18 @@ void ts_compile_stmt(ts_mir_compiler_t *c, toad_node_t *node) {
   }
 
   /* For-in: native compilation for pre-bound vectors; other collections are unsupported. */
-  case TOAD_NODE_FOR_IN: {
+  case EXPRTK_NODE_FOR_IN: {
+    /*
+     * Evaluate the collection and loop through the runtime bridge. The old
+     * native fast path baked the compile-time vector length into MIR and cached
+     * a data pointer in the function prologue. Reassigning the collection
+     * before the loop could therefore iterate freed storage or the wrong size.
+     * A future native path must snapshot/own the collection at loop entry.
+     */
     const char *iter_name = node->data.for_in.var_name;
-    toad_node_t *collection = node->data.for_in.collection;
-    const char *vec_name = NULL;
-    int native = 0;
-
-    if (collection && collection->type == TOAD_NODE_VARIABLE)
-      vec_name = collection->data.variable.name;
-
-    if (vec_name && c->ctx_reg) {
-      toad_value_t existing = toad_env_get(&c->ts_ctx->env, vec_name);
-      if (existing.type == TOAD_VAL_VECTOR && existing.data.vector.data) {
-        native = 1;
-        int64_t len = (int64_t)existing.data.vector.size;
-
-        /* Reuse Phase 10 vec_data pointer cache */
-        MIR_reg_t ptr_reg = ts_mir_get_or_add_vec_ptr(c, vec_name);
-
-        if (ptr_reg) {
-          MIR_reg_t iter_reg = ts_mir_get_or_create_reg(c, iter_name);
-          MIR_reg_t i_reg = ts_mir_new_temp_ireg(c);
-
-          /* i = 0 */
-          MIR_append_insn(c->ctx, c->func,
-                          MIR_new_insn(c->ctx, MIR_MOV, MIR_new_reg_op(c->ctx, i_reg),
-                                       MIR_new_int_op(c->ctx, 0)));
-
-          MIR_label_t loop_label = MIR_new_label(c->ctx);
-          MIR_label_t continue_label = MIR_new_label(c->ctx);
-          MIR_label_t end_label = MIR_new_label(c->ctx);
-
-          if (c->loop_depth < TS_MIR_MAX_LOOP_DEPTH) {
-            c->loop_stack[c->loop_depth].break_label = end_label;
-            c->loop_stack[c->loop_depth].continue_label = continue_label;
-            c->loop_depth++;
-          }
-
-          MIR_append_insn(c->ctx, c->func, loop_label);
-
-          /* if (i >= len) goto end */
-          MIR_append_insn(c->ctx, c->func,
-                          MIR_new_insn(c->ctx, MIR_BGE, MIR_new_label_op(c->ctx, end_label),
-                                       MIR_new_reg_op(c->ctx, i_reg), MIR_new_int_op(c->ctx, len)));
-
-          /* iter_var = data[i] — native memory load */
-          MIR_append_insn(c->ctx, c->func,
-                          MIR_new_insn(c->ctx, MIR_DMOV, MIR_new_reg_op(c->ctx, iter_reg),
-                                       MIR_new_mem_op(c->ctx, MIR_T_D, 0, ptr_reg, i_reg, 8)));
-
-          /* compile body */
-          if (node->data.for_in.body) ts_compile_stmt(c, node->data.for_in.body);
-
-          /* continue target: i++ */
-          MIR_append_insn(c->ctx, c->func, continue_label);
-          MIR_append_insn(c->ctx, c->func,
-                          MIR_new_insn(c->ctx, MIR_ADD, MIR_new_reg_op(c->ctx, i_reg),
-                                       MIR_new_reg_op(c->ctx, i_reg), MIR_new_int_op(c->ctx, 1)));
-
-          MIR_append_insn(c->ctx, c->func,
-                          MIR_new_insn(c->ctx, MIR_JMP, MIR_new_label_op(c->ctx, loop_label)));
-          MIR_append_insn(c->ctx, c->func, end_label);
-
-          if (c->loop_depth > 0) c->loop_depth--;
-        } else {
-          native = 0;
-        }
-      }
-    }
-
-    if (!native) {
-      if (iter_name) (void)ts_mir_get_or_create_reg(c, iter_name);
-      ts_register_helper_written_vars(c, node->data.for_in.body);
-      (void)ts_emit_runtime_value_node(c, node);
-    }
+    if (iter_name) (void)ts_mir_get_or_create_reg(c, iter_name);
+    ts_register_helper_written_vars(c, node->data.for_in.body);
+    (void)ts_emit_runtime_value_node(c, node);
     break;
   }
 

@@ -4,8 +4,8 @@
     <IsPackable>true</IsPackable>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
-    <PackageId>Toad.Native</PackageId>
-    <PackageVersion Condition="'$(PackageVersion)' == ''">3.0.10</PackageVersion>
+    <PackageId>TurboScript.Native</PackageId>
+    <PackageVersion Condition="'$(PackageVersion)' == ''">3.0.11</PackageVersion>
     <Authors>qigao</Authors>
     <Description>Toad MIR interpreter/JIT and native module SDK for Linux x64, macOS arm64 and Android arm64-v8a. Bundled native modules are included; CLI is excluded.</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>

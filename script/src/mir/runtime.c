@@ -11,6 +11,7 @@
 #include <toad/class.h>
 #include <mir.h>
 #include <math.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -306,7 +307,8 @@ double ts_mir_vec_get(void *ctx_ptr, const char *name, double index) {
   toad_value_t val = toad_env_get(&ctx->env, name);
   if (val.type == TOAD_VAL_VECTOR) {
     int idx = (int)index;
-    if (idx >= 0 && idx < (int)val.data.vector.size) return val.data.vector.data[idx];
+    if (idx >= 0 && (size_t)idx < val.data.vector.size)
+      return val.data.vector.data[idx];
   }
   return 0.0;
 }
@@ -594,12 +596,21 @@ void ts_mir_init_externals(ts_mir_compiler_t *c) {
         MIR_new_proto_arr(ctx, ts_mir_prefixed_item_name(c, "p_call_value_assign"), 1, &res, 4, args);
     c->ext.call_value_assign_import = MIR_new_import(ctx, "ts_mir_call_value_assign");
   }
-  /* ts_mir_value_expr(void *ctx, void *node) -> double */
+  /* ts_mir_value_expr(void *ctx, void *node, exprtk_value_t *out) -> double */
   {
     MIR_type_t res = MIR_T_D;
-    MIR_var_t args[2] = {{MIR_T_P, "ctx", 0}, {MIR_T_P, "node", 0}};
-    c->ext.value_expr_proto = MIR_new_proto_arr(ctx, ts_mir_prefixed_item_name(c, "p_value_expr"), 1, &res, 2, args);
+    MIR_var_t args[3] = {
+        {MIR_T_P, "ctx", 0}, {MIR_T_P, "node", 0}, {MIR_T_P, "out_value", 0}};
+    c->ext.value_expr_proto =
+        MIR_new_proto_arr(ctx, ts_mir_prefixed_item_name(c, "p_value_expr"), 1, &res, 3, args);
     c->ext.value_expr_import = MIR_new_import(ctx, "ts_mir_value_expr");
+  }
+  /* ts_mir_value_slot_destroy(exprtk_value_t *value) -> void */
+  {
+    MIR_var_t args[1] = {{MIR_T_P, "value", 0}};
+    c->ext.value_slot_destroy_proto = MIR_new_proto_arr(
+        ctx, ts_mir_prefixed_item_name(c, "p_value_slot_destroy"), 0, NULL, 1, args);
+    c->ext.value_slot_destroy_import = MIR_new_import(ctx, "ts_mir_value_slot_destroy");
   }
   /* ts_mir_value_expr_assign(void *ctx, const char *target, void *node) -> double */
   {
@@ -747,22 +758,6 @@ void ts_mir_init_externals(ts_mir_compiler_t *c) {
     c->ext.member_get_assign_import = MIR_new_import(ctx, "ts_mir_member_get_assign");
   }
 
-  /* ts_mir_vec_data(void *ctx, const char *name) -> void* (returned as i64) */
-  {
-    MIR_type_t res = MIR_T_I64;
-    MIR_var_t args[2] = {{MIR_T_P, "ctx", 0}, {MIR_T_P, "name", 0}};
-    c->ext.vec_data_proto = MIR_new_proto_arr(ctx, ts_mir_prefixed_item_name(c, "p_vec_data"), 1, &res, 2, args);
-    c->ext.vec_data_import = MIR_new_import(ctx, "ts_mir_vec_data");
-  }
-
-  /* ts_mir_map_get_key(void *ctx, const char *obj_name, const char *key) -> double */
-  {
-    MIR_type_t res = MIR_T_D;
-    MIR_var_t args[3] = {{MIR_T_P, "ctx", 0}, {MIR_T_P, "obj_name", 0}, {MIR_T_P, "key", 0}};
-    c->ext.map_get_key_proto = MIR_new_proto_arr(ctx, ts_mir_prefixed_item_name(c, "p_map_get_key"), 1, &res, 3, args);
-    c->ext.map_get_key_import = MIR_new_import(ctx, "ts_mir_map_get_key");
-  }
-
   /* ts_mir_map_assign(void *ctx, const char *target, void *node, int64_t count,
    *                   double *values) -> double */
   {
@@ -784,14 +779,6 @@ void ts_mir_init_externals(ts_mir_compiler_t *c) {
     c->ext.map_value_assign_proto =
         MIR_new_proto_arr(ctx, ts_mir_prefixed_item_name(c, "p_map_value_assign"), 1, &res, 3, args);
     c->ext.map_value_assign_import = MIR_new_import(ctx, "ts_mir_map_value_assign");
-  }
-
-  /* ts_mir_map_num_ptr(void *ctx, const char *obj_name, const char *key) -> void* (as i64) */
-  {
-    MIR_type_t res = MIR_T_I64;
-    MIR_var_t args[3] = {{MIR_T_P, "ctx", 0}, {MIR_T_P, "obj_name", 0}, {MIR_T_P, "key", 0}};
-    c->ext.map_num_ptr_proto = MIR_new_proto_arr(ctx, ts_mir_prefixed_item_name(c, "p_map_num_ptr"), 1, &res, 3, args);
-    c->ext.map_num_ptr_import = MIR_new_import(ctx, "ts_mir_map_num_ptr");
   }
 
   /* ts_mir_load_captured_var(void *ctx, const char *name, void *closure_env) -> double */
@@ -993,17 +980,14 @@ void ts_mir_init_externals(ts_mir_compiler_t *c) {
     c->ext.oop_member_set_import = MIR_new_import(ctx, "ts_mir_oop_member_set");
   }
 
-  /* ts_mir_oop_num_ptr(void *ctx, const char *object, const char *member,
-   *                    void *object_node, i64 create, void *slot_cache) -> void* */
+  /* ts_mir_oop_num_ptr(ctx, object, member, create_if_missing) -> current field slot */
   {
     MIR_type_t res = MIR_T_I64;
-    MIR_var_t args[6] = {{MIR_T_P, "ctx", 0},
+    MIR_var_t args[4] = {{MIR_T_P, "ctx", 0},
                          {MIR_T_P, "object_name", 0},
                          {MIR_T_P, "member_name", 0},
-                         {MIR_T_P, "object_node", 0},
-                         {MIR_T_I64, "create_if_missing", 0},
-                         {MIR_T_P, "slot_cache", 0}};
-    c->ext.oop_num_ptr_proto = MIR_new_proto_arr(ctx, ts_mir_prefixed_item_name(c, "p_oop_num_ptr"), 1, &res, 6, args);
+                         {MIR_T_I64, "create_if_missing", 0}};
+    c->ext.oop_num_ptr_proto = MIR_new_proto_arr(ctx, ts_mir_prefixed_item_name(c, "p_oop_num_ptr"), 1, &res, 4, args);
     c->ext.oop_num_ptr_import = MIR_new_import(ctx, "ts_mir_oop_num_ptr");
   }
 
@@ -1065,6 +1049,7 @@ void ts_mir_load_externals(MIR_context_t ctx) {
   MIR_load_external(ctx, "ts_mir_call_assign", (void *)ts_mir_call_assign);
   MIR_load_external(ctx, "ts_mir_call_value_assign", (void *)ts_mir_call_value_assign);
   MIR_load_external(ctx, "ts_mir_value_expr", (void *)ts_mir_value_expr);
+  MIR_load_external(ctx, "ts_mir_value_slot_destroy", (void *)ts_mir_value_slot_destroy);
   MIR_load_external(ctx, "ts_mir_value_expr_assign", (void *)ts_mir_value_expr_assign);
   MIR_load_external(ctx, "ts_mir_await_value", (void *)ts_mir_await_value);
   MIR_load_external(ctx, "ts_mir_await_assign", (void *)ts_mir_await_assign);
@@ -1079,11 +1064,8 @@ void ts_mir_load_externals(MIR_context_t ctx) {
   MIR_load_external(ctx, "ts_mir_define_func", (void *)ts_mir_define_func);
   MIR_load_external(ctx, "ts_mir_member_get", (void *)ts_mir_member_get);
   MIR_load_external(ctx, "ts_mir_member_get_assign", (void *)ts_mir_member_get_assign);
-  MIR_load_external(ctx, "ts_mir_vec_data", (void *)ts_mir_vec_data);
-  MIR_load_external(ctx, "ts_mir_map_get_key", (void *)ts_mir_map_get_key);
   MIR_load_external(ctx, "ts_mir_map_assign", (void *)ts_mir_map_assign);
   MIR_load_external(ctx, "ts_mir_map_value_assign", (void *)ts_mir_map_value_assign);
-  MIR_load_external(ctx, "ts_mir_map_num_ptr", (void *)ts_mir_map_num_ptr);
   MIR_load_external(ctx, "ts_mir_load_captured_var", (void *)ts_mir_load_captured_var);
   /*  direct math functions */
   MIR_load_external(ctx, "sin", (void *)sin);

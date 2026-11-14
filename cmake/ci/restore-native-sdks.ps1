@@ -1,34 +1,77 @@
 param(
-  [Parameter(Mandatory = $true)][string]$Rid,
-  [string]$HostRid,
-  [string]$Profile,
+  [Parameter(Mandatory=$true)]
+  [ValidateSet('windows-x64', 'linux-x64', 'macos-arm64', 'android-arm64-v8a')]
+  [string]$Rid,
   [switch]$Local
 )
+
 $ErrorActionPreference = 'Stop'
-$root = [IO.Path]::GetFullPath("$PSScriptRoot/../..")
+if ([string]::IsNullOrWhiteSpace($env:GITHUB_TOKEN)) {
+  throw 'GITHUB_TOKEN is required'
+}
+if (-not $Local -and (-not $env:RUNNER_TEMP -or -not $env:GITHUB_ENV)) {
+  throw 'RUNNER_TEMP and GITHUB_ENV are required in CI'
+}
+
+$repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+$packages = if ($env:QIGAO_NUGET_PACKAGES) {
+  $env:QIGAO_NUGET_PACKAGES
+} else {
+  Join-Path $repositoryRoot 'stage/nuget'
+}
+$packages = [IO.Path]::GetFullPath($packages)
+
+$pythonCommand = Get-Command python3 -ErrorAction SilentlyContinue
+if (-not $pythonCommand) {
+  $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+}
+if (-not $pythonCommand) {
+  throw 'Python 3 is required for curl-based GitHub package restoration'
+}
+$python = $pythonCommand.Path
+
+$localEnvFile = $null
+$previousGitHubEnv = $env:GITHUB_ENV
 if ($Local) {
-  # Load build settings only; credentials remain in the parent environment.
-  Get-Content -LiteralPath "$root/.env" | ForEach-Object {
-    if ($_ -match '^((?:VCPKG_|SALTS_|SALTSCORE_|CMETA_|CHTTP_|TURBODB_|LLVM_|MSVC_|GCC_|ANDROID_|RE2C_|LEMON_|INSTALL_)[A-Za-z0-9_]*|VSDEVCMD_BAT|CMAKE_BUILD_PARALLEL_LEVEL)=(.*)$') {
-      [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2].Trim('"', "'"))
+  $localEnvFile = [IO.Path]::GetTempFileName()
+  $env:GITHUB_ENV = $localEnvFile
+}
+
+try {
+  $arguments = @(
+    (Join-Path $PSScriptRoot 'github_packages.py'),
+    'restore',
+    '--rid', $Rid,
+    '--packages', $packages
+  )
+  & $python @arguments
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Failed to restore native SDKs from GitHub Packages with curl'
+  }
+
+  if ($Local) {
+    foreach ($line in Get-Content -LiteralPath $localEnvFile) {
+      if ([string]::IsNullOrWhiteSpace($line)) { continue }
+      $pair = $line -split '=', 2
+      if ($pair.Count -ne 2) {
+        throw "Invalid environment line from package restore: $line"
+      }
+      [Environment]::SetEnvironmentVariable($pair[0], $pair[1], 'Process')
+    }
+    if ($env:RE2C_ROOT) {
+      $re2cBin = Join-Path $env:RE2C_ROOT 'bin'
+      $env:PATH = "$re2cBin$([IO.Path]::PathSeparator)$env:PATH"
     }
   }
-} elseif (-not $env:GITHUB_ENV) {
-  throw 'GITHUB_ENV is required in CI; use -Local for local restoration'
 }
-if (-not $env:GH_TOKEN -and -not $env:GITHUB_TOKEN) {
-  $env:GH_TOKEN = gh auth token
-  if ($LASTEXITCODE -ne 0) { throw 'GitHub CLI authentication failed' }
-}
-if (-not $env:GITHUB_TOKEN) { $env:GITHUB_TOKEN = $env:GH_TOKEN }
-$arguments = @("$PSScriptRoot/restore-native-sdks.py", '--rid', $Rid)
-if ($HostRid) { $arguments += @('--host-rid', $HostRid) }
-if ($Profile) { $arguments += @('--profile', $Profile) }
-$output = python @arguments
-if ($LASTEXITCODE -ne 0) { throw 'Published SDK restoration failed' }
-$values = $output | ConvertFrom-Json -AsHashtable
-foreach ($entry in $values.GetEnumerator()) {
-  [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value)
-  if (-not $Local) { "$($entry.Key)=$($entry.Value)" >> $env:GITHUB_ENV }
+finally {
+  if ($Local) {
+    if ($null -eq $previousGitHubEnv) {
+      Remove-Item Env:GITHUB_ENV -ErrorAction SilentlyContinue
+    } else {
+      $env:GITHUB_ENV = $previousGitHubEnv
+    }
+    Remove-Item -LiteralPath $localEnvFile -Force -ErrorAction SilentlyContinue
+  }
 }
 Write-Host "Restored the selected SDKs for $Rid ($env:VCPKG_TARGET_TRIPLET)"

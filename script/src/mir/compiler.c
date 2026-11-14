@@ -69,6 +69,27 @@ static int ts_mir_ensure_var_capacity(ts_mir_compiler_t *c, int needed) {
   return 1;
 }
 
+static int ts_mir_ensure_managed_slot_capacity(ts_mir_compiler_t *c, int needed) {
+  ts_mir_managed_slot_entry_t *grown = NULL;
+  int capacity;
+
+  if (!c) return 0;
+  if (needed <= c->managed_slot_capacity) return 1;
+
+  capacity = c->managed_slot_capacity > 0 ? c->managed_slot_capacity * 2 : 8;
+  if (capacity < needed) capacity = needed;
+  grown = (ts_mir_managed_slot_entry_t *)realloc(
+      c->managed_slots, (size_t)capacity * sizeof(*grown));
+  if (!grown) {
+    ts_mir_fail(c, "JIT compile error: out of memory growing managed slot table");
+    return 0;
+  }
+
+  c->managed_slots = grown;
+  c->managed_slot_capacity = capacity;
+  return 1;
+}
+
 static int ts_mir_ensure_compiled_func_capacity(ts_mir_compiler_t *c, int needed) {
   ts_compiled_func_t *new_entries = NULL;
   int new_capacity = 0;
@@ -89,75 +110,6 @@ static int ts_mir_ensure_compiled_func_capacity(ts_mir_compiler_t *c, int needed
 
   c->compiled_funcs = new_entries;
   c->compiled_func_capacity = new_capacity;
-  return 1;
-}
-
-static int ts_mir_ensure_vec_ptr_capacity(ts_mir_compiler_t *c, int needed) {
-  ts_mir_vec_ptr_entry_t *new_entries = NULL;
-  int new_capacity = 0;
-
-  if (needed <= c->vec_ptr_capacity)
-    return 1;
-
-  new_capacity = c->vec_ptr_capacity > 0 ? c->vec_ptr_capacity * 2 : 16;
-  if (new_capacity < needed)
-    new_capacity = needed;
-
-  new_entries =
-      (ts_mir_vec_ptr_entry_t *)realloc(c->vec_ptrs, (size_t)new_capacity * sizeof(*new_entries));
-  if (!new_entries) {
-    ts_mir_fail(c, "JIT compile error: out of memory growing vector pointer cache");
-    return 0;
-  }
-
-  c->vec_ptrs = new_entries;
-  c->vec_ptr_capacity = new_capacity;
-  return 1;
-}
-
-static int ts_mir_ensure_map_ptr_capacity(ts_mir_compiler_t *c, int needed) {
-  ts_mir_map_ptr_entry_t *new_entries = NULL;
-  int new_capacity = 0;
-
-  if (needed <= c->map_ptr_capacity)
-    return 1;
-
-  new_capacity = c->map_ptr_capacity > 0 ? c->map_ptr_capacity * 2 : 16;
-  if (new_capacity < needed)
-    new_capacity = needed;
-
-  new_entries =
-      (ts_mir_map_ptr_entry_t *)realloc(c->map_ptrs, (size_t)new_capacity * sizeof(*new_entries));
-  if (!new_entries) {
-    ts_mir_fail(c, "JIT compile error: out of memory growing map pointer cache");
-    return 0;
-  }
-
-  c->map_ptrs = new_entries;
-  c->map_ptr_capacity = new_capacity;
-  return 1;
-}
-
-static int ts_mir_ensure_oop_ptr_capacity(ts_mir_compiler_t *c, int needed) {
-  ts_mir_oop_ptr_entry_t *new_entries = NULL;
-  int new_capacity = 0;
-
-  if (needed <= c->oop_ptr_capacity)
-    return 1;
-
-  new_capacity = c->oop_ptr_capacity > 0 ? c->oop_ptr_capacity * 2 : 16;
-  if (new_capacity < needed)
-    new_capacity = needed;
-
-  new_entries =
-      (ts_mir_oop_ptr_entry_t *)realloc(c->oop_ptrs, (size_t)new_capacity * sizeof(*new_entries));
-  if (!new_entries) {
-    ts_mir_fail(c, "JIT compile error: out of memory growing OOP pointer cache");
-    return 0;
-  }
-
-  c->oop_ptrs = new_entries;
-  c->oop_ptr_capacity = new_capacity;
   return 1;
 }
 
@@ -324,6 +276,7 @@ int ts_mir_bind_existing_reg(ts_mir_compiler_t *c, const char *name, MIR_reg_t r
   entry->reg = reg;
   entry->dirty = 0;
   entry->dynamic_value = 0;
+  entry->bound_reg = 1;
   c->vars[c->var_count++] = entry;
   return 1;
 }
@@ -533,76 +486,6 @@ const char *ts_mir_new_hidden_receiver_name(ts_mir_compiler_t *c) {
   return ts_mir_retain_string(c, name);
 }
 
-MIR_reg_t ts_mir_get_or_add_vec_ptr(ts_mir_compiler_t *c, const char *name) {
-  MIR_reg_t ptr_reg = 0;
-
-  for (int i = 0; i < c->vec_ptr_count; i++) {
-    if (strcmp(c->vec_ptrs[i].name, name) == 0)
-      return c->vec_ptrs[i].ptr_reg;
-  }
-
-  if (!ts_mir_ensure_vec_ptr_capacity(c, c->vec_ptr_count + 1))
-    return 0;
-
-  ptr_reg = ts_mir_new_temp_ireg(c);
-  c->vec_ptrs[c->vec_ptr_count].name = name;
-  c->vec_ptrs[c->vec_ptr_count].ptr_reg = ptr_reg;
-  c->vec_ptr_count++;
-  return ptr_reg;
-}
-
-MIR_reg_t ts_mir_get_or_add_map_ptr(ts_mir_compiler_t *c, const char *obj_name,
-                                    const char *key_name) {
-  MIR_reg_t ptr_reg = 0;
-
-  for (int i = 0; i < c->map_ptr_count; i++) {
-    if (c->map_ptrs[i].obj_name == obj_name && strcmp(c->map_ptrs[i].key_name, key_name) == 0)
-      return c->map_ptrs[i].ptr_reg;
-  }
-
-  if (!ts_mir_ensure_map_ptr_capacity(c, c->map_ptr_count + 1))
-    return 0;
-
-  ptr_reg = ts_mir_new_temp_ireg(c);
-  c->map_ptrs[c->map_ptr_count].obj_name = obj_name;
-  c->map_ptrs[c->map_ptr_count].key_name = key_name;
-  c->map_ptrs[c->map_ptr_count].ptr_reg = ptr_reg;
-  c->map_ptr_count++;
-  return ptr_reg;
-}
-
-MIR_reg_t ts_mir_get_or_add_oop_ptr(ts_mir_compiler_t *c, const char *obj_name,
-                                    const char *member_name) {
-  MIR_reg_t ptr_reg = 0;
-
-  for (int i = 0; i < c->oop_ptr_count; i++) {
-    if (strcmp(c->oop_ptrs[i].obj_name, obj_name) == 0 &&
-        strcmp(c->oop_ptrs[i].member_name, member_name) == 0) {
-      return c->oop_ptrs[i].ptr_reg;
-    }
-  }
-
-  if (!ts_mir_ensure_oop_ptr_capacity(c, c->oop_ptr_count + 1))
-    return 0;
-
-  ptr_reg = ts_mir_new_temp_preg(c);
-  void *cache = calloc(1, sizeof(ts_mir_oop_slot_cache_t));
-  if (!cache) {
-    ts_mir_fail(c, "JIT compile error: out of memory allocating OOP slot cache");
-    return 0;
-  }
-  c->oop_ptrs[c->oop_ptr_count].obj_name = obj_name;
-  c->oop_ptrs[c->oop_ptr_count].member_name = member_name;
-  c->oop_ptrs[c->oop_ptr_count].ptr_reg = ptr_reg;
-  c->oop_ptrs[c->oop_ptr_count].cache = cache;
-  c->oop_ptr_count++;
-
-  MIR_append_insn(c->ctx, c->func,
-                  MIR_new_insn(c->ctx, MIR_MOV, MIR_new_reg_op(c->ctx, ptr_reg),
-                               MIR_new_uint_op(c->ctx, (uint64_t)(uintptr_t)cache)));
-  return ptr_reg;
-}
-
 ts_compiled_func_t *ts_find_compiled_func(ts_mir_compiler_t *c, const char *name) {
   if (!c || !name) return NULL;
   for (int i = 0; i < c->compiled_func_count; i++) {
@@ -640,6 +523,14 @@ static void ts_mir_discard_current_vars(ts_mir_compiler_t *c) {
   c->var_capacity = 0;
 }
 
+static void ts_mir_discard_managed_slots(ts_mir_compiler_t *c) {
+  if (!c) return;
+  free(c->managed_slots);
+  c->managed_slots = NULL;
+  c->managed_slot_count = 0;
+  c->managed_slot_capacity = 0;
+}
+
 static void ts_mir_destroy_compiled_funcs(ts_mir_compiler_t *c) {
   if (!c)
     return;
@@ -653,27 +544,6 @@ static void ts_mir_destroy_compiled_funcs(ts_mir_compiler_t *c) {
   c->compiled_funcs = NULL;
   c->compiled_func_count = 0;
   c->compiled_func_capacity = 0;
-}
-
-static void ts_mir_destroy_pointer_caches(ts_mir_compiler_t *c) {
-  if (!c)
-    return;
-
-  free(c->vec_ptrs);
-  c->vec_ptrs = NULL;
-  c->vec_ptr_count = 0;
-  c->vec_ptr_capacity = 0;
-
-  free(c->map_ptrs);
-  c->map_ptrs = NULL;
-  c->map_ptr_count = 0;
-  c->map_ptr_capacity = 0;
-
-  /* Slot-cache objects are embedded as MIR immediates and live with the MIR context. */
-  free(c->oop_ptrs);
-  c->oop_ptrs = NULL;
-  c->oop_ptr_count = 0;
-  c->oop_ptr_capacity = 0;
 }
 
 static void ts_mir_destroy_builtin_admissions(ts_mir_compiler_t *c) {
@@ -734,8 +604,8 @@ void ts_mir_destroy_compiler_storage(ts_mir_compiler_t *c) {
     return;
 
   ts_mir_discard_current_vars(c);
+  ts_mir_discard_managed_slots(c);
   ts_mir_destroy_compiled_funcs(c);
-  ts_mir_destroy_pointer_caches(c);
   ts_mir_destroy_builtin_admissions(c);
   ts_mir_destroy_class_names(c);
   ts_mir_discard_class_types(c);
@@ -759,9 +629,9 @@ ts_mir_compile_frame_t ts_mir_capture_frame(const ts_mir_compiler_t *c) {
   frame.closure_env_reg = c->closure_env_reg;
   frame.func_aliases = c->func_aliases;
   frame.func_alias_count = c->func_alias_count;
-  frame.vec_ptr_count = c->vec_ptr_count;
-  frame.map_ptr_count = c->map_ptr_count;
-  frame.oop_ptr_count = c->oop_ptr_count;
+  frame.managed_slots = c->managed_slots;
+  frame.managed_slot_count = c->managed_slot_count;
+  frame.managed_slot_capacity = c->managed_slot_capacity;
   frame.class_names = c->class_names;
   frame.class_name_count = c->class_name_count;
   frame.class_name_capacity = c->class_name_capacity;
@@ -784,9 +654,9 @@ void ts_mir_begin_isolated_compile(ts_mir_compiler_t *c) {
   c->closure_env_reg = 0;
   c->func_aliases = NULL;
   c->func_alias_count = 0;
-  c->vec_ptr_count = 0;
-  c->map_ptr_count = 0;
-  c->oop_ptr_count = 0;
+  c->managed_slots = NULL;
+  c->managed_slot_count = 0;
+  c->managed_slot_capacity = 0;
   c->class_names = NULL;
   c->class_name_count = 0;
   c->class_name_capacity = 0;
@@ -800,6 +670,7 @@ void ts_mir_restore_frame(ts_mir_compiler_t *c, const ts_mir_compile_frame_t *fr
     return;
 
   ts_mir_discard_current_vars(c);
+  ts_mir_discard_managed_slots(c);
   ts_mir_discard_class_names(c);
   ts_mir_discard_class_types(c);
   c->func = frame->func;
@@ -812,15 +683,387 @@ void ts_mir_restore_frame(ts_mir_compiler_t *c, const ts_mir_compile_frame_t *fr
   c->closure_env_reg = frame->closure_env_reg;
   c->func_aliases = frame->func_aliases;
   c->func_alias_count = frame->func_alias_count;
-  c->vec_ptr_count = frame->vec_ptr_count;
-  c->map_ptr_count = frame->map_ptr_count;
-  c->oop_ptr_count = frame->oop_ptr_count;
+  c->managed_slots = frame->managed_slots;
+  c->managed_slot_count = frame->managed_slot_count;
+  c->managed_slot_capacity = frame->managed_slot_capacity;
   c->class_names = frame->class_names;
   c->class_name_count = frame->class_name_count;
   c->class_name_capacity = frame->class_name_capacity;
   c->class_types = frame->class_types;
   c->class_type_count = frame->class_type_count;
   c->class_type_capacity = frame->class_type_capacity;
+}
+
+static ts_mir_managed_slot_entry_t *ts_mir_find_managed_slot(
+    ts_mir_compiler_t *c, MIR_reg_t slot) {
+  if (!c || slot == 0) return NULL;
+  for (int i = 0; i < c->managed_slot_count; ++i) {
+    if (c->managed_slots[i].ptr_reg == slot) return &c->managed_slots[i];
+  }
+  return NULL;
+}
+
+MIR_reg_t ts_mir_new_managed_slot(
+    ts_mir_compiler_t *c, const cmeta_data_desc *data) {
+  MIR_reg_t ptr_reg;
+  size_t size;
+
+  if (!c || !cmeta_data_desc_valid(data) || data->storage_type == NULL ||
+      !cmeta_type_desc_valid(data->storage_type) ||
+      data->storage_type->size == 0u ||
+      !cmeta_data_value_move_supported(data)) {
+    if (c) ts_mir_fail(c, "JIT compile error: invalid managed slot CMeta lifecycle");
+    return 0;
+  }
+  if (!ts_mir_ensure_managed_slot_capacity(c, c->managed_slot_count + 1))
+    return 0;
+
+  size = data->storage_type->size;
+  ptr_reg = ts_mir_new_temp_preg(c);
+  c->managed_slots[c->managed_slot_count++] =
+      (ts_mir_managed_slot_entry_t){
+          ptr_reg, data, size, TS_MIR_MANAGED_SLOT_ZERO};
+  return ptr_reg;
+}
+
+int ts_mir_managed_slot_publish(ts_mir_compiler_t *c, MIR_reg_t slot) {
+  ts_mir_managed_slot_entry_t *entry = ts_mir_find_managed_slot(c, slot);
+  if (!entry) {
+    if (c) ts_mir_fail(c, "JIT compile error: unknown managed value slot");
+    return 0;
+  }
+  if (entry->state != TS_MIR_MANAGED_SLOT_ZERO) {
+    ts_mir_fail(c, "JIT compile error: managed value slot published while not zero");
+    return 0;
+  }
+  entry->state = TS_MIR_MANAGED_SLOT_LIVE;
+  return 1;
+}
+
+int ts_mir_managed_slot_require_readable(ts_mir_compiler_t *c, MIR_reg_t slot) {
+  ts_mir_managed_slot_entry_t *entry = ts_mir_find_managed_slot(c, slot);
+  if (!entry) {
+    if (c) ts_mir_fail(c, "JIT compile error: unknown managed value slot");
+    return 0;
+  }
+  if (entry->state == TS_MIR_MANAGED_SLOT_MOVED) {
+    ts_mir_fail(c, "JIT compile error: managed value slot used after move");
+    return 0;
+  }
+  if (entry->state != TS_MIR_MANAGED_SLOT_LIVE) {
+    ts_mir_fail(c, "JIT compile error: managed value slot read while not live");
+    return 0;
+  }
+  return 1;
+}
+
+int ts_mir_managed_slot_move(ts_mir_compiler_t *c, MIR_reg_t slot) {
+  ts_mir_managed_slot_entry_t *entry = ts_mir_find_managed_slot(c, slot);
+  if (!entry) {
+    if (c) ts_mir_fail(c, "JIT compile error: unknown managed value slot");
+    return 0;
+  }
+  if (entry->state != TS_MIR_MANAGED_SLOT_LIVE) {
+    ts_mir_fail(c, "JIT compile error: managed value slot moved while not live");
+    return 0;
+  }
+  entry->state = TS_MIR_MANAGED_SLOT_MOVED;
+  return 1;
+}
+
+int ts_mir_managed_slot_cleanup(ts_mir_compiler_t *c, MIR_reg_t slot) {
+  ts_mir_managed_slot_entry_t *entry = ts_mir_find_managed_slot(c, slot);
+  if (!entry) {
+    if (c) ts_mir_fail(c, "JIT compile error: unknown managed value slot");
+    return 0;
+  }
+  if (entry->state == TS_MIR_MANAGED_SLOT_CLEANED) {
+    ts_mir_fail(c, "JIT compile error: managed value slot cleaned twice");
+    return 0;
+  }
+  if (entry->state == TS_MIR_MANAGED_SLOT_MOVED) {
+    ts_mir_fail(c, "JIT compile error: managed value slot cleanup after move");
+    return 0;
+  }
+  if (entry->state != TS_MIR_MANAGED_SLOT_LIVE) {
+    ts_mir_fail(c, "JIT compile error: managed value slot cleaned while not live");
+    return 0;
+  }
+  entry->state = TS_MIR_MANAGED_SLOT_CLEANED;
+  return 1;
+}
+
+int ts_mir_managed_slot_snapshot_capture(
+    ts_mir_compiler_t *c, size_t count, ts_mir_managed_slot_snapshot_t *snapshot) {
+  ts_mir_managed_slot_state_t *states = NULL;
+
+  if (!c || !snapshot || count > (size_t)c->managed_slot_count) {
+    if (c) ts_mir_fail(c, "MIR lowering error: invalid managed slot state snapshot");
+    return 0;
+  }
+  if (count > 0u) {
+    if (count > SIZE_MAX / sizeof(*states)) {
+      ts_mir_fail(c, "MIR lowering error: managed slot state snapshot size overflow");
+      return 0;
+    }
+    states = (ts_mir_managed_slot_state_t *)malloc(count * sizeof(*states));
+    if (!states) {
+      ts_mir_fail(c, "MIR lowering error: out of memory snapshotting managed slot state");
+      return 0;
+    }
+    for (size_t i = 0; i < count; ++i) states[i] = c->managed_slots[i].state;
+  }
+  free(snapshot->states);
+  snapshot->states = states;
+  snapshot->count = count;
+  return 1;
+}
+
+int ts_mir_managed_slot_snapshot_restore(
+    ts_mir_compiler_t *c, const ts_mir_managed_slot_snapshot_t *snapshot) {
+  if (!c || !snapshot || snapshot->count > (size_t)c->managed_slot_count ||
+      (snapshot->count > 0u && !snapshot->states)) {
+    if (c) ts_mir_fail(c, "MIR lowering error: invalid managed slot state restore");
+    return 0;
+  }
+  for (size_t i = 0; i < snapshot->count; ++i)
+    c->managed_slots[i].state = snapshot->states[i];
+  return 1;
+}
+
+int ts_mir_managed_slot_snapshot_join(
+    ts_mir_compiler_t *c, const ts_mir_managed_slot_snapshot_t *left,
+    const ts_mir_managed_slot_snapshot_t *right) {
+  if (!c || !left || !right || left->count != right->count ||
+      (left->count > 0u && (!left->states || !right->states))) {
+    if (c) ts_mir_fail(c, "MIR lowering error: incompatible managed slot branch snapshots");
+    return 0;
+  }
+  for (size_t i = 0; i < left->count; ++i) {
+    if (left->states[i] != right->states[i]) {
+      ts_mir_fail(c, "MIR lowering error: managed value slot ownership state mismatch at branch join");
+      return 0;
+    }
+  }
+  return 1;
+}
+
+int ts_mir_managed_slot_snapshot_loop_join(
+    ts_mir_compiler_t *c, const ts_mir_managed_slot_snapshot_t *entry,
+    const ts_mir_managed_slot_snapshot_t *backedge) {
+  if (!c || !entry || !backedge || entry->count != backedge->count ||
+      (entry->count > 0u && (!entry->states || !backedge->states))) {
+    if (c) ts_mir_fail(c, "MIR lowering error: incompatible managed slot loop snapshots");
+    return 0;
+  }
+  for (size_t i = 0; i < entry->count; ++i) {
+    if (entry->states[i] != backedge->states[i]) {
+      ts_mir_fail(c, "MIR lowering error: managed value slot ownership state mismatch at loop backedge");
+      return 0;
+    }
+  }
+  return 1;
+}
+
+static int ts_mir_managed_slot_snapshot_edge_join(
+    ts_mir_compiler_t *c, const ts_mir_managed_slot_snapshot_t *expected,
+    const ts_mir_managed_slot_snapshot_t *edge, const char *edge_name) {
+  if (!c || !expected || !edge || !edge_name || expected->count != edge->count ||
+      (expected->count > 0u && (!expected->states || !edge->states))) {
+    if (c) ts_mir_fail(c, "MIR lowering error: incompatible managed slot %s snapshot", 
+                       edge_name ? edge_name : "control-edge");
+    return 0;
+  }
+  for (size_t i = 0; i < expected->count; ++i) {
+    if (expected->states[i] != edge->states[i]) {
+      ts_mir_fail(c, "MIR lowering error: managed value slot ownership state mismatch at %s",
+                  edge_name);
+      return 0;
+    }
+  }
+  return 1;
+}
+
+int ts_mir_managed_slot_record_loop_edge(ts_mir_compiler_t *c, int is_continue) {
+  loop_frame_t *frame;
+  ts_mir_loop_edge_state_t *edge;
+  ts_mir_loop_edge_state_t **head;
+
+  if (!c || c->failed || c->loop_depth <= 0 ||
+      (is_continue != 0 && is_continue != 1)) {
+    if (c && !c->failed)
+      ts_mir_fail(c, "MIR lowering error: invalid managed slot loop control edge");
+    return 0;
+  }
+  frame = &c->loop_stack[c->loop_depth - 1];
+  if (!frame->entry_state ||
+      frame->first_managed_slot != frame->entry_state->count) {
+    ts_mir_fail(c, "MIR lowering error: missing managed slot loop-entry snapshot");
+    return 0;
+  }
+  if (!ts_mir_managed_slots_require_terminal_since(c, frame->first_managed_slot))
+    return 0;
+
+  edge = (ts_mir_loop_edge_state_t *)calloc(1u, sizeof(*edge));
+  if (!edge) {
+    ts_mir_fail(c, "MIR lowering error: out of memory recording loop control edge");
+    return 0;
+  }
+  edge->snapshot = (ts_mir_managed_slot_snapshot_t *)calloc(1u, sizeof(*edge->snapshot));
+  if (!edge->snapshot) {
+    free(edge);
+    ts_mir_fail(c, "MIR lowering error: out of memory recording loop edge state");
+    return 0;
+  }
+  if (!ts_mir_managed_slot_snapshot_capture(c, frame->first_managed_slot,
+                                             edge->snapshot)) {
+    ts_mir_managed_slot_snapshot_destroy(edge->snapshot);
+    free(edge->snapshot);
+    free(edge);
+    return 0;
+  }
+
+  head = is_continue ? &frame->continue_edges : &frame->break_edges;
+  if (!*head) {
+    *head = edge;
+  } else {
+    ts_mir_loop_edge_state_t *tail = *head;
+    while (tail->next) tail = tail->next;
+    tail->next = edge;
+  }
+  return 1;
+}
+
+int ts_mir_managed_slot_validate_loop_edges(
+    ts_mir_compiler_t *c, const loop_frame_t *frame,
+    const ts_mir_managed_slot_snapshot_t *entry_state,
+    const ts_mir_managed_slot_snapshot_t *continue_expected) {
+  const ts_mir_loop_edge_state_t *edge;
+  const ts_mir_managed_slot_snapshot_t *continue_state =
+      continue_expected ? continue_expected : entry_state;
+
+  if (!c || c->failed || !frame || !entry_state ||
+      frame->first_managed_slot != entry_state->count ||
+      (frame->entry_state && frame->entry_state->count != entry_state->count) ||
+      !continue_state || continue_state->count != entry_state->count) {
+    if (c && !c->failed)
+      ts_mir_fail(c, "MIR lowering error: invalid managed slot loop-edge join");
+    return 0;
+  }
+
+  for (edge = frame->break_edges; edge; edge = edge->next) {
+    if (!ts_mir_managed_slot_snapshot_edge_join(
+            c, entry_state, edge->snapshot, "loop exit"))
+      return 0;
+  }
+  for (edge = frame->continue_edges; edge; edge = edge->next) {
+    if (!ts_mir_managed_slot_snapshot_edge_join(
+            c, continue_state, edge->snapshot, "continue target"))
+      return 0;
+  }
+  return 1;
+}
+
+void ts_mir_loop_edge_states_destroy(loop_frame_t *frame) {
+  ts_mir_loop_edge_state_t *edge;
+  if (!frame) return;
+
+  edge = frame->break_edges;
+  while (edge) {
+    ts_mir_loop_edge_state_t *next = edge->next;
+    if (edge->snapshot) {
+      ts_mir_managed_slot_snapshot_destroy(edge->snapshot);
+      free(edge->snapshot);
+    }
+    free(edge);
+    edge = next;
+  }
+  frame->break_edges = NULL;
+
+  edge = frame->continue_edges;
+  while (edge) {
+    ts_mir_loop_edge_state_t *next = edge->next;
+    if (edge->snapshot) {
+      ts_mir_managed_slot_snapshot_destroy(edge->snapshot);
+      free(edge->snapshot);
+    }
+    free(edge);
+    edge = next;
+  }
+  frame->continue_edges = NULL;
+  frame->entry_state = NULL;
+  frame->first_managed_slot = 0u;
+}
+
+static int ts_mir_managed_slots_require_terminal_at_exit(
+    ts_mir_compiler_t *c, const char *exit_name) {
+  if (!c || c->failed || !exit_name) return 0;
+
+  for (size_t i = 0; i < (size_t)c->managed_slot_count; ++i) {
+    switch (c->managed_slots[i].state) {
+      case TS_MIR_MANAGED_SLOT_ZERO:
+      case TS_MIR_MANAGED_SLOT_MOVED:
+      case TS_MIR_MANAGED_SLOT_CLEANED:
+        break;
+      case TS_MIR_MANAGED_SLOT_LIVE:
+        ts_mir_fail(c, "MIR lowering error: managed value slot reaches %s with live cleanup obligation",
+                    exit_name);
+        return 0;
+      default:
+        ts_mir_fail(c, "MIR lowering error: invalid managed value slot state at %s",
+                    exit_name);
+        return 0;
+    }
+  }
+  return 1;
+}
+
+int ts_mir_managed_slots_require_terminal_at_return(ts_mir_compiler_t *c) {
+  return ts_mir_managed_slots_require_terminal_at_exit(c, "return");
+}
+
+int ts_mir_managed_slots_require_terminal_at_throw(ts_mir_compiler_t *c) {
+  return ts_mir_managed_slots_require_terminal_at_exit(c, "throw");
+}
+
+int ts_mir_managed_slots_require_terminal_since(ts_mir_compiler_t *c, size_t first_slot) {
+  if (!c || first_slot > (size_t)c->managed_slot_count) {
+    if (c) ts_mir_fail(c, "MIR lowering error: invalid managed slot branch range");
+    return 0;
+  }
+  for (size_t i = first_slot; i < (size_t)c->managed_slot_count; ++i) {
+    switch (c->managed_slots[i].state) {
+      case TS_MIR_MANAGED_SLOT_ZERO:
+      case TS_MIR_MANAGED_SLOT_MOVED:
+      case TS_MIR_MANAGED_SLOT_CLEANED:
+        break;
+      case TS_MIR_MANAGED_SLOT_LIVE:
+        ts_mir_fail(c, "MIR lowering error: managed value slot leaves branch with live cleanup obligation");
+        return 0;
+      default:
+        ts_mir_fail(c, "MIR lowering error: invalid managed value slot state at branch exit");
+        return 0;
+    }
+  }
+  return 1;
+}
+
+void ts_mir_managed_slot_snapshot_destroy(ts_mir_managed_slot_snapshot_t *snapshot) {
+  if (!snapshot) return;
+  free(snapshot->states);
+  snapshot->states = NULL;
+  snapshot->count = 0u;
+}
+
+void ts_emit_managed_slot_prologue(ts_mir_compiler_t *c) {
+  if (!c) return;
+  for (int i = c->managed_slot_count - 1; i >= 0; --i) {
+    MIR_prepend_insn(
+        c->ctx, c->func,
+        MIR_new_insn(c->ctx, MIR_ALLOCA,
+                     MIR_new_reg_op(c->ctx, c->managed_slots[i].ptr_reg),
+                     MIR_new_int_op(c->ctx, (int64_t)c->managed_slots[i].size)));
+  }
 }
 
 void ts_emit_var_prologue(ts_mir_compiler_t *c) {
@@ -848,30 +1091,5 @@ void ts_emit_var_epilogue(ts_mir_compiler_t *c) {
                                       MIR_new_reg_op(c->ctx, c->ctx_reg),
                                       MIR_new_uint_op(c->ctx, (uint64_t)(uintptr_t)c->vars[i]->name),
                                       MIR_new_reg_op(c->ctx, c->vars[i]->reg)));
-  }
-}
-
-void ts_emit_vec_prologue(ts_mir_compiler_t *c) {
-  for (int i = c->vec_ptr_count - 1; i >= 0; i--) {
-    MIR_prepend_insn(
-        c->ctx, c->func,
-        MIR_new_call_insn(c->ctx, 5, MIR_new_ref_op(c->ctx, c->ext.vec_data_proto),
-                          MIR_new_ref_op(c->ctx, c->ext.vec_data_import),
-                          MIR_new_reg_op(c->ctx, c->vec_ptrs[i].ptr_reg),
-                          MIR_new_reg_op(c->ctx, c->ctx_reg),
-                          MIR_new_uint_op(c->ctx, (uint64_t)(uintptr_t)c->vec_ptrs[i].name)));
-  }
-}
-
-void ts_emit_map_prologue(ts_mir_compiler_t *c) {
-  for (int i = c->map_ptr_count - 1; i >= 0; i--) {
-    MIR_prepend_insn(
-        c->ctx, c->func,
-        MIR_new_call_insn(c->ctx, 6, MIR_new_ref_op(c->ctx, c->ext.map_num_ptr_proto),
-                          MIR_new_ref_op(c->ctx, c->ext.map_num_ptr_import),
-                          MIR_new_reg_op(c->ctx, c->map_ptrs[i].ptr_reg),
-                          MIR_new_reg_op(c->ctx, c->ctx_reg),
-                          MIR_new_uint_op(c->ctx, (uint64_t)(uintptr_t)c->map_ptrs[i].obj_name),
-                          MIR_new_uint_op(c->ctx, (uint64_t)(uintptr_t)c->map_ptrs[i].key_name)));
   }
 }
