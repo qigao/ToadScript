@@ -21,6 +21,10 @@
 - **本地验证**：actionlint 通过，五处版本及 PackageId 一致性检查通过。
   本机以新版本执行 ci-llvm-mingw-x64-release-user 的 fresh configure、完整 build、
   59/59 CTest、install 均通过；日志在 build/release-0.1.0/。远端结果发布后另行记录。
+- **远端环境修复**：首轮 43600274695 的 Linux/macOS/Android 成功；Windows
+  compiler root 为 `D:\a\_temp\...`，当前 runner CMake 4.4 写 RC compiler 文件时
+  把 `\a` 当作非法转义。仅在 workflow 的 compiler 环境输入边界统一为 `/`，
+  不改 presets、编译器或发布 SDK。修复后重新执行完整平台矩阵。
 
 ## 2026-11-14：Cron 移除后完成 LLVM-MinGW 构建与正式回归
 

@@ -134,7 +134,11 @@ jobs:
         if: runner.os == 'Windows'
       - name: Select the published Windows compiler
         if: runner.os == 'Windows'
-        run: '"LLVM_MINGW_ROOT=${{ steps.mingw.outputs.root }}" >> $env:GITHUB_ENV'
+        env:
+          COMPILER_ROOT: ${{ steps.mingw.outputs.root }}
+        run: |
+          $root = $env:COMPILER_ROOT.Replace('\', '/')
+          "LLVM_MINGW_ROOT=$root" >> $env:GITHUB_ENV
       - uses: ./build/infrastructure/.github/actions/setup-llvm-native
         if: matrix.native && runner.os != 'Windows'
       - name: Select Android NDK
