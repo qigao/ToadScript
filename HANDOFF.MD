@@ -401,3 +401,25 @@
   eight concurrent owners and both interpreter/JIT policy execution. No sanitizer
   or non-Windows qualification is claimed by that result. CI/release qualification
   must complete before the RulesForge restore selects 0.1.1.
+
+
+### Published 0.1.2 and consumer handoff
+
+- The v0.1.1 tag build qualified all four platforms and packed successfully, but
+  publication failed because docs/releases/0.1.1.md was absent. NuGet had already
+  accepted that version. Its single partial version (ID 1564314974) was removed;
+  the v0.1.1 source tag and published 0.1.0 were preserved. No old release was
+  rewritten or historical package deleted in this follow-up.
+- v0.1.2 includes release notes and version metadata. Source/tag commit is
+  a1c99501b92627ec5671ea30416d42145a9edce7. Producer 43620027243 succeeded in
+  metadata, Windows/Linux/macOS/Android qualification, pack and publish.
+  Release: https://github.com/qigao/TurboScript/releases/tag/v0.1.2
+  NuGet Toad.Native 0.1.2 has ID 1564339799.
+- Downloaded all six assets and verified GitHub size/digest plus SHA256SUMS, all
+  four original manifests (version/source/producer/dependencies), and every
+  regular SDK file against the NuGet SDK payload. Audit: build/release-0.1.2/.
+- RulesForge restored the original 0.1.2 SDK through its qualified release
+  transport, with shared cache/Base/CMeta/Utils roots unchanged. Its full local
+  LLVM-MinGW Release suite is 43/43; the real Program regression (including
+  owner concurrency and generation publication) also passed 20 repeated runs.
+  No unqualified local Toad SDK was substituted for this consumer verification.

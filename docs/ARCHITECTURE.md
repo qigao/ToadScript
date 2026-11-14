@@ -23,7 +23,7 @@ Unsupported language forms must fail during validation, MIR lowering, or runtime
 
 ### Host capability admission and concurrent initialization
 
-Starting with 0.1.1, `toad_script_module_options_t::flags` accepts
+Released with 0.1.2, `toad_script_module_options_t::flags` accepts
 `TOAD_SCRIPT_MODULE_EXPLICIT_CALLS`. It preserves the module-options layout and
 the zero/default behavior. `reserved0` remains a source-compatible alias; all
 other reserved fields must remain zero. Unknown flag bits fail admission.
