@@ -6,7 +6,7 @@
  */
 
 #include "fin.h"
-#include <turboscript/simd.h>
+#include <toad/simd.h>
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
@@ -31,7 +31,7 @@
  * @param stop_dist Stop loss distance as fraction (e.g., 0.05 for 5%)
  * @return Position size in dollars
  */
-double tbs_fixed_frac(double equity, double risk_pct, double stop_dist) {
+double toad_fixed_frac(double equity, double risk_pct, double stop_dist) {
     if (equity < 1e-10 || stop_dist < 1e-10) return 0.0;
 
     /* Risk amount */
@@ -57,7 +57,7 @@ double tbs_fixed_frac(double equity, double risk_pct, double stop_dist) {
  * @param out Output: [0] optimal_f, [1] max_TWR
  * @return Optimal f value
  */
-double tbs_optimal_f(const double *trades, size_t n, double *out) {
+double toad_optimal_f(const double *trades, size_t n, double *out) {
     if (!trades || n == 0) return 0.0;
 
     /* Find largest loss (for normalization) */
@@ -122,7 +122,7 @@ double tbs_optimal_f(const double *trades, size_t n, double *out) {
  * @param arena Memory arena
  * @return Number of paths generated
  */
-size_t tbs_mc_simulate(double s0, double mu, double sigma, double dt,
+size_t toad_mc_simulate(double s0, double mu, double sigma, double dt,
                            size_t steps, size_t paths, double *out,
                            mem_pool_t *arena) {
     if (!out || steps == 0 || paths == 0) return 0;

@@ -1,11 +1,11 @@
 #include "cflow_runtime.h"
 
 #include "../internal.h"
-#include <turboscript/engine.h>
+#include <toad/engine.h>
 #include "cflow_lower.h"
 #include "cflow_text.h"
 #include "cflow_text_kernel.h"
-#include <turboscript/grammar.h>
+#include <toad/grammar.h>
 
 #include <cflow/plan.h>
 #include <stdio.h>
@@ -43,18 +43,18 @@ typedef enum ts_cflow_text_source_kind_e {
 typedef struct ts_cflow_text_match_s {
   ts_cflow_text_terminal_t terminal;
   ts_cflow_text_source_kind_t source_kind;
-  const tbs_node_t *text_expr;
-  const tbs_node_t *separator_expr;
+  const toad_node_t *text_expr;
+  const toad_node_t *separator_expr;
 } ts_cflow_text_match_t;
 
 static bool ts_cflow_runtime_text_terminal_match(
-    const tbs_node_t *expr, ts_cflow_text_match_t *out) {
-  const tbs_node_t *source_call;
-  const tbs_node_t *text_call;
-  const tbs_node_t *stream_ns;
+    const toad_node_t *expr, ts_cflow_text_match_t *out) {
+  const toad_node_t *source_call;
+  const toad_node_t *text_call;
+  const toad_node_t *stream_ns;
   ts_cflow_text_match_t match = {0};
 
-  if (!expr || !out || expr->type != TBS_NODE_MEMBER_CALL ||
+  if (!expr || !out || expr->type != TOAD_NODE_MEMBER_CALL ||
       !expr->data.member_call.method ||
       expr->data.member_call.arg_count != 0u)
     return false;
@@ -69,7 +69,7 @@ static bool ts_cflow_runtime_text_terminal_match(
     return false;
 
   source_call = expr->data.member_call.object;
-  if (!source_call || source_call->type != TBS_NODE_MEMBER_CALL ||
+  if (!source_call || source_call->type != TOAD_NODE_MEMBER_CALL ||
       !source_call->data.member_call.method)
     return false;
 
@@ -85,14 +85,14 @@ static bool ts_cflow_runtime_text_terminal_match(
   }
 
   text_call = source_call->data.member_call.object;
-  if (!text_call || text_call->type != TBS_NODE_MEMBER_CALL ||
+  if (!text_call || text_call->type != TOAD_NODE_MEMBER_CALL ||
       !text_call->data.member_call.method ||
       strcmp(text_call->data.member_call.method, "text") != 0 ||
       text_call->data.member_call.arg_count != 1u)
     return false;
 
   stream_ns = text_call->data.member_call.object;
-  if (!stream_ns || stream_ns->type != TBS_NODE_VARIABLE ||
+  if (!stream_ns || stream_ns->type != TOAD_NODE_VARIABLE ||
       !stream_ns->data.variable.name ||
       strcmp(stream_ns->data.variable.name, "stream") != 0)
     return false;
@@ -103,8 +103,8 @@ static bool ts_cflow_runtime_text_terminal_match(
 }
 
 static bool ts_cflow_runtime_text_result_to_list(const cflow_result *result,
-                                                 tbs_value_t *out) {
-  tbs_value_t list;
+                                                 toad_value_t *out) {
+  toad_value_t list;
   const ts_cflow_line_slice_t *slices;
 
   if (!result || !out ||
@@ -112,13 +112,13 @@ static bool ts_cflow_runtime_text_result_to_list(const cflow_result *result,
       (result->count != 0u && !result->data))
     return false;
 
-  list = tbs_val_list_empty();
+  list = toad_val_list_empty();
   slices = (const ts_cflow_line_slice_t *)result->data;
   for (size_t i = 0u; i < result->count; ++i) {
-    tbs_value_t item = tbs_val_str(
+    toad_value_t item = toad_val_str(
         vstr_from_buf((char *)slices[i].data, slices[i].len));
-    if (tbs_list_push(&list, item) != 0) {
-      tbs_value_destroy(&list);
+    if (toad_list_push(&list, item) != 0) {
+      toad_value_destroy(&list);
       return false;
     }
   }
@@ -127,11 +127,11 @@ static bool ts_cflow_runtime_text_result_to_list(const cflow_result *result,
 }
 
 static ts_cflow_runtime_status_t ts_cflow_runtime_try_text_terminal(
-    turbo_script_ctx_t *ctx, const tbs_node_t *expr, tbs_value_t *out,
+    toad_script_ctx_t *ctx, const toad_node_t *expr, toad_value_t *out,
     char *error, size_t error_size) {
   ts_cflow_text_match_t match = {0};
-  tbs_value_t text_value = {.type = TBS_VAL_NULL};
-  tbs_value_t separator_value = {.type = TBS_VAL_NULL};
+  toad_value_t text_value = {.type = TOAD_VAL_NULL};
+  toad_value_t separator_value = {.type = TOAD_VAL_NULL};
   ts_cflow_text_lines_source_t source = {0};
   cflow_graph graph = {0};
   cflow_plan plan = {0};
@@ -150,17 +150,17 @@ static ts_cflow_runtime_status_t ts_cflow_runtime_try_text_terminal(
   if (!ts_cflow_runtime_text_terminal_match(expr, &match))
     return TS_CFLOW_RUNTIME_NOT_APPLICABLE;
 
-  text_value = turbo_script_mir_eval_node(match.text_expr, &ctx->env);
-  if (ctx->env.aborted || ctx->env.flow == tbs_FLOW_THROW) {
+  text_value = toad_script_mir_eval_node(match.text_expr, &ctx->env);
+  if (ctx->env.aborted || ctx->env.flow == toad_FLOW_THROW) {
     ts_cflow_runtime_error(
         error, error_size,
         ctx->env.error_msg[0] ? ctx->env.error_msg
-                              : "TurboScript text source evaluation failed");
+                              : "Toad text source evaluation failed");
     goto done;
   }
 
   /* Match stream.text(non-string): the legacy factory substitutes empty text. */
-  if (text_value.type == TBS_VAL_STRING) {
+  if (text_value.type == TOAD_VAL_STRING) {
     text_data = text_value.data.string.data;
     text_len = text_value.data.string.len;
   } else {
@@ -170,16 +170,16 @@ static ts_cflow_runtime_status_t ts_cflow_runtime_try_text_terminal(
 
   if (match.source_kind == TS_CFLOW_TEXT_SOURCE_SPLIT) {
     separator_value =
-        turbo_script_mir_eval_node(match.separator_expr, &ctx->env);
-    if (ctx->env.aborted || ctx->env.flow == tbs_FLOW_THROW) {
+        toad_script_mir_eval_node(match.separator_expr, &ctx->env);
+    if (ctx->env.aborted || ctx->env.flow == toad_FLOW_THROW) {
       ts_cflow_runtime_error(
           error, error_size,
           ctx->env.error_msg[0] ? ctx->env.error_msg
-                                : "TurboScript split separator evaluation failed");
+                                : "Toad split separator evaluation failed");
       goto done;
     }
 
-    if (separator_value.type == TBS_VAL_STRING) {
+    if (separator_value.type == TOAD_VAL_STRING) {
       separator_data = separator_value.data.string.data;
       separator_len = separator_value.data.string.len;
       if (!ts_cflow_text_split_source_init(
@@ -218,7 +218,7 @@ static ts_cflow_runtime_status_t ts_cflow_runtime_try_text_terminal(
   result_ready = true;
 
   if (match.terminal == TS_CFLOW_TEXT_TERMINAL_COUNT) {
-    *out = tbs_val_num((double)result.count);
+    *out = toad_val_num((double)result.count);
   } else if (!ts_cflow_runtime_text_result_to_list(&result, out)) {
     ts_cflow_runtime_error(error, error_size,
                            "CFlow text-slice list materialization failed");
@@ -234,27 +234,27 @@ done:
     cflow_graph_destroy(&graph);
   }
   if (source_ready) ts_cflow_text_lines_source_destroy(&source);
-  tbs_value_destroy(&separator_value);
-  tbs_value_destroy(&text_value);
+  toad_value_destroy(&separator_value);
+  toad_value_destroy(&text_value);
   return status;
 }
 
 typedef struct ts_cflow_text_length_map_match_s {
   ts_cflow_terminal_t terminal;
-  const tbs_node_t *text_expr;
-  const tbs_node_t *lambda;
+  const toad_node_t *text_expr;
+  const toad_node_t *lambda;
 } ts_cflow_text_length_map_match_t;
 
 static bool ts_cflow_runtime_text_length_map_match(
-    const tbs_node_t *expr,
+    const toad_node_t *expr,
     ts_cflow_text_length_map_match_t *out) {
-  const tbs_node_t *map_call;
-  const tbs_node_t *lines_call;
-  const tbs_node_t *text_call;
-  const tbs_node_t *stream_ns;
+  const toad_node_t *map_call;
+  const toad_node_t *lines_call;
+  const toad_node_t *text_call;
+  const toad_node_t *stream_ns;
   ts_cflow_text_length_map_match_t match = {0};
 
-  if (!expr || !out || expr->type != TBS_NODE_MEMBER_CALL ||
+  if (!expr || !out || expr->type != TOAD_NODE_MEMBER_CALL ||
       !expr->data.member_call.method ||
       expr->data.member_call.arg_count != 0u)
     return false;
@@ -269,28 +269,28 @@ static bool ts_cflow_runtime_text_length_map_match(
     return false;
 
   map_call = expr->data.member_call.object;
-  if (!map_call || map_call->type != TBS_NODE_MEMBER_CALL ||
+  if (!map_call || map_call->type != TOAD_NODE_MEMBER_CALL ||
       !map_call->data.member_call.method ||
       strcmp(map_call->data.member_call.method, "map") != 0 ||
       map_call->data.member_call.arg_count != 1u)
     return false;
 
   lines_call = map_call->data.member_call.object;
-  if (!lines_call || lines_call->type != TBS_NODE_MEMBER_CALL ||
+  if (!lines_call || lines_call->type != TOAD_NODE_MEMBER_CALL ||
       !lines_call->data.member_call.method ||
       strcmp(lines_call->data.member_call.method, "lines") != 0 ||
       lines_call->data.member_call.arg_count != 0u)
     return false;
 
   text_call = lines_call->data.member_call.object;
-  if (!text_call || text_call->type != TBS_NODE_MEMBER_CALL ||
+  if (!text_call || text_call->type != TOAD_NODE_MEMBER_CALL ||
       !text_call->data.member_call.method ||
       strcmp(text_call->data.member_call.method, "text") != 0 ||
       text_call->data.member_call.arg_count != 1u)
     return false;
 
   stream_ns = text_call->data.member_call.object;
-  if (!stream_ns || stream_ns->type != TBS_NODE_VARIABLE ||
+  if (!stream_ns || stream_ns->type != TOAD_NODE_VARIABLE ||
       !stream_ns->data.variable.name ||
       strcmp(stream_ns->data.variable.name, "stream") != 0)
     return false;
@@ -303,20 +303,20 @@ static bool ts_cflow_runtime_text_length_map_match(
 
 typedef struct ts_cflow_text_nonempty_filter_match_s {
   ts_cflow_terminal_t terminal;
-  const tbs_node_t *text_expr;
-  const tbs_node_t *lambda;
+  const toad_node_t *text_expr;
+  const toad_node_t *lambda;
 } ts_cflow_text_nonempty_filter_match_t;
 
 static bool ts_cflow_runtime_text_nonempty_filter_match(
-    const tbs_node_t *expr,
+    const toad_node_t *expr,
     ts_cflow_text_nonempty_filter_match_t *out) {
-  const tbs_node_t *filter_call;
-  const tbs_node_t *lines_call;
-  const tbs_node_t *text_call;
-  const tbs_node_t *stream_ns;
+  const toad_node_t *filter_call;
+  const toad_node_t *lines_call;
+  const toad_node_t *text_call;
+  const toad_node_t *stream_ns;
   ts_cflow_text_nonempty_filter_match_t match = {0};
 
-  if (!expr || !out || expr->type != TBS_NODE_MEMBER_CALL ||
+  if (!expr || !out || expr->type != TOAD_NODE_MEMBER_CALL ||
       !expr->data.member_call.method ||
       expr->data.member_call.arg_count != 0u)
     return false;
@@ -332,7 +332,7 @@ static bool ts_cflow_runtime_text_nonempty_filter_match(
 
   filter_call = expr->data.member_call.object;
   if (!filter_call ||
-      filter_call->type != TBS_NODE_MEMBER_CALL ||
+      filter_call->type != TOAD_NODE_MEMBER_CALL ||
       !filter_call->data.member_call.method ||
       strcmp(filter_call->data.member_call.method, "filter") != 0 ||
       filter_call->data.member_call.arg_count != 1u)
@@ -340,7 +340,7 @@ static bool ts_cflow_runtime_text_nonempty_filter_match(
 
   lines_call = filter_call->data.member_call.object;
   if (!lines_call ||
-      lines_call->type != TBS_NODE_MEMBER_CALL ||
+      lines_call->type != TOAD_NODE_MEMBER_CALL ||
       !lines_call->data.member_call.method ||
       strcmp(lines_call->data.member_call.method, "lines") != 0 ||
       lines_call->data.member_call.arg_count != 0u)
@@ -348,14 +348,14 @@ static bool ts_cflow_runtime_text_nonempty_filter_match(
 
   text_call = lines_call->data.member_call.object;
   if (!text_call ||
-      text_call->type != TBS_NODE_MEMBER_CALL ||
+      text_call->type != TOAD_NODE_MEMBER_CALL ||
       !text_call->data.member_call.method ||
       strcmp(text_call->data.member_call.method, "text") != 0 ||
       text_call->data.member_call.arg_count != 1u)
     return false;
 
   stream_ns = text_call->data.member_call.object;
-  if (!stream_ns || stream_ns->type != TBS_NODE_VARIABLE ||
+  if (!stream_ns || stream_ns->type != TOAD_NODE_VARIABLE ||
       !stream_ns->data.variable.name ||
       strcmp(stream_ns->data.variable.name, "stream") != 0)
     return false;
@@ -366,36 +366,36 @@ static bool ts_cflow_runtime_text_nonempty_filter_match(
   return true;
 }
 
-static int ts_cflow_runtime_numeric_literal(const tbs_node_t *node,
+static int ts_cflow_runtime_numeric_literal(const toad_node_t *node,
                                             double *out) {
   double value;
   if (!node || !out) return 0;
-  if (node->type == TBS_NODE_NUMBER) {
+  if (node->type == TOAD_NODE_NUMBER) {
     *out = node->data.number;
     return 1;
   }
-  if (node->type == TBS_NODE_INTEGER) {
+  if (node->type == TOAD_NODE_INTEGER) {
     *out = (double)node->data.integer;
     return 1;
   }
-  if (node->type != TBS_NODE_BINARY_OP || node->data.binary.left != NULL ||
-      (node->data.binary.op != tbs_TOKEN_PLUS &&
-       node->data.binary.op != tbs_TOKEN_MINUS) ||
+  if (node->type != TOAD_NODE_BINARY_OP || node->data.binary.left != NULL ||
+      (node->data.binary.op != toad_TOKEN_PLUS &&
+       node->data.binary.op != toad_TOKEN_MINUS) ||
       !ts_cflow_runtime_numeric_literal(node->data.binary.right, &value))
     return 0;
-  *out = node->data.binary.op == tbs_TOKEN_MINUS ? -value : value;
+  *out = node->data.binary.op == toad_TOKEN_MINUS ? -value : value;
   return 1;
 }
 
-static int ts_cflow_runtime_literal_seed(const tbs_node_t *expr) {
+static int ts_cflow_runtime_literal_seed(const toad_node_t *expr) {
   double seed;
   if (!expr) return 0;
-  if (expr->type == TBS_NODE_MEMBER_CALL &&
+  if (expr->type == TOAD_NODE_MEMBER_CALL &&
       expr->data.member_call.method &&
       strcmp(expr->data.member_call.method, "reduce") == 0 &&
       expr->data.member_call.arg_count == 2u)
     return ts_cflow_runtime_numeric_literal(expr->data.member_call.args[0], &seed);
-  if (expr->type == TBS_NODE_FUNCTION_CALL &&
+  if (expr->type == TOAD_NODE_FUNCTION_CALL &&
       expr->data.function.name &&
       strcmp(expr->data.function.name, "reduce") == 0 &&
       expr->data.function.arg_count == 3u)
@@ -404,15 +404,15 @@ static int ts_cflow_runtime_literal_seed(const tbs_node_t *expr) {
 }
 
 static ts_cflow_terminal_t ts_cflow_runtime_terminal(
-    const tbs_node_t *expr, const tbs_node_t **pipeline) {
+    const toad_node_t *expr, const toad_node_t **pipeline) {
   if (pipeline) *pipeline = NULL;
   if (!expr) return TS_CFLOW_TERMINAL_NONE;
 
-  if ((expr->type == TBS_NODE_MEMBER_CALL &&
+  if ((expr->type == TOAD_NODE_MEMBER_CALL &&
        expr->data.member_call.method &&
        strcmp(expr->data.member_call.method, "reduce") == 0 &&
        expr->data.member_call.arg_count == 2u) ||
-      (expr->type == TBS_NODE_FUNCTION_CALL &&
+      (expr->type == TOAD_NODE_FUNCTION_CALL &&
        expr->data.function.name &&
        strcmp(expr->data.function.name, "reduce") == 0 &&
        expr->data.function.arg_count == 3u)) {
@@ -421,7 +421,7 @@ static ts_cflow_terminal_t ts_cflow_runtime_terminal(
     return TS_CFLOW_TERMINAL_REDUCE;
   }
 
-  if (expr->type == TBS_NODE_MEMBER_CALL &&
+  if (expr->type == TOAD_NODE_MEMBER_CALL &&
       expr->data.member_call.method &&
       expr->data.member_call.arg_count == 0u) {
     if (strcmp(expr->data.member_call.method, "count") == 0) {
@@ -461,25 +461,25 @@ static int ts_cflow_runtime_result_is_double(const cflow_result *result) {
          (result->count == 0u || result->data != NULL);
 }
 
-static int ts_cflow_runtime_result_to_vector(turbo_script_ctx_t *ctx,
+static int ts_cflow_runtime_result_to_vector(toad_script_ctx_t *ctx,
                                              const cflow_result *result,
-                                             tbs_value_t *out) {
-  tbs_value_t borrowed;
+                                             toad_value_t *out) {
+  toad_value_t borrowed;
   if (!ctx || !out || !ts_cflow_runtime_result_is_double(result)) return 0;
-  borrowed = tbs_val_vec((double *)result->data, result->count);
-  return tbs_value_copy_to_env(borrowed, &ctx->env, out) == 0;
+  borrowed = toad_val_vec((double *)result->data, result->count);
+  return toad_value_copy_to_env(borrowed, &ctx->env, out) == 0;
 }
 
 static int ts_cflow_runtime_result_to_list(const cflow_result *result,
-                                           tbs_value_t *out) {
-  tbs_value_t list;
+                                           toad_value_t *out) {
+  toad_value_t list;
   const double *values;
   if (!out || !ts_cflow_runtime_result_is_double(result)) return 0;
-  list = tbs_val_list_empty();
+  list = toad_val_list_empty();
   values = (const double *)result->data;
   for (size_t i = 0; i < result->count; ++i) {
-    if (tbs_list_push(&list, tbs_val_num(values[i])) != 0) {
-      tbs_value_destroy(&list);
+    if (toad_list_push(&list, toad_val_num(values[i])) != 0) {
+      toad_value_destroy(&list);
       return 0;
     }
   }
@@ -489,14 +489,14 @@ static int ts_cflow_runtime_result_to_list(const cflow_result *result,
 
 static ts_cflow_runtime_status_t
 ts_cflow_runtime_try_text_length_map_terminal(
-    turbo_script_ctx_t *ctx,
-    const tbs_node_t *expr,
-    tbs_value_t *out,
+    toad_script_ctx_t *ctx,
+    const toad_node_t *expr,
+    toad_value_t *out,
     char *error,
     size_t error_size) {
   ts_cflow_text_length_map_match_t match = {0};
   ts_cflow_text_kernel_binding_t binding = {0};
-  tbs_value_t text_value = {.type = TBS_VAL_NULL};
+  toad_value_t text_value = {.type = TOAD_VAL_NULL};
   ts_cflow_text_lines_source_t source = {0};
   cflow_graph graph = {0};
   cflow_plan plan = {0};
@@ -524,16 +524,16 @@ ts_cflow_runtime_try_text_length_map_terminal(
     return TS_CFLOW_RUNTIME_NOT_APPLICABLE;
   binding_ready = true;
 
-  text_value = turbo_script_mir_eval_node(match.text_expr, &ctx->env);
-  if (ctx->env.aborted || ctx->env.flow == tbs_FLOW_THROW) {
+  text_value = toad_script_mir_eval_node(match.text_expr, &ctx->env);
+  if (ctx->env.aborted || ctx->env.flow == toad_FLOW_THROW) {
     ts_cflow_runtime_error(
         error, error_size,
         ctx->env.error_msg[0] ? ctx->env.error_msg
-                              : "TurboScript text MAP source evaluation failed");
+                              : "Toad text MAP source evaluation failed");
     goto done;
   }
 
-  if (text_value.type == TBS_VAL_STRING) {
+  if (text_value.type == TOAD_VAL_STRING) {
     text_data = text_value.data.string.data;
     text_len = text_value.data.string.len;
   }
@@ -611,7 +611,7 @@ done:
   if (plan_ready) cflow_plan_destroy(&plan);
   if (graph_ready) cflow_graph_destroy(&graph);
   if (source_ready) ts_cflow_text_lines_source_destroy(&source);
-  tbs_value_destroy(&text_value);
+  toad_value_destroy(&text_value);
   if (binding_ready)
     ts_cflow_text_kernel_binding_destroy(&binding);
   return status;
@@ -619,14 +619,14 @@ done:
 
 static ts_cflow_runtime_status_t
 ts_cflow_runtime_try_text_nonempty_filter_terminal(
-    turbo_script_ctx_t *ctx,
-    const tbs_node_t *expr,
-    tbs_value_t *out,
+    toad_script_ctx_t *ctx,
+    const toad_node_t *expr,
+    toad_value_t *out,
     char *error,
     size_t error_size) {
   ts_cflow_text_nonempty_filter_match_t match = {0};
   ts_cflow_text_kernel_binding_t binding = {0};
-  tbs_value_t text_value = {.type = TBS_VAL_NULL};
+  toad_value_t text_value = {.type = TOAD_VAL_NULL};
   ts_cflow_text_lines_source_t source = {0};
   cflow_graph graph = {0};
   cflow_plan plan = {0};
@@ -654,16 +654,16 @@ ts_cflow_runtime_try_text_nonempty_filter_terminal(
     return TS_CFLOW_RUNTIME_NOT_APPLICABLE;
   binding_ready = true;
 
-  text_value = turbo_script_mir_eval_node(match.text_expr, &ctx->env);
-  if (ctx->env.aborted || ctx->env.flow == tbs_FLOW_THROW) {
+  text_value = toad_script_mir_eval_node(match.text_expr, &ctx->env);
+  if (ctx->env.aborted || ctx->env.flow == toad_FLOW_THROW) {
     ts_cflow_runtime_error(
         error, error_size,
         ctx->env.error_msg[0] ? ctx->env.error_msg
-                              : "TurboScript text FILTER source evaluation failed");
+                              : "Toad text FILTER source evaluation failed");
     goto done;
   }
 
-  if (text_value.type == TBS_VAL_STRING) {
+  if (text_value.type == TOAD_VAL_STRING) {
     text_data = text_value.data.string.data;
     text_len = text_value.data.string.len;
   }
@@ -720,7 +720,7 @@ ts_cflow_runtime_try_text_nonempty_filter_terminal(
   }
 
   if (match.terminal == TS_CFLOW_TERMINAL_COUNT) {
-    *out = tbs_val_num((double)result.count);
+    *out = toad_val_num((double)result.count);
   } else if (!ts_cflow_runtime_text_result_to_list(&result, out)) {
     ts_cflow_runtime_error(
         error, error_size,
@@ -735,28 +735,28 @@ done:
   if (plan_ready) cflow_plan_destroy(&plan);
   if (graph_ready) cflow_graph_destroy(&graph);
   if (source_ready) ts_cflow_text_lines_source_destroy(&source);
-  tbs_value_destroy(&text_value);
+  toad_value_destroy(&text_value);
   if (binding_ready)
     ts_cflow_text_kernel_binding_destroy(&binding);
   return status;
 }
 
 static int ts_cflow_runtime_value_to_double(
-    const tbs_value_t *value, double *out) {
+    const toad_value_t *value, double *out) {
   if (!value || !out) return 0;
-  if (value->type == TBS_VAL_NUMBER) {
+  if (value->type == TOAD_VAL_NUMBER) {
     *out = value->data.number;
     return 1;
   }
-  if (value->type == TBS_VAL_INTEGER) {
+  if (value->type == TOAD_VAL_INTEGER) {
     *out = (double)value->data.integer;
     return 1;
   }
   return 0;
 }
 
-static int ts_cflow_runtime_source_array(turbo_script_ctx_t *ctx,
-                                         const tbs_node_t *source,
+static int ts_cflow_runtime_source_array(toad_script_ctx_t *ctx,
+                                         const toad_node_t *source,
                                          double **data_out,
                                          size_t *count_out) {
   double *data = NULL;
@@ -766,7 +766,7 @@ static int ts_cflow_runtime_source_array(turbo_script_ctx_t *ctx,
   if (count_out) *count_out = 0u;
   if (!ctx || !source || !data_out || !count_out) return 0;
 
-  if (source->type == TBS_NODE_VECTOR) {
+  if (source->type == TOAD_NODE_VECTOR) {
     count = source->data.vector.count;
     if (count > 0u) {
       data = (double *)malloc(count * sizeof(*data));
@@ -779,38 +779,38 @@ static int ts_cflow_runtime_source_array(turbo_script_ctx_t *ctx,
         return 0;
       }
     }
-  } else if (source->type == TBS_NODE_VARIABLE &&
+  } else if (source->type == TOAD_NODE_VARIABLE &&
              source->data.variable.name) {
-    tbs_value_t value =
-        tbs_env_get(&ctx->env, source->data.variable.name);
+    toad_value_t value =
+        toad_env_get(&ctx->env, source->data.variable.name);
 
-    if (tbs_value_is_object_like(&value) &&
-        tbs_map_has(&value, "__ts_stream_kind") &&
-        tbs_map_has(&value, "__ts_cflow_materialized") &&
-        tbs_map_has(&value, "source")) {
-      tbs_value_t kind = tbs_map_get(&value, "__ts_stream_kind");
-      tbs_value_t marker =
-          tbs_map_get(&value, "__ts_cflow_materialized");
+    if (toad_value_is_object_like(&value) &&
+        toad_map_has(&value, "__ts_stream_kind") &&
+        toad_map_has(&value, "__ts_cflow_materialized") &&
+        toad_map_has(&value, "source")) {
+      toad_value_t kind = toad_map_get(&value, "__ts_stream_kind");
+      toad_value_t marker =
+          toad_map_get(&value, "__ts_cflow_materialized");
       double materialized = 0.0;
-      static const char stream_marker[] = "TurboScript.Stream.v1";
-      if (kind.type != TBS_VAL_STRING ||
+      static const char stream_marker[] = "Toad.Stream.v1";
+      if (kind.type != TOAD_VAL_STRING ||
           kind.data.string.len != sizeof(stream_marker) - 1u ||
           memcmp(kind.data.string.data, stream_marker,
                  sizeof(stream_marker) - 1u) != 0 ||
           !ts_cflow_runtime_value_to_double(&marker, &materialized) ||
           materialized == 0.0)
         return 0;
-      value = tbs_map_get(&value, "source");
+      value = toad_map_get(&value, "source");
     }
 
-    if (value.type == TBS_VAL_VECTOR) {
+    if (value.type == TOAD_VAL_VECTOR) {
       count = value.data.vector.size;
       if (count > 0u) {
         data = (double *)malloc(count * sizeof(*data));
         if (!data) return 0;
         memcpy(data, value.data.vector.data, count * sizeof(*data));
       }
-    } else if (value.type == TBS_VAL_LIST) {
+    } else if (value.type == TOAD_VAL_LIST) {
       count = value.data.list.count;
       if (count > 0u) {
         data = (double *)malloc(count * sizeof(*data));
@@ -836,32 +836,32 @@ static int ts_cflow_runtime_source_array(turbo_script_ctx_t *ctx,
 }
 
 static int ts_cflow_runtime_result_to_stream(
-    turbo_script_ctx_t *ctx, const cflow_result *result, tbs_value_t *out) {
-  tbs_value_t source = {.type = TBS_VAL_NULL};
-  tbs_value_t stream;
+    toad_script_ctx_t *ctx, const cflow_result *result, toad_value_t *out) {
+  toad_value_t source = {.type = TOAD_VAL_NULL};
+  toad_value_t stream;
 
   if (!ctx || !result || !out) return 0;
   if (!ts_cflow_runtime_result_to_vector(ctx, result, &source)) return 0;
 
-  stream = tbs_val_map();
-  if (tbs_map_set(
+  stream = toad_val_map();
+  if (toad_map_set(
           &stream, "__ts_stream_kind",
-          tbs_val_str(vstr_from_cstr("TurboScript.Stream.v1"))) != 0 ||
-      tbs_map_set(&stream, "source", source) != 0 ||
-      tbs_map_set(
-          &stream, "__ts_cflow_materialized", tbs_val_num(1.0)) != 0) {
-    tbs_value_destroy(&source);
-    tbs_value_destroy(&stream);
+          toad_val_str(vstr_from_cstr("Toad.Stream.v1"))) != 0 ||
+      toad_map_set(&stream, "source", source) != 0 ||
+      toad_map_set(
+          &stream, "__ts_cflow_materialized", toad_val_num(1.0)) != 0) {
+    toad_value_destroy(&source);
+    toad_value_destroy(&stream);
     return 0;
   }
 
-  tbs_value_destroy(&source);
+  toad_value_destroy(&source);
   *out = stream;
   return 1;
 }
 
 ts_cflow_runtime_status_t ts_cflow_runtime_try_materialized_stream(
-    turbo_script_ctx_t *ctx, const tbs_node_t *expr, tbs_value_t *out,
+    toad_script_ctx_t *ctx, const toad_node_t *expr, toad_value_t *out,
     char *error, size_t error_size) {
   ts_cflow_lowered_pipeline_t analysis = {0};
   ts_cflow_lowered_pipeline_t lowered = {0};
@@ -941,9 +941,9 @@ done:
 }
 
 ts_cflow_runtime_status_t ts_cflow_runtime_try_scalar_terminal(
-    turbo_script_ctx_t *ctx, const tbs_node_t *expr, tbs_value_t *out,
+    toad_script_ctx_t *ctx, const toad_node_t *expr, toad_value_t *out,
     char *error, size_t error_size) {
-  const tbs_node_t *pipeline_expr = NULL;
+  const toad_node_t *pipeline_expr = NULL;
   ts_cflow_terminal_t terminal;
   ts_cflow_lowered_pipeline_t analysis = {0};
   ts_cflow_lowered_pipeline_t lowered = {0};
@@ -1038,9 +1038,9 @@ ts_cflow_runtime_status_t ts_cflow_runtime_try_scalar_terminal(
                              "CFlow reduce produced an invalid result");
       goto done;
     }
-    *out = tbs_val_num(((const double *)result.data)[0]);
+    *out = toad_val_num(((const double *)result.data)[0]);
   } else if (terminal == TS_CFLOW_TERMINAL_COUNT) {
-    *out = tbs_val_num((double)result.count);
+    *out = toad_val_num((double)result.count);
   } else if (terminal == TS_CFLOW_TERMINAL_TO_VECTOR ||
              (terminal == TS_CFLOW_TERMINAL_COLLECT && !collect_as_list)) {
     if (!ts_cflow_runtime_result_to_vector(ctx, &result, out)) {

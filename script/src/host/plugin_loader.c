@@ -1,8 +1,8 @@
 /**
  * @file plugin_loader.c
- * @brief TurboScript host adapter over the canonical Salts plugin registry.
+ * @brief Toad host adapter over the canonical Salts plugin registry.
  */
-#include <turboscript/plugin_loader.h>
+#include <toad/plugin_loader.h>
 #include "plugin_databind.h"
 #include "../../../engine/src/runtime_internal.h"
 
@@ -14,63 +14,63 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int plugin_error_set(ts_plugin_error_t *error, ts_plugin_error_code_t code,
-                            ts_plugin_error_stage_t stage, uint32_t native_code,
+static int plugin_error_set(toad_plugin_error_t *error, toad_plugin_error_code_t code,
+                            toad_plugin_error_stage_t stage, uint32_t native_code,
                             const char *path, const char *format, ...);
 
-#define TS_PLUGIN_MAX_SCALAR_PARAMS 16u
+#define TOAD_PLUGIN_MAX_SCALAR_PARAMS 16u
 
-typedef enum ts_plugin_scalar_kind_e {
-  TS_PLUGIN_SCALAR_UNSUPPORTED = 0,
-  TS_PLUGIN_SCALAR_VOID,
-  TS_PLUGIN_SCALAR_BOOL,
-  TS_PLUGIN_SCALAR_INT,
-  TS_PLUGIN_SCALAR_LONG,
-  TS_PLUGIN_SCALAR_FLOAT,
-  TS_PLUGIN_SCALAR_DOUBLE
-} ts_plugin_scalar_kind_t;
+typedef enum toad_plugin_scalar_kind_e {
+  TOAD_PLUGIN_SCALAR_UNSUPPORTED = 0,
+  TOAD_PLUGIN_SCALAR_VOID,
+  TOAD_PLUGIN_SCALAR_BOOL,
+  TOAD_PLUGIN_SCALAR_INT,
+  TOAD_PLUGIN_SCALAR_LONG,
+  TOAD_PLUGIN_SCALAR_FLOAT,
+  TOAD_PLUGIN_SCALAR_DOUBLE
+} toad_plugin_scalar_kind_t;
 
-typedef union ts_plugin_scalar_storage_u {
+typedef union toad_plugin_scalar_storage_u {
   _Bool boolean_value;
   int int_value;
   long long_value;
   float float_value;
   double double_value;
-} ts_plugin_scalar_storage_t;
+} toad_plugin_scalar_storage_t;
 
-typedef struct ts_plugin_function_binding_s {
+typedef struct toad_plugin_function_binding_s {
   const cmeta_plugin_export *entry;
   cmeta_plugin_function_invoke_fn invoke;
   void *context;
   size_t param_count;
-  ts_plugin_scalar_kind_t param_kinds[TS_PLUGIN_MAX_SCALAR_PARAMS];
-  ts_plugin_scalar_kind_t return_kind;
-} ts_plugin_function_binding_t;
+  toad_plugin_scalar_kind_t param_kinds[TOAD_PLUGIN_MAX_SCALAR_PARAMS];
+  toad_plugin_scalar_kind_t return_kind;
+} toad_plugin_function_binding_t;
 
-static ts_plugin_scalar_kind_t plugin_scalar_kind(
+static toad_plugin_scalar_kind_t plugin_scalar_kind(
     const cmeta_type_desc *type) {
-  if (!type) return TS_PLUGIN_SCALAR_UNSUPPORTED;
+  if (!type) return TOAD_PLUGIN_SCALAR_UNSUPPORTED;
   if (cmeta_type_equal(type, &cmeta_type_void))
-    return TS_PLUGIN_SCALAR_VOID;
+    return TOAD_PLUGIN_SCALAR_VOID;
   if (cmeta_type_equal(type, &cmeta_type_bool))
-    return TS_PLUGIN_SCALAR_BOOL;
+    return TOAD_PLUGIN_SCALAR_BOOL;
   if (cmeta_type_equal(type, &cmeta_type_int))
-    return TS_PLUGIN_SCALAR_INT;
+    return TOAD_PLUGIN_SCALAR_INT;
   if (cmeta_type_equal(type, &cmeta_type_long))
-    return TS_PLUGIN_SCALAR_LONG;
+    return TOAD_PLUGIN_SCALAR_LONG;
   if (cmeta_type_equal(type, &cmeta_type_float))
-    return TS_PLUGIN_SCALAR_FLOAT;
+    return TOAD_PLUGIN_SCALAR_FLOAT;
   if (cmeta_type_equal(type, &cmeta_type_double))
-    return TS_PLUGIN_SCALAR_DOUBLE;
-  return TS_PLUGIN_SCALAR_UNSUPPORTED;
+    return TOAD_PLUGIN_SCALAR_DOUBLE;
+  return TOAD_PLUGIN_SCALAR_UNSUPPORTED;
 }
 
 static int plugin_function_scalar_binding(
     const cmeta_plugin_export *entry,
-    ts_plugin_function_binding_t *binding) {
+    toad_plugin_function_binding_t *binding) {
   const cmeta_function_desc *desc;
   const cmeta_function_abi_desc *abi;
-  ts_plugin_scalar_kind_t return_kind;
+  toad_plugin_scalar_kind_t return_kind;
 
   if (!entry || !binding ||
       entry->kind != CMETA_PLUGIN_EXPORT_FUNCTION)
@@ -82,13 +82,13 @@ static int plugin_function_scalar_binding(
       !cmeta_function_desc_valid(desc) ||
       !cmeta_function_abi_desc_valid(abi) ||
       desc->param_count != abi->param_count ||
-      desc->param_count > TS_PLUGIN_MAX_SCALAR_PARAMS)
+      desc->param_count > TOAD_PLUGIN_MAX_SCALAR_PARAMS)
     return 0;
 
   return_kind = plugin_scalar_kind(desc->return_type);
-  if (return_kind == TS_PLUGIN_SCALAR_UNSUPPORTED)
+  if (return_kind == TOAD_PLUGIN_SCALAR_UNSUPPORTED)
     return 0;
-  if (return_kind == TS_PLUGIN_SCALAR_VOID) {
+  if (return_kind == TOAD_PLUGIN_SCALAR_VOID) {
     if (abi->return_carrier != CMETA_ABI_VOID ||
         desc->result_flags != CMETA_RESULT_UNKNOWN)
       return 0;
@@ -107,13 +107,13 @@ static int plugin_function_scalar_binding(
 
   for (size_t i = 0u; i < desc->param_count; ++i) {
     const cmeta_param_desc *param = cmeta_function_param(desc, i);
-    ts_plugin_scalar_kind_t kind;
+    toad_plugin_scalar_kind_t kind;
     if (!param || param->flags != CMETA_PARAM_IN ||
         cmeta_function_param_abi(abi, i) != CMETA_ABI_SCALAR)
       return 0;
     kind = plugin_scalar_kind(param->type);
-    if (kind == TS_PLUGIN_SCALAR_UNSUPPORTED ||
-        kind == TS_PLUGIN_SCALAR_VOID)
+    if (kind == TOAD_PLUGIN_SCALAR_UNSUPPORTED ||
+        kind == TOAD_PLUGIN_SCALAR_VOID)
       return 0;
     binding->param_kinds[i] = kind;
   }
@@ -121,17 +121,17 @@ static int plugin_function_scalar_binding(
 }
 
 static int plugin_numeric_value(
-    const tbs_value_t *arg, double *out) {
+    const toad_value_t *arg, double *out) {
   if (!arg || !out) return 0;
-  if (arg->type == TBS_VAL_NUMBER) {
+  if (arg->type == TOAD_VAL_NUMBER) {
     *out = arg->data.number;
     return 1;
   }
-  if (arg->type == TBS_VAL_INTEGER) {
+  if (arg->type == TOAD_VAL_INTEGER) {
     *out = (double)arg->data.integer;
     return 1;
   }
-  if (arg->type == TBS_VAL_BOOL) {
+  if (arg->type == TOAD_VAL_BOOL) {
     *out = arg->data.boolean ? 1.0 : 0.0;
     return 1;
   }
@@ -139,20 +139,20 @@ static int plugin_numeric_value(
 }
 
 static int plugin_scalar_from_engine(
-    const tbs_value_t *arg, ts_plugin_scalar_kind_t kind,
-    ts_plugin_scalar_storage_t *storage, void **address) {
+    const toad_value_t *arg, toad_plugin_scalar_kind_t kind,
+    toad_plugin_scalar_storage_t *storage, void **address) {
   double number;
 
   if (!arg || !storage || !address) return 0;
 
   switch (kind) {
-    case TS_PLUGIN_SCALAR_BOOL:
-      if (arg->type == TBS_VAL_BOOL) {
+    case TOAD_PLUGIN_SCALAR_BOOL:
+      if (arg->type == TOAD_VAL_BOOL) {
         storage->boolean_value = arg->data.boolean != 0;
-      } else if (arg->type == TBS_VAL_INTEGER) {
+      } else if (arg->type == TOAD_VAL_INTEGER) {
         if (arg->data.integer != 0 && arg->data.integer != 1) return 0;
         storage->boolean_value = arg->data.integer != 0;
-      } else if (arg->type == TBS_VAL_NUMBER) {
+      } else if (arg->type == TOAD_VAL_NUMBER) {
         if (!isfinite(arg->data.number) ||
             (arg->data.number != 0.0 && arg->data.number != 1.0))
           return 0;
@@ -163,8 +163,8 @@ static int plugin_scalar_from_engine(
       *address = &storage->boolean_value;
       return 1;
 
-    case TS_PLUGIN_SCALAR_INT:
-      if (arg->type == TBS_VAL_INTEGER) {
+    case TOAD_PLUGIN_SCALAR_INT:
+      if (arg->type == TOAD_VAL_INTEGER) {
         if (arg->data.integer < (int64_t)INT_MIN ||
             arg->data.integer > (int64_t)INT_MAX)
           return 0;
@@ -180,8 +180,8 @@ static int plugin_scalar_from_engine(
       *address = &storage->int_value;
       return 1;
 
-    case TS_PLUGIN_SCALAR_LONG:
-      if (arg->type == TBS_VAL_INTEGER) {
+    case TOAD_PLUGIN_SCALAR_LONG:
+      if (arg->type == TOAD_VAL_INTEGER) {
 #if LONG_MAX < INT64_MAX
         if (arg->data.integer < (int64_t)LONG_MIN ||
             arg->data.integer > (int64_t)LONG_MAX)
@@ -199,7 +199,7 @@ static int plugin_scalar_from_engine(
       *address = &storage->long_value;
       return 1;
 
-    case TS_PLUGIN_SCALAR_FLOAT:
+    case TOAD_PLUGIN_SCALAR_FLOAT:
       if (!plugin_numeric_value(arg, &number) || !isfinite(number) ||
           number < -(double)FLT_MAX || number > (double)FLT_MAX)
         return 0;
@@ -207,7 +207,7 @@ static int plugin_scalar_from_engine(
       *address = &storage->float_value;
       return 1;
 
-    case TS_PLUGIN_SCALAR_DOUBLE:
+    case TOAD_PLUGIN_SCALAR_DOUBLE:
       if (!plugin_numeric_value(arg, &number) || !isfinite(number))
         return 0;
       storage->double_value = number;
@@ -220,53 +220,53 @@ static int plugin_scalar_from_engine(
 }
 
 static void *plugin_scalar_return_storage(
-    ts_plugin_scalar_kind_t kind,
-    ts_plugin_scalar_storage_t *storage) {
+    toad_plugin_scalar_kind_t kind,
+    toad_plugin_scalar_storage_t *storage) {
   if (!storage) return NULL;
   switch (kind) {
-    case TS_PLUGIN_SCALAR_VOID: return NULL;
-    case TS_PLUGIN_SCALAR_BOOL: return &storage->boolean_value;
-    case TS_PLUGIN_SCALAR_INT: return &storage->int_value;
-    case TS_PLUGIN_SCALAR_LONG: return &storage->long_value;
-    case TS_PLUGIN_SCALAR_FLOAT: return &storage->float_value;
-    case TS_PLUGIN_SCALAR_DOUBLE: return &storage->double_value;
+    case TOAD_PLUGIN_SCALAR_VOID: return NULL;
+    case TOAD_PLUGIN_SCALAR_BOOL: return &storage->boolean_value;
+    case TOAD_PLUGIN_SCALAR_INT: return &storage->int_value;
+    case TOAD_PLUGIN_SCALAR_LONG: return &storage->long_value;
+    case TOAD_PLUGIN_SCALAR_FLOAT: return &storage->float_value;
+    case TOAD_PLUGIN_SCALAR_DOUBLE: return &storage->double_value;
     default: return NULL;
   }
 }
 
-static tbs_value_t plugin_scalar_to_engine(
-    ts_plugin_scalar_kind_t kind,
-    const ts_plugin_scalar_storage_t *storage) {
-  tbs_value_t value = {0};
-  if (!storage && kind != TS_PLUGIN_SCALAR_VOID)
-    return tbs_val_num(0.0);
+static toad_value_t plugin_scalar_to_engine(
+    toad_plugin_scalar_kind_t kind,
+    const toad_plugin_scalar_storage_t *storage) {
+  toad_value_t value = {0};
+  if (!storage && kind != TOAD_PLUGIN_SCALAR_VOID)
+    return toad_val_num(0.0);
 
   switch (kind) {
-    case TS_PLUGIN_SCALAR_VOID:
-      value.type = TBS_VAL_NULL;
+    case TOAD_PLUGIN_SCALAR_VOID:
+      value.type = TOAD_VAL_NULL;
       return value;
-    case TS_PLUGIN_SCALAR_BOOL:
-      return tbs_val_bool(storage->boolean_value);
-    case TS_PLUGIN_SCALAR_INT:
-      return tbs_val_int((int64_t)storage->int_value);
-    case TS_PLUGIN_SCALAR_LONG:
-      return tbs_val_int((int64_t)storage->long_value);
-    case TS_PLUGIN_SCALAR_FLOAT:
-      return tbs_val_num((double)storage->float_value);
-    case TS_PLUGIN_SCALAR_DOUBLE:
-      return tbs_val_num(storage->double_value);
+    case TOAD_PLUGIN_SCALAR_BOOL:
+      return toad_val_bool(storage->boolean_value);
+    case TOAD_PLUGIN_SCALAR_INT:
+      return toad_val_int((int64_t)storage->int_value);
+    case TOAD_PLUGIN_SCALAR_LONG:
+      return toad_val_int((int64_t)storage->long_value);
+    case TOAD_PLUGIN_SCALAR_FLOAT:
+      return toad_val_num((double)storage->float_value);
+    case TOAD_PLUGIN_SCALAR_DOUBLE:
+      return toad_val_num(storage->double_value);
     default:
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
   }
 }
 
-static tbs_value_t plugin_function_scalar_call(
-    size_t argc, tbs_value_t *args, tbs_env_t *env, void *user_data) {
-  ts_plugin_function_binding_t *binding =
-      (ts_plugin_function_binding_t *)user_data;
-  ts_plugin_scalar_storage_t params[TS_PLUGIN_MAX_SCALAR_PARAMS];
-  void *param_addresses[TS_PLUGIN_MAX_SCALAR_PARAMS];
-  ts_plugin_scalar_storage_t result_storage;
+static toad_value_t plugin_function_scalar_call(
+    size_t argc, toad_value_t *args, toad_env_t *env, void *user_data) {
+  toad_plugin_function_binding_t *binding =
+      (toad_plugin_function_binding_t *)user_data;
+  toad_plugin_scalar_storage_t params[TOAD_PLUGIN_MAX_SCALAR_PARAMS];
+  void *param_addresses[TOAD_PLUGIN_MAX_SCALAR_PARAMS];
+  toad_plugin_scalar_storage_t result_storage;
   void *result_address;
 
   memset(params, 0, sizeof(params));
@@ -281,7 +281,7 @@ static tbs_value_t plugin_function_scalar_call(
       snprintf(env->error_msg, sizeof(env->error_msg),
                "invalid canonical plugin function invocation");
     }
-    return tbs_val_num(0.0);
+    return toad_val_num(0.0);
   }
 
   for (size_t i = 0u; i < argc; ++i) {
@@ -297,13 +297,13 @@ static tbs_value_t plugin_function_scalar_call(
                 ? binding->entry->export_id : "<unknown>",
             i);
       }
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
     }
   }
 
   result_address = plugin_scalar_return_storage(
       binding->return_kind, &result_storage);
-  if (binding->return_kind != TS_PLUGIN_SCALAR_VOID &&
+  if (binding->return_kind != TOAD_PLUGIN_SCALAR_VOID &&
       !result_address) {
     if (env) {
       env->aborted = 1;
@@ -312,7 +312,7 @@ static tbs_value_t plugin_function_scalar_call(
                binding->entry && binding->entry->export_id
                    ? binding->entry->export_id : "<unknown>");
     }
-    return tbs_val_num(0.0);
+    return toad_val_num(0.0);
   }
 
   if (!binding->invoke(
@@ -325,7 +325,7 @@ static tbs_value_t plugin_function_scalar_call(
                binding->entry && binding->entry->export_id
                    ? binding->entry->export_id : "<unknown>");
     }
-    return tbs_val_num(0.0);
+    return toad_val_num(0.0);
   }
 
   return plugin_scalar_to_engine(
@@ -333,35 +333,35 @@ static tbs_value_t plugin_function_scalar_call(
 }
 
 static int plugin_bind_function_exports(
-    ts_plugin_handle_t *handle, tbs_env_t *env,
-    ts_plugin_error_t *error) {
-  ts_plugin_function_binding_t *bindings = NULL;
-  tbs_native_registration_t *registrations = NULL;
+    toad_plugin_handle_t *handle, toad_env_t *env,
+    toad_plugin_error_t *error) {
+  toad_plugin_function_binding_t *bindings = NULL;
+  toad_native_registration_t *registrations = NULL;
   size_t function_count = 0u;
   size_t registration_index = 0u;
   size_t scalar_count = 0u;
-  tbs_registration_status_t registration_status;
+  toad_registration_status_t registration_status;
 
   if (!handle || !handle->manifest || !env)
-    return plugin_error_set(error, TS_PLUGIN_ERROR_INVALID_ARGUMENT,
-                            TS_PLUGIN_STAGE_ARGUMENT, 0u, NULL,
+    return plugin_error_set(error, TOAD_PLUGIN_ERROR_INVALID_ARGUMENT,
+                            TOAD_PLUGIN_STAGE_ARGUMENT, 0u, NULL,
                             "plugin function binding requires a manifest and environment");
 
   for (size_t i = 0u; i < handle->manifest->export_count; ++i) {
     if (handle->manifest->exports[i].kind == CMETA_PLUGIN_EXPORT_FUNCTION)
       ++function_count;
   }
-  if (function_count == 0u) return TS_PLUGIN_ERROR_NONE;
+  if (function_count == 0u) return TOAD_PLUGIN_ERROR_NONE;
 
-  bindings = (ts_plugin_function_binding_t *)calloc(
+  bindings = (toad_plugin_function_binding_t *)calloc(
       function_count, sizeof(*bindings));
-  registrations = (tbs_native_registration_t *)calloc(
+  registrations = (toad_native_registration_t *)calloc(
       function_count, sizeof(*registrations));
   if (!bindings || !registrations) {
     free(registrations);
     free(bindings);
-    return plugin_error_set(error, TS_PLUGIN_ERROR_OUT_OF_MEMORY,
-                            TS_PLUGIN_STAGE_INITIALIZE, 0u, NULL,
+    return plugin_error_set(error, TOAD_PLUGIN_ERROR_OUT_OF_MEMORY,
+                            TOAD_PLUGIN_STAGE_INITIALIZE, 0u, NULL,
                             "out of memory binding canonical plugin functions");
   }
 
@@ -377,20 +377,20 @@ static int plugin_bind_function_exports(
       free(registrations);
       free(bindings);
       return plugin_error_set(
-          error, TS_PLUGIN_ERROR_DESCRIPTOR, TS_PLUGIN_STAGE_INITIALIZE,
+          error, TOAD_PLUGIN_ERROR_DESCRIPTOR, TOAD_PLUGIN_STAGE_INITIALIZE,
           (uint32_t)status, NULL,
           "plugin function '%s' failed canonical Function validation",
           entry->export_id ? entry->export_id : "<unnamed>");
     }
 
     databind_binding =
-        ts_plugin_databind_find(handle, entry->export_id);
+        toad_plugin_databind_find(handle, entry->export_id);
     if (databind_binding != NULL) {
       registrations[registration_index].name = entry->export_id;
-      registrations[registration_index].fn = ts_plugin_databind_call;
+      registrations[registration_index].fn = toad_plugin_databind_call;
       registrations[registration_index].user_data = databind_binding;
       registrations[registration_index].flags =
-          TBS_NATIVE_PRESERVE_VALUE_TYPES;
+          TOAD_NATIVE_PRESERVE_VALUE_TYPES;
       ++registration_index;
       continue;
     }
@@ -400,7 +400,7 @@ static int plugin_bind_function_exports(
       free(registrations);
       free(bindings);
       return plugin_error_set(
-          error, TS_PLUGIN_ERROR_DESCRIPTOR, TS_PLUGIN_STAGE_INITIALIZE,
+          error, TOAD_PLUGIN_ERROR_DESCRIPTOR, TOAD_PLUGIN_STAGE_INITIALIZE,
           (uint32_t)status, NULL,
           "plugin function '%s' is neither catalog-backed nor in the canonical finite scalar ABI",
           entry->export_id ? entry->export_id : "<unnamed>");
@@ -410,7 +410,7 @@ static int plugin_bind_function_exports(
     registrations[registration_index].fn = plugin_function_scalar_call;
     registrations[registration_index].user_data = &bindings[scalar_count];
     registrations[registration_index].flags =
-        TBS_NATIVE_PRESERVE_VALUE_TYPES;
+        TOAD_NATIVE_PRESERVE_VALUE_TYPES;
     ++scalar_count;
     ++registration_index;
   }
@@ -419,22 +419,22 @@ static int plugin_bind_function_exports(
     free(registrations);
     free(bindings);
     return plugin_error_set(
-        error, TS_PLUGIN_ERROR_DESCRIPTOR, TS_PLUGIN_STAGE_INITIALIZE,
+        error, TOAD_PLUGIN_ERROR_DESCRIPTOR, TOAD_PLUGIN_STAGE_INITIALIZE,
         0u, NULL, "plugin Function registration count is inconsistent");
   }
 
-  registration_status = tbs_env_register_funcs_checked(
+  registration_status = toad_env_register_funcs_checked(
       env, registrations, registration_index);
   free(registrations);
-  if (registration_status != TBS_REGISTRATION_OK) {
+  if (registration_status != TOAD_REGISTRATION_OK) {
     free(bindings);
     return plugin_error_set(
         error,
-        registration_status == TBS_REGISTRATION_OUT_OF_MEMORY
-            ? TS_PLUGIN_ERROR_OUT_OF_MEMORY
-            : TS_PLUGIN_ERROR_DESCRIPTOR,
-        TS_PLUGIN_STAGE_INITIALIZE, (uint32_t)registration_status, NULL,
-        registration_status == TBS_REGISTRATION_CONFLICT
+        registration_status == TOAD_REGISTRATION_OUT_OF_MEMORY
+            ? TOAD_PLUGIN_ERROR_OUT_OF_MEMORY
+            : TOAD_PLUGIN_ERROR_DESCRIPTOR,
+        TOAD_PLUGIN_STAGE_INITIALIZE, (uint32_t)registration_status, NULL,
+        registration_status == TOAD_REGISTRATION_CONFLICT
             ? "plugin function export conflicts with an existing script binding"
             : "failed to register canonical plugin function bindings");
   }
@@ -446,15 +446,15 @@ static int plugin_bind_function_exports(
 
   handle->function_bindings = bindings;
   handle->function_binding_count = scalar_count;
-  return TS_PLUGIN_ERROR_NONE;
+  return TOAD_PLUGIN_ERROR_NONE;
 }
 
-static void plugin_error_clear(ts_plugin_error_t *error) {
+static void plugin_error_clear(toad_plugin_error_t *error) {
   if (error) memset(error, 0, sizeof(*error));
 }
 
-static int plugin_error_set(ts_plugin_error_t *error, ts_plugin_error_code_t code,
-                            ts_plugin_error_stage_t stage, uint32_t native_code,
+static int plugin_error_set(toad_plugin_error_t *error, toad_plugin_error_code_t code,
+                            toad_plugin_error_stage_t stage, uint32_t native_code,
                             const char *path, const char *format, ...) {
   if (error) {
     va_list args;
@@ -667,29 +667,29 @@ static int plugin_path_exists(const char *path) {
 }
 #endif
 
-static char *plugin_resolve_path(const char *path, ts_plugin_error_t *error) {
+static char *plugin_resolve_path(const char *path, toad_plugin_error_t *error) {
   char *exe_dir;
   char *plugins_dir;
   char *candidate;
   const char *root;
 
   if (!path || !*path) {
-    plugin_error_set(error, TS_PLUGIN_ERROR_INVALID_ARGUMENT,
-                     TS_PLUGIN_STAGE_ARGUMENT, 0u, path,
+    plugin_error_set(error, TOAD_PLUGIN_ERROR_INVALID_ARGUMENT,
+                     TOAD_PLUGIN_STAGE_ARGUMENT, 0u, path,
                      "plugin path is required");
     return NULL;
   }
 
   if (plugin_has_path_separator(path)) {
     if (plugin_path_exists(path)) return plugin_strdup(path);
-    plugin_error_set(error, TS_PLUGIN_ERROR_OPEN, TS_PLUGIN_STAGE_OPEN, 0u,
+    plugin_error_set(error, TOAD_PLUGIN_ERROR_OPEN, TOAD_PLUGIN_STAGE_OPEN, 0u,
                      path, "plugin file does not exist");
     return NULL;
   }
 
   exe_dir = plugin_executable_dir();
   if (!exe_dir) {
-    plugin_error_set(error, TS_PLUGIN_ERROR_OPEN, TS_PLUGIN_STAGE_OPEN, 0u,
+    plugin_error_set(error, TOAD_PLUGIN_ERROR_OPEN, TOAD_PLUGIN_STAGE_OPEN, 0u,
                      path, "failed to determine executable directory");
     return NULL;
   }
@@ -703,7 +703,7 @@ static char *plugin_resolve_path(const char *path, ts_plugin_error_t *error) {
   }
   free(candidate);
 
-  root = getenv("TURBOSCRIPT_ROOT");
+  root = getenv("TOAD_ROOT");
   if (root && *root) {
     char *bin_dir = plugin_join_path(root, "bin");
     plugins_dir = bin_dir ? plugin_join_path(bin_dir, "plugins") : NULL;
@@ -721,41 +721,41 @@ static char *plugin_resolve_path(const char *path, ts_plugin_error_t *error) {
   free(exe_dir);
   if (candidate && plugin_path_exists(candidate)) return candidate;
 
-  plugin_error_set(error, TS_PLUGIN_ERROR_OPEN, TS_PLUGIN_STAGE_OPEN, 0u,
+  plugin_error_set(error, TOAD_PLUGIN_ERROR_OPEN, TOAD_PLUGIN_STAGE_OPEN, 0u,
                    candidate ? candidate : path,
                    "plugin was not found in executable/package plugin locations");
   free(candidate);
   return NULL;
 }
 
-static int plugin_error_from_salts(ts_plugin_error_t *error,
+static int plugin_error_from_salts(toad_plugin_error_t *error,
                                    cmeta_plugin_status status,
                                    const char *path) {
-  ts_plugin_error_code_t code = TS_PLUGIN_ERROR_DESCRIPTOR;
-  ts_plugin_error_stage_t stage = TS_PLUGIN_STAGE_ABI;
+  toad_plugin_error_code_t code = TOAD_PLUGIN_ERROR_DESCRIPTOR;
+  toad_plugin_error_stage_t stage = TOAD_PLUGIN_STAGE_ABI;
   const char *detail = cmeta_plugin_status_string(status);
 
   switch (status) {
     case CMETA_PLUGIN_LOAD_FAILED:
-      code = TS_PLUGIN_ERROR_OPEN;
-      stage = TS_PLUGIN_STAGE_OPEN;
+      code = TOAD_PLUGIN_ERROR_OPEN;
+      stage = TOAD_PLUGIN_STAGE_OPEN;
       break;
     case CMETA_PLUGIN_QUERY_MISSING:
-      code = TS_PLUGIN_ERROR_SYMBOL;
-      stage = TS_PLUGIN_STAGE_SYMBOL;
+      code = TOAD_PLUGIN_ERROR_SYMBOL;
+      stage = TOAD_PLUGIN_STAGE_SYMBOL;
       break;
     case CMETA_PLUGIN_QUERY_REJECTED:
     case CMETA_PLUGIN_UNSUPPORTED_ABI:
-      code = TS_PLUGIN_ERROR_ABI;
-      stage = TS_PLUGIN_STAGE_ABI;
+      code = TOAD_PLUGIN_ERROR_ABI;
+      stage = TOAD_PLUGIN_STAGE_ABI;
       break;
     case CMETA_PLUGIN_ALLOCATION_FAILED:
-      code = TS_PLUGIN_ERROR_OUT_OF_MEMORY;
-      stage = TS_PLUGIN_STAGE_OPEN;
+      code = TOAD_PLUGIN_ERROR_OUT_OF_MEMORY;
+      stage = TOAD_PLUGIN_STAGE_OPEN;
       break;
     default:
-      code = TS_PLUGIN_ERROR_DESCRIPTOR;
-      stage = TS_PLUGIN_STAGE_ABI;
+      code = TOAD_PLUGIN_ERROR_DESCRIPTOR;
+      stage = TOAD_PLUGIN_STAGE_ABI;
       break;
   }
 
@@ -799,8 +799,8 @@ static void plugin_registry_cleanup_loaded(cmeta_plugin_registry *registry,
   (void)cmeta_plugin_registry_destroy(registry);
 }
 
-int ts_plugin_load_ex(const char *path, const char *expected_name,
-                      ts_plugin_handle_t **out, ts_plugin_error_t *error) {
+int toad_plugin_load_ex(const char *path, const char *expected_name,
+                      toad_plugin_handle_t **out, toad_plugin_error_t *error) {
   char *resolved = NULL;
   cmeta_plugin_registry registry = {0};
   cmeta_plugin_registry_config config = {.capacity = 1u};
@@ -808,20 +808,20 @@ int ts_plugin_load_ex(const char *path, const char *expected_name,
   cmeta_plugin_lease lease = {0};
   const cmeta_plugin_manifest *manifest = NULL;
   const cmeta_plugin_export *module_export = NULL;
-  ts_plugin_module *module = NULL;
+  toad_plugin_module *module = NULL;
   cmeta_plugin_status status;
-  ts_plugin_handle_t *handle = NULL;
+  toad_plugin_handle_t *handle = NULL;
   int started = 0;
 
   plugin_error_clear(error);
   if (out) *out = NULL;
   if (!path || !*path || !out)
-    return plugin_error_set(error, TS_PLUGIN_ERROR_INVALID_ARGUMENT,
-                            TS_PLUGIN_STAGE_ARGUMENT, 0u, path,
+    return plugin_error_set(error, TOAD_PLUGIN_ERROR_INVALID_ARGUMENT,
+                            TOAD_PLUGIN_STAGE_ARGUMENT, 0u, path,
                             "plugin path and output handle are required");
 
   resolved = plugin_resolve_path(path, error);
-  if (!resolved) return error ? error->code : TS_PLUGIN_ERROR_OPEN;
+  if (!resolved) return error ? error->code : TOAD_PLUGIN_ERROR_OPEN;
 
   status = cmeta_plugin_registry_init(&registry, &config);
   if (status != CMETA_PLUGIN_OK) {
@@ -857,47 +857,47 @@ int ts_plugin_load_ex(const char *path, const char *expected_name,
   if (manifest->self != NULL || manifest->start != NULL ||
       manifest->request_stop != NULL || manifest->is_quiescent != NULL ||
       manifest->destroy != NULL) {
-    plugin_error_set(error, TS_PLUGIN_ERROR_DESCRIPTOR, TS_PLUGIN_STAGE_ABI,
+    plugin_error_set(error, TOAD_PLUGIN_ERROR_DESCRIPTOR, TOAD_PLUGIN_STAGE_ABI,
                      0u, resolved,
-                     "TurboScript module plugins must use passive Salts DSO lifecycle");
+                     "Toad module plugins must use passive Salts DSO lifecycle");
     free(resolved);
     plugin_registry_cleanup_loaded(&registry, ref, &lease, started);
-    return TS_PLUGIN_ERROR_DESCRIPTOR;
+    return TOAD_PLUGIN_ERROR_DESCRIPTOR;
   }
 
   if (expected_name && strcmp(manifest->plugin_id, expected_name) != 0) {
-    plugin_error_set(error, TS_PLUGIN_ERROR_NAME, TS_PLUGIN_STAGE_ABI, 0u,
+    plugin_error_set(error, TOAD_PLUGIN_ERROR_NAME, TOAD_PLUGIN_STAGE_ABI, 0u,
                      resolved,
                      "plugin name mismatch: expected '%s', got '%s'",
                      expected_name, manifest->plugin_id);
     free(resolved);
     plugin_registry_cleanup_loaded(&registry, ref, &lease, started);
-    return TS_PLUGIN_ERROR_NAME;
+    return TOAD_PLUGIN_ERROR_NAME;
   }
 
   status = cmeta_plugin_manifest_find_export(
-      manifest, TS_PLUGIN_MODULE_EXPORT_ID, &module_export);
+      manifest, TOAD_PLUGIN_MODULE_EXPORT_ID, &module_export);
   if (status == CMETA_PLUGIN_OK) {
     if (cmeta_plugin_export_require_interface(
-            module_export, TS_PLUGIN_MODULE_CONTRACT_ID,
-            TS_PLUGIN_MODULE_CONTRACT_VERSION, 0u,
-            ts_plugin_module_interface()) != CMETA_PLUGIN_OK) {
-      plugin_error_set(error, TS_PLUGIN_ERROR_DESCRIPTOR, TS_PLUGIN_STAGE_ABI,
+            module_export, TOAD_PLUGIN_MODULE_CONTRACT_ID,
+            TOAD_PLUGIN_MODULE_CONTRACT_VERSION, 0u,
+            toad_plugin_module_interface()) != CMETA_PLUGIN_OK) {
+      plugin_error_set(error, TOAD_PLUGIN_ERROR_DESCRIPTOR, TOAD_PLUGIN_STAGE_ABI,
                        (uint32_t)status, resolved,
-                       "TurboScript module interface export is invalid");
+                       "Toad module interface export is invalid");
       free(resolved);
       plugin_registry_cleanup_loaded(&registry, ref, &lease, started);
-      return TS_PLUGIN_ERROR_DESCRIPTOR;
+      return TOAD_PLUGIN_ERROR_DESCRIPTOR;
     }
 
-    module = (ts_plugin_module *)module_export->value.interface.value;
-    if (!ts_plugin_module_valid(module)) {
-      plugin_error_set(error, TS_PLUGIN_ERROR_DESCRIPTOR, TS_PLUGIN_STAGE_ABI,
+    module = (toad_plugin_module *)module_export->value.interface.value;
+    if (!toad_plugin_module_valid(module)) {
+      plugin_error_set(error, TOAD_PLUGIN_ERROR_DESCRIPTOR, TOAD_PLUGIN_STAGE_ABI,
                        0u, resolved,
-                       "TurboScript module interface value is invalid");
+                       "Toad module interface value is invalid");
       free(resolved);
       plugin_registry_cleanup_loaded(&registry, ref, &lease, started);
-      return TS_PLUGIN_ERROR_DESCRIPTOR;
+      return TOAD_PLUGIN_ERROR_DESCRIPTOR;
     }
   } else if (status == CMETA_PLUGIN_UNKNOWN_EXPORT) {
     size_t function_count = 0u;
@@ -908,28 +908,28 @@ int ts_plugin_load_ex(const char *path, const char *expected_name,
     }
     if (function_count == 0u) {
       plugin_error_set(
-          error, TS_PLUGIN_ERROR_DESCRIPTOR, TS_PLUGIN_STAGE_ABI,
+          error, TOAD_PLUGIN_ERROR_DESCRIPTOR, TOAD_PLUGIN_STAGE_ABI,
           (uint32_t)status, resolved,
-          "plugin publishes neither canonical Function exports nor the TurboScript module interface");
+          "plugin publishes neither canonical Function exports nor the Toad module interface");
       free(resolved);
       plugin_registry_cleanup_loaded(&registry, ref, &lease, started);
-      return TS_PLUGIN_ERROR_DESCRIPTOR;
+      return TOAD_PLUGIN_ERROR_DESCRIPTOR;
     }
   } else {
-    plugin_error_set(error, TS_PLUGIN_ERROR_DESCRIPTOR, TS_PLUGIN_STAGE_ABI,
+    plugin_error_set(error, TOAD_PLUGIN_ERROR_DESCRIPTOR, TOAD_PLUGIN_STAGE_ABI,
                      (uint32_t)status, resolved,
                      "failed to inspect canonical plugin exports");
     free(resolved);
     plugin_registry_cleanup_loaded(&registry, ref, &lease, started);
-    return TS_PLUGIN_ERROR_DESCRIPTOR;
+    return TOAD_PLUGIN_ERROR_DESCRIPTOR;
   }
 
-  handle = (ts_plugin_handle_t *)calloc(1, sizeof(*handle));
+  handle = (toad_plugin_handle_t *)calloc(1, sizeof(*handle));
   if (!handle) {
     free(resolved);
     plugin_registry_cleanup_loaded(&registry, ref, &lease, started);
-    return plugin_error_set(error, TS_PLUGIN_ERROR_OUT_OF_MEMORY,
-                            TS_PLUGIN_STAGE_OPEN, 0u, path,
+    return plugin_error_set(error, TOAD_PLUGIN_ERROR_OUT_OF_MEMORY,
+                            TOAD_PLUGIN_STAGE_OPEN, 0u, path,
                             "out of memory while creating plugin handle");
   }
 
@@ -951,13 +951,13 @@ int ts_plugin_load_ex(const char *path, const char *expected_name,
 
   *out = handle;
   plugin_error_clear(error);
-  return TS_PLUGIN_ERROR_NONE;
+  return TOAD_PLUGIN_ERROR_NONE;
 }
 
-int ts_plugin_find_bound_function(
-    const ts_plugin_handle_t *handle, const char *export_id,
-    ts_plugin_function_view_t *out) {
-  const ts_plugin_function_binding_t *bindings;
+int toad_plugin_find_bound_function(
+    const toad_plugin_handle_t *handle, const char *export_id,
+    toad_plugin_function_view_t *out) {
+  const toad_plugin_function_binding_t *bindings;
 
   if (out) memset(out, 0, sizeof(*out));
   if (!handle || !export_id || !*export_id || !out ||
@@ -965,7 +965,7 @@ int ts_plugin_find_bound_function(
     return 0;
 
   bindings =
-      (const ts_plugin_function_binding_t *)handle->function_bindings;
+      (const toad_plugin_function_binding_t *)handle->function_bindings;
   for (size_t i = 0u; i < handle->function_binding_count; ++i) {
     const cmeta_plugin_export *entry = bindings[i].entry;
     if (entry && entry->export_id &&
@@ -979,46 +979,46 @@ int ts_plugin_find_bound_function(
   return 0;
 }
 
-ts_plugin_handle_t *ts_plugin_load(const char *path) {
-  ts_plugin_handle_t *handle = NULL;
-  if (ts_plugin_load_ex(path, NULL, &handle, NULL) != TS_PLUGIN_ERROR_NONE)
+toad_plugin_handle_t *toad_plugin_load(const char *path) {
+  toad_plugin_handle_t *handle = NULL;
+  if (toad_plugin_load_ex(path, NULL, &handle, NULL) != TOAD_PLUGIN_ERROR_NONE)
     return NULL;
   return handle;
 }
 
-int ts_plugin_init_ex(ts_plugin_handle_t *handle, void *env, void *scratch,
-                      ts_plugin_error_t *error) {
+int toad_plugin_init_ex(toad_plugin_handle_t *handle, void *env, void *scratch,
+                      toad_plugin_error_t *error) {
   int bind_status;
 
   plugin_error_clear(error);
   if (!handle || !handle->manifest || !env)
-    return plugin_error_set(error, TS_PLUGIN_ERROR_INVALID_ARGUMENT,
-                            TS_PLUGIN_STAGE_ARGUMENT, 0u, NULL,
+    return plugin_error_set(error, TOAD_PLUGIN_ERROR_INVALID_ARGUMENT,
+                            TOAD_PLUGIN_STAGE_ARGUMENT, 0u, NULL,
                             "validated plugin handle and target environment are required");
   if (handle->initialized)
-    return plugin_error_set(error, TS_PLUGIN_ERROR_INVALID_ARGUMENT,
-                            TS_PLUGIN_STAGE_INITIALIZE, 0u, NULL,
+    return plugin_error_set(error, TOAD_PLUGIN_ERROR_INVALID_ARGUMENT,
+                            TOAD_PLUGIN_STAGE_INITIALIZE, 0u, NULL,
                             "plugin is already initialized");
 
-  if (handle->module && ts_plugin_module_valid(handle->module)) {
-    handle->instance = ts_plugin_module_load(handle->module, env, scratch);
+  if (handle->module && toad_plugin_module_valid(handle->module)) {
+    handle->instance = toad_plugin_module_load(handle->module, env, scratch);
     if (!handle->instance)
-      return plugin_error_set(error, TS_PLUGIN_ERROR_INITIALIZE,
-                              TS_PLUGIN_STAGE_INITIALIZE, 0u, NULL,
+      return plugin_error_set(error, TOAD_PLUGIN_ERROR_INITIALIZE,
+                              TOAD_PLUGIN_STAGE_INITIALIZE, 0u, NULL,
                               "plugin module initialization returned no instance");
   }
 
   {
-    char databind_error[TS_PLUGIN_ERROR_MESSAGE_CAPACITY] = {0};
-    if (!ts_plugin_databind_prepare(
+    char databind_error[TOAD_PLUGIN_ERROR_MESSAGE_CAPACITY] = {0};
+    if (!toad_plugin_databind_prepare(
             handle, databind_error, sizeof(databind_error))) {
       if (handle->instance && handle->module &&
-          ts_plugin_module_valid(handle->module)) {
-        ts_plugin_module_unload(handle->module, handle->instance);
+          toad_plugin_module_valid(handle->module)) {
+        toad_plugin_module_unload(handle->module, handle->instance);
         handle->instance = NULL;
       }
       return plugin_error_set(
-          error, TS_PLUGIN_ERROR_DESCRIPTOR, TS_PLUGIN_STAGE_INITIALIZE,
+          error, TOAD_PLUGIN_ERROR_DESCRIPTOR, TOAD_PLUGIN_STAGE_INITIALIZE,
           0u, NULL, "%s",
           databind_error[0]
               ? databind_error
@@ -1027,40 +1027,40 @@ int ts_plugin_init_ex(ts_plugin_handle_t *handle, void *env, void *scratch,
   }
 
   bind_status = plugin_bind_function_exports(
-      handle, (tbs_env_t *)env, error);
-  if (bind_status != TS_PLUGIN_ERROR_NONE) {
-    ts_plugin_databind_clear(handle);
+      handle, (toad_env_t *)env, error);
+  if (bind_status != TOAD_PLUGIN_ERROR_NONE) {
+    toad_plugin_databind_clear(handle);
     if (handle->instance && handle->module &&
-        ts_plugin_module_valid(handle->module)) {
-      ts_plugin_module_unload(handle->module, handle->instance);
+        toad_plugin_module_valid(handle->module)) {
+      toad_plugin_module_unload(handle->module, handle->instance);
       handle->instance = NULL;
     }
     return bind_status;
   }
 
   handle->initialized = 1;
-  return TS_PLUGIN_ERROR_NONE;
+  return TOAD_PLUGIN_ERROR_NONE;
 }
 
-int ts_plugin_init(ts_plugin_handle_t *handle, void *env, void *scratch) {
-  return ts_plugin_init_ex(handle, env, scratch, NULL) ==
-                 TS_PLUGIN_ERROR_NONE
+int toad_plugin_init(toad_plugin_handle_t *handle, void *env, void *scratch) {
+  return toad_plugin_init_ex(handle, env, scratch, NULL) ==
+                 TOAD_PLUGIN_ERROR_NONE
              ? 0
              : -1;
 }
 
-void ts_plugin_unload(ts_plugin_handle_t *handle) {
+void toad_plugin_unload(toad_plugin_handle_t *handle) {
   bool quiescent = false;
 
   if (!handle) return;
 
   if (handle->instance && handle->module &&
-      ts_plugin_module_valid(handle->module)) {
-    ts_plugin_module_unload(handle->module, handle->instance);
+      toad_plugin_module_valid(handle->module)) {
+    toad_plugin_module_unload(handle->module, handle->instance);
     handle->instance = NULL;
   }
 
-  ts_plugin_databind_clear(handle);
+  toad_plugin_databind_clear(handle);
   free(handle->function_bindings);
   handle->function_bindings = NULL;
   handle->function_binding_count = 0u;

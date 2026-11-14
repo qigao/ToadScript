@@ -7,12 +7,12 @@
 #include <simde/x86/avx2.h>
 #include <simde/x86/fma.h>
 
-#include <turboscript/simd.h>
+#include <toad/simd.h>
 #include <math.h>
 #include <stdlib.h>
 
 /* Sharpe = (mean(r) - rf) / std(r) * sqrt(annual_factor) */
-double tbs_sharpe(const double *returns, size_t n, double rf, double annual_factor) {
+double toad_sharpe(const double *returns, size_t n, double rf, double annual_factor) {
     if (n < 2) return 0.0;
     double mean, variance;
     simd_mean_variance(returns, n, &mean, &variance);
@@ -22,7 +22,7 @@ double tbs_sharpe(const double *returns, size_t n, double rf, double annual_fact
 }
 
 /* Sortino = (mean(r) - rf) / downside_std(r) * sqrt(annual_factor) */
-double tbs_sortino(const double *returns, size_t n, double rf, double annual_factor) {
+double toad_sortino(const double *returns, size_t n, double rf, double annual_factor) {
     if (n < 2) return 0.0;
     double mean = simd_sum(returns, n) / (double)n;
 
@@ -42,7 +42,7 @@ double tbs_sortino(const double *returns, size_t n, double rf, double annual_fac
 }
 
 /* Calmar = CAGR / max_drawdown */
-double tbs_calmar(const double *equity, size_t n, double annual_factor) {
+double toad_calmar(const double *equity, size_t n, double annual_factor) {
     if (n < 2 || equity[0] < 1e-15) return 0.0;
     double growth = equity[n - 1] / equity[0];
     double periods = (double)(n - 1);
@@ -60,7 +60,7 @@ double tbs_calmar(const double *equity, size_t n, double annual_factor) {
 }
 
 /* profit_factor = sum(winning) / abs(sum(losing)) */
-double tbs_profit_factor(const double *trades, size_t n) {
+double toad_profit_factor(const double *trades, size_t n) {
     double gross_profit = 0, gross_loss = 0;
     for (size_t i = 0; i < n; i++) {
         if (trades[i] > 0) gross_profit += trades[i];
@@ -71,7 +71,7 @@ double tbs_profit_factor(const double *trades, size_t n) {
 }
 
 /* expectancy = win_rate * avg_win - loss_rate * avg_loss */
-double tbs_expectancy(const double *trades, size_t n) {
+double toad_expectancy(const double *trades, size_t n) {
     if (n == 0) return 0.0;
     double sum_win = 0, sum_loss = 0;
     size_t n_win = 0, n_loss = 0;
@@ -87,7 +87,7 @@ double tbs_expectancy(const double *trades, size_t n) {
 }
 
 /* payoff_ratio = avg_win / avg_loss */
-double tbs_payoff_ratio(const double *trades, size_t n) {
+double toad_payoff_ratio(const double *trades, size_t n) {
     double sum_win = 0, sum_loss = 0;
     size_t n_win = 0, n_loss = 0;
     for (size_t i = 0; i < n; i++) {
@@ -99,7 +99,7 @@ double tbs_payoff_ratio(const double *trades, size_t n) {
 }
 
 /* max_dd_duration: longest drawdown in bars */
-size_t tbs_max_dd_duration(const double *equity, size_t n) {
+size_t toad_max_dd_duration(const double *equity, size_t n) {
     if (n < 2) return 0;
     double peak = equity[0];
     size_t max_dur = 0, cur_dur = 0;
@@ -117,7 +117,7 @@ size_t tbs_max_dd_duration(const double *equity, size_t n) {
 }
 
 /* ulcer_index = sqrt(mean(dd^2)) */
-double tbs_ulcer_index(const double *equity, size_t n) {
+double toad_ulcer_index(const double *equity, size_t n) {
     if (n < 2) return 0.0;
     double peak = equity[0], sum_dd2 = 0;
     for (size_t i = 1; i < n; i++) {
@@ -129,7 +129,7 @@ double tbs_ulcer_index(const double *equity, size_t n) {
 }
 
 /* information_ratio = mean(excess) / std(excess) */
-double tbs_information_ratio(const double *ret, const double *bench, size_t n) {
+double toad_information_ratio(const double *ret, const double *bench, size_t n) {
     if (n < 2) return 0.0;
     double *excess = malloc(n * sizeof(double));
     if (!excess) return 0.0;
@@ -143,7 +143,7 @@ double tbs_information_ratio(const double *ret, const double *bench, size_t n) {
 }
 
 /* treynor = (mean(ret) - rf) / beta, where beta = cov(ret,bench)/var(bench) */
-double tbs_treynor(const double *ret, const double *bench, size_t n, double rf) {
+double toad_treynor(const double *ret, const double *bench, size_t n, double rf) {
     if (n < 2) return 0.0;
     double sum_r = 0, sum_b = 0;
     for (size_t i = 0; i < n; i++) { sum_r += ret[i]; sum_b += bench[i]; }

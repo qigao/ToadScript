@@ -1,10 +1,10 @@
 /**
  * @file class.c
- * @brief TurboScript OOP - Class and Instance Runtime Implementation
+ * @brief Toad OOP - Class and Instance Runtime Implementation
  */
 
-#include <turboscript/class.h>
-#include <turboscript/engine.h>
+#include <toad/class.h>
+#include <toad/engine.h>
 #include <cstl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,15 +17,15 @@
 // Hash table entry for method lookup (name -> func)
 typedef struct {
     char *name;
-    tbs_func_t *func;
+    toad_func_t *func;
 } method_entry_t;
 
 // Hash table entry for field storage (name -> value)
 typedef struct {
     char *name;
-    tbs_value_t value;
+    toad_value_t value;
     int access_level;
-    tbs_class_t *owner_class;
+    toad_class_t *owner_class;
     const char *declared_type;
 } field_entry_t;
 
@@ -35,7 +35,7 @@ typedef struct {
 
 static uint64_t next_class_type_id = 1;
 
-static void class_invalidate_cmeta(tbs_class_t *klass) {
+static void class_invalidate_cmeta(toad_class_t *klass) {
     if (klass) {
         klass->cmeta_ready = 0;
         klass->cmeta_data_ready = 0;
@@ -74,12 +74,12 @@ typedef size_t htab_hash_t;
 typedef struct {
     void *data;
     size_t length;
-} tbs_table_snapshot_t;
+} toad_table_snapshot_t;
 
 typedef struct { htab_hash_t hash; method_entry_t el; } method_entry_t_htab_el_t;
 typedef struct {
     hash_map_t map;
-    tbs_table_snapshot_t els;
+    toad_table_snapshot_t els;
     htab_size_t els_bound;
     htab_size_t els_num;
     void *arg;
@@ -88,7 +88,7 @@ typedef struct {
 typedef struct { htab_hash_t hash; field_entry_t el; } field_entry_t_htab_el_t;
 typedef struct {
     hash_map_t map;
-    tbs_table_snapshot_t els;
+    toad_table_snapshot_t els;
     htab_size_t els_bound;
     htab_size_t els_num;
     void *arg;
@@ -105,7 +105,7 @@ typedef struct {
 #define HTAB_DELETE 3
 #define HTAB_OP(T, operation) T##_htab_##operation
 
-static size_t tbs_name_hash(const void *key, size_t key_size, void *context) {
+static size_t toad_name_hash(const void *key, size_t key_size, void *context) {
     const char *const *name = (const char *const *)key;
     size_t hash = 5381u;
     (void)key_size;
@@ -116,7 +116,7 @@ static size_t tbs_name_hash(const void *key, size_t key_size, void *context) {
     return hash;
 }
 
-static bool tbs_name_equal(const void *left, const void *right,
+static bool toad_name_equal(const void *left, const void *right,
                               size_t key_size, void *context) {
     const char *const *lhs = (const char *const *)left;
     const char *const *rhs = (const char *const *)right;
@@ -125,7 +125,7 @@ static bool tbs_name_equal(const void *left, const void *right,
     return lhs && rhs && *lhs && *rhs && strcmp(*lhs, *rhs) == 0;
 }
 
-#define TBS_DEFINE_TABLE_ADAPTER(T) \
+#define TOAD_DEFINE_TABLE_ADAPTER(T) \
 static int T##_htab_sync(HTAB(T) *table) { \
     size_t count; \
     T##_htab_el_t *elements; \
@@ -143,7 +143,7 @@ static int T##_htab_sync(HTAB(T) *table) { \
         const char *const *key = (const char *const *)hash_map_key_at_const(&table->map, slot); \
         const T *value = (const T *)hash_map_value_at_const(&table->map, slot); \
         if (!key || !value) continue; \
-        elements[out].hash = tbs_name_hash(key, sizeof(*key), NULL); \
+        elements[out].hash = toad_name_hash(key, sizeof(*key), NULL); \
         if (elements[out].hash == HTAB_DELETED_HASH) --elements[out].hash; \
         elements[out].el = *value; \
         ++out; \
@@ -157,7 +157,7 @@ static HTAB(T) *T##_htab_new(size_t entry_limit) { \
     if (!table) return NULL; \
     if (hash_map_init_bytes(&table->map, sizeof(char *), _Alignof(char *), \
                             sizeof(T), _Alignof(T), entry_limit, \
-                            tbs_name_hash, tbs_name_equal, NULL) != STL_OK) { \
+                            toad_name_hash, toad_name_equal, NULL) != STL_OK) { \
         free(table); \
         return NULL; \
     } \
@@ -192,8 +192,8 @@ static int T##_htab_do(HTAB(T) *table, T entry, int operation, T *result) { \
     return T##_htab_sync(table); \
 }
 
-TBS_DEFINE_TABLE_ADAPTER(method_entry_t)
-TBS_DEFINE_TABLE_ADAPTER(field_entry_t)
+TOAD_DEFINE_TABLE_ADAPTER(method_entry_t)
+TOAD_DEFINE_TABLE_ADAPTER(field_entry_t)
 
 static char *method_arity_key(const char *name, size_t argc) {
     if (!name) return NULL;
@@ -206,45 +206,45 @@ static char *method_arity_key(const char *name, size_t argc) {
     return key;
 }
 
-static const char *value_signature_type(tbs_value_t value) {
+static const char *value_signature_type(toad_value_t value) {
     switch (value.type) {
-        case TBS_VAL_NUMBER:
-        case TBS_VAL_INTEGER:
+        case TOAD_VAL_NUMBER:
+        case TOAD_VAL_INTEGER:
             return "number";
-        case TBS_VAL_STRING:
+        case TOAD_VAL_STRING:
             return "string";
-        case TBS_VAL_VECTOR:
+        case TOAD_VAL_VECTOR:
             return "vector";
-        case TBS_VAL_MAP:
+        case TOAD_VAL_MAP:
             return "map";
-        case TBS_VAL_OBJECT:
+        case TOAD_VAL_OBJECT:
             return "object";
-        case TBS_VAL_NULL:
+        case TOAD_VAL_NULL:
             return "null";
-        case TBS_VAL_LIST:
+        case TOAD_VAL_LIST:
             return "list";
-        case TBS_VAL_FUNCTION:
-        case TBS_VAL_BOUND_METHOD:
+        case TOAD_VAL_FUNCTION:
+        case TOAD_VAL_BOUND_METHOD:
             return "function";
-        case TBS_VAL_CLASS:
+        case TOAD_VAL_CLASS:
             return "class";
-        case TBS_VAL_INSTANCE:
+        case TOAD_VAL_INSTANCE:
             return "instance";
         default:
             return "unknown";
     }
 }
 
-static const char *method_param_type(tbs_node_t *param) {
-    if (!param || param->type != TBS_NODE_MEMBER_ACCESS ||
+static const char *method_param_type(toad_node_t *param) {
+    if (!param || param->type != TOAD_NODE_MEMBER_ACCESS ||
         !param->data.member_access.object ||
-        param->data.member_access.object->type != TBS_NODE_VARIABLE) {
+        param->data.member_access.object->type != TOAD_NODE_VARIABLE) {
         return NULL;
     }
     return param->data.member_access.member;
 }
 
-static int method_has_full_type_signature(tbs_func_t *method) {
+static int method_has_full_type_signature(toad_func_t *method) {
     if (!method || !method->is_script || method->data.script.arg_count == 0) return 0;
     for (size_t i = 0; i < method->data.script.arg_count; ++i) {
         if (!method_param_type(method->data.script.arg_params[i])) return 0;
@@ -252,10 +252,10 @@ static int method_has_full_type_signature(tbs_func_t *method) {
     return 1;
 }
 
-static tbs_class_t *method_resolve_declared_class(tbs_func_t *method,
+static toad_class_t *method_resolve_declared_class(toad_func_t *method,
                                                      const char *declared_type);
 
-static char *method_decl_type_key(const char *name, tbs_func_t *method) {
+static char *method_decl_type_key(const char *name, toad_func_t *method) {
     if (!name || !method_has_full_type_signature(method)) return NULL;
 
     size_t len = strlen(name) + 32;
@@ -274,13 +274,13 @@ static char *method_decl_type_key(const char *name, tbs_func_t *method) {
     return key;
 }
 
-static char *method_decl_identity_key(const char *name, tbs_func_t *method) {
+static char *method_decl_identity_key(const char *name, toad_func_t *method) {
     if (!name || !method_has_full_type_signature(method)) return NULL;
 
     size_t len = strlen(name) + 32;
     for (size_t i = 0; i < method->data.script.arg_count; ++i) {
         const char *declared_type = method_param_type(method->data.script.arg_params[i]);
-        tbs_class_t *declared_class =
+        toad_class_t *declared_class =
             method_resolve_declared_class(method, declared_type);
         len += declared_class ? 32 : strlen(declared_type) + 1;
     }
@@ -291,7 +291,7 @@ static char *method_decl_identity_key(const char *name, tbs_func_t *method) {
     int written = snprintf(key, len, "%s@%zu", name, method->data.script.arg_count);
     for (size_t i = 0; i < method->data.script.arg_count; ++i) {
         const char *declared_type = method_param_type(method->data.script.arg_params[i]);
-        tbs_class_t *declared_class =
+        toad_class_t *declared_class =
             method_resolve_declared_class(method, declared_type);
         if (declared_class) {
             written += snprintf(key + written, len - (size_t)written, "@#%llu",
@@ -304,7 +304,7 @@ static char *method_decl_identity_key(const char *name, tbs_func_t *method) {
     return key;
 }
 
-static char *method_call_type_key(const char *name, size_t argc, const tbs_value_t *args) {
+static char *method_call_type_key(const char *name, size_t argc, const toad_value_t *args) {
     if (!name || (argc > 0 && !args)) return NULL;
 
     size_t len = strlen(name) + 32;
@@ -323,9 +323,9 @@ static char *method_call_type_key(const char *name, size_t argc, const tbs_value
     return key;
 }
 
-static int class_name_match_depth(tbs_class_t *klass, const char *name) {
+static int class_name_match_depth(toad_class_t *klass, const char *name) {
     int depth = 0;
-    for (tbs_class_t *current = klass; current; current = current->prototype) {
+    for (toad_class_t *current = klass; current; current = current->prototype) {
         if (current->name && strcmp(current->name, name) == 0) return depth;
         int best_interface_depth = -1;
         for (size_t i = 0; i < current->interface_count; ++i) {
@@ -344,11 +344,11 @@ static int class_name_match_depth(tbs_class_t *klass, const char *name) {
     return -1;
 }
 
-static int class_identity_match_depth(tbs_class_t *klass, tbs_class_t *target) {
+static int class_identity_match_depth(toad_class_t *klass, toad_class_t *target) {
     int depth = 0;
     if (!klass || !target) return -1;
 
-    for (tbs_class_t *current = klass; current; current = current->prototype) {
+    for (toad_class_t *current = klass; current; current = current->prototype) {
         if (current == target ||
             (current->type_id != 0 && current->type_id == target->type_id)) {
             return depth;
@@ -371,11 +371,11 @@ static int class_identity_match_depth(tbs_class_t *klass, tbs_class_t *target) {
     return -1;
 }
 
-static int instance_value_matches_field_type(tbs_class_t *klass,
-                                              tbs_value_t value,
+static int instance_value_matches_field_type(toad_class_t *klass,
+                                              toad_value_t value,
                                               const char *declared_type);
 
-static tbs_class_t *method_resolve_declared_class(tbs_func_t *method,
+static toad_class_t *method_resolve_declared_class(toad_func_t *method,
                                                      const char *declared_type) {
     if (!method || !declared_type) return NULL;
 
@@ -385,8 +385,8 @@ static tbs_class_t *method_resolve_declared_class(tbs_func_t *method,
     }
 
     if (method->closure_env) {
-        tbs_value_t type_value = tbs_env_get(method->closure_env, declared_type);
-        if (type_value.type == TBS_VAL_CLASS && type_value.data.class_val.klass) {
+        toad_value_t type_value = toad_env_get(method->closure_env, declared_type);
+        if (type_value.type == TOAD_VAL_CLASS && type_value.data.class_val.klass) {
             return type_value.data.class_val.klass;
         }
     }
@@ -394,18 +394,18 @@ static tbs_class_t *method_resolve_declared_class(tbs_func_t *method,
     return NULL;
 }
 
-static int value_matches_declared_type(tbs_value_t value, const char *declared_type,
-                                       tbs_func_t *method) {
+static int value_matches_declared_type(toad_value_t value, const char *declared_type,
+                                       toad_func_t *method) {
     if (!declared_type) return 0;
 
     if (strcmp(declared_type, value_signature_type(value)) == 0) return 10;
 
-    tbs_class_t *declared_class = method_resolve_declared_class(method, declared_type);
+    toad_class_t *declared_class = method_resolve_declared_class(method, declared_type);
     if (declared_class) {
-        tbs_class_t *value_class = NULL;
-        if (value.type == TBS_VAL_INSTANCE && value.data.instance_val.instance) {
+        toad_class_t *value_class = NULL;
+        if (value.type == TOAD_VAL_INSTANCE && value.data.instance_val.instance) {
             value_class = value.data.instance_val.instance->klass;
-        } else if (value.type == TBS_VAL_CLASS && value.data.class_val.klass) {
+        } else if (value.type == TOAD_VAL_CLASS && value.data.class_val.klass) {
             value_class = value.data.class_val.klass;
         }
 
@@ -413,13 +413,13 @@ static int value_matches_declared_type(tbs_value_t value, const char *declared_t
         return depth >= 0 ? 100 - depth : 0;
     }
 
-    if (value.type == TBS_VAL_INSTANCE && value.data.instance_val.instance) {
-        tbs_instance_t *instance = value.data.instance_val.instance;
+    if (value.type == TOAD_VAL_INSTANCE && value.data.instance_val.instance) {
+        toad_instance_t *instance = value.data.instance_val.instance;
         int depth = class_name_match_depth(instance->klass, declared_type);
         if (depth >= 0) return 100 - depth;
     }
 
-    if (value.type == TBS_VAL_CLASS && value.data.class_val.klass) {
+    if (value.type == TOAD_VAL_CLASS && value.data.class_val.klass) {
         int depth = class_name_match_depth(value.data.class_val.klass, declared_type);
         if (depth >= 0) return 100 - depth;
     }
@@ -427,8 +427,8 @@ static int value_matches_declared_type(tbs_value_t value, const char *declared_t
     return 0;
 }
 
-static int method_match_type_score(tbs_func_t *method, const char *name,
-                                   size_t argc, const tbs_value_t *args) {
+static int method_match_type_score(toad_func_t *method, const char *name,
+                                   size_t argc, const toad_value_t *args) {
     if (!method || !name || !args || !method_has_full_type_signature(method)) return 0;
     if (!method->name || strcmp(method->name, name) != 0) return 0;
     if (method->data.script.arg_count != argc) return 0;
@@ -443,20 +443,20 @@ static int method_match_type_score(tbs_func_t *method, const char *name,
     return score;
 }
 
-static tbs_func_t *method_table_find_typed_match(void *table, const char *name,
+static toad_func_t *method_table_find_typed_match(void *table, const char *name,
                                                     size_t argc,
-                                                    const tbs_value_t *args) {
+                                                    const toad_value_t *args) {
     if (!table || !name || (argc > 0 && !args)) return NULL;
 
     HTAB(method_entry_t) *htab = (HTAB(method_entry_t) *)table;
     HTAB_EL(method_entry_t) *els_addr = VARR_ADDR(HTAB_EL(method_entry_t), htab->els);
     htab_size_t bound = htab->els_bound;
-    tbs_func_t *best = NULL;
+    toad_func_t *best = NULL;
     int best_score = 0;
 
     for (htab_size_t i = 0; i < bound; ++i) {
         if (els_addr[i].hash == HTAB_DELETED_HASH) continue;
-        tbs_func_t *method = els_addr[i].el.func;
+        toad_func_t *method = els_addr[i].el.func;
         int score = method_match_type_score(method, name, argc, args);
         if (score > best_score) {
             best_score = score;
@@ -498,7 +498,7 @@ static int field_table_find(void *table, const char *name, field_entry_t *out_en
     return 1;
 }
 
-static tbs_value_t *field_table_find_slot(void *table, const char *name) {
+static toad_value_t *field_table_find_slot(void *table, const char *name) {
     if (!table || !name) return NULL;
 
     HTAB(field_entry_t) *htab = (HTAB(field_entry_t) *)table;
@@ -550,7 +550,7 @@ static int method_table_has_func_with_arity(void *table, const char *name,
     for (htab_size_t i = 0; i < bound; ++i) {
         if (els_addr[i].hash == HTAB_DELETED_HASH) continue;
 
-        tbs_func_t *func = els_addr[i].el.func;
+        toad_func_t *func = els_addr[i].el.func;
         if (!func || !func->is_script || !func->name) continue;
         if (func->data.script.arg_count != argc) continue;
         if (strlen(func->name) != name_len) continue;
@@ -560,13 +560,13 @@ static int method_table_has_func_with_arity(void *table, const char *name,
     return 0;
 }
 
-static int method_classes_same(tbs_class_t *left, tbs_class_t *right) {
+static int method_classes_same(toad_class_t *left, toad_class_t *right) {
     if (!left || !right) return 0;
     return left == right || (left->type_id != 0 && left->type_id == right->type_id);
 }
 
-static int method_signatures_exactly_match(tbs_func_t *requirement,
-                                           tbs_func_t *candidate) {
+static int method_signatures_exactly_match(toad_func_t *requirement,
+                                           toad_func_t *candidate) {
     if (!requirement || !candidate || !requirement->name || !candidate->name) return 0;
     if (strcmp(requirement->name, candidate->name) != 0) return 0;
     if (requirement->is_static_method != candidate->is_static_method) return 0;
@@ -582,9 +582,9 @@ static int method_signatures_exactly_match(tbs_func_t *requirement,
             method_param_type(candidate->data.script.arg_params[i]);
         if (!required_type || !candidate_type) return 0;
 
-        tbs_class_t *required_class =
+        toad_class_t *required_class =
             method_resolve_declared_class(requirement, required_type);
-        tbs_class_t *candidate_class =
+        toad_class_t *candidate_class =
             method_resolve_declared_class(candidate, candidate_type);
         if (required_class || candidate_class) {
             if (!method_classes_same(required_class, candidate_class)) return 0;
@@ -598,8 +598,8 @@ static int method_signatures_exactly_match(tbs_func_t *requirement,
 }
 
 static int method_requirement_satisfied_by_func(const char *requirement_name,
-                                                tbs_func_t *requirement,
-                                                tbs_func_t *candidate) {
+                                                toad_func_t *requirement,
+                                                toad_func_t *candidate) {
     if (!requirement_name || !candidate || !candidate->name) return 0;
 
     if (requirement) return method_signatures_exactly_match(requirement, candidate);
@@ -623,7 +623,7 @@ static int method_requirement_satisfied_by_func(const char *requirement_name,
 }
 
 static int method_table_has_func_satisfying(void *table, const char *requirement_name,
-                                            tbs_func_t *requirement) {
+                                            toad_func_t *requirement) {
     if (!table || !requirement_name) return 0;
 
     HTAB(method_entry_t) *htab = (HTAB(method_entry_t) *)table;
@@ -643,7 +643,7 @@ static int method_table_has_func_satisfying(void *table, const char *requirement
     return 0;
 }
 
-static int class_has_own_concrete_method(tbs_class_t *klass, const char *name) {
+static int class_has_own_concrete_method(toad_class_t *klass, const char *name) {
     method_entry_t entry;
     if (!klass || !name) return 0;
 
@@ -657,9 +657,9 @@ static int class_has_own_concrete_method(tbs_class_t *klass, const char *name) {
         klass->methods, name, method_name_len, argc);
 }
 
-static int class_has_own_concrete_method_signature(tbs_class_t *klass,
+static int class_has_own_concrete_method_signature(toad_class_t *klass,
                                                    const char *name,
-                                                   tbs_func_t *signature) {
+                                                   toad_func_t *signature) {
     if (!klass || !name) return 0;
     if (!signature) return class_has_own_concrete_method(klass, name);
     return method_table_has_func_satisfying(
@@ -667,16 +667,16 @@ static int class_has_own_concrete_method_signature(tbs_class_t *klass,
         name, signature);
 }
 
-static int class_has_concrete_method_signature(tbs_class_t *klass,
+static int class_has_concrete_method_signature(toad_class_t *klass,
                                                const char *name,
-                                               tbs_func_t *signature) {
-    for (tbs_class_t *current = klass; current; current = current->prototype) {
+                                               toad_func_t *signature) {
+    for (toad_class_t *current = klass; current; current = current->prototype) {
         if (class_has_own_concrete_method_signature(current, name, signature)) return 1;
     }
     return 0;
 }
 
-static void class_remove_abstract_method(tbs_class_t *klass, const char *name) {
+static void class_remove_abstract_method(toad_class_t *klass, const char *name) {
     if (!klass || !klass->abstract_methods || !name) return;
 
     HTAB(method_entry_t) *htab = (HTAB(method_entry_t) *)klass->abstract_methods;
@@ -689,8 +689,8 @@ static void class_remove_abstract_method(tbs_class_t *klass, const char *name) {
     }
 }
 
-static void class_remove_satisfied_abstract_methods(tbs_class_t *klass,
-                                                    tbs_func_t *method_func) {
+static void class_remove_satisfied_abstract_methods(toad_class_t *klass,
+                                                    toad_func_t *method_func) {
     if (!klass || !klass->abstract_methods || !method_func) return;
 
     HTAB(method_entry_t) *htab = (HTAB(method_entry_t) *)klass->abstract_methods;
@@ -729,7 +729,7 @@ static char *class_copy_string(mem_pool_t *arena, const char *value) {
     return copy;
 }
 
-static int class_find_instance_field_index(tbs_class_t *klass, const char *name,
+static int class_find_instance_field_index(toad_class_t *klass, const char *name,
                                            size_t *out_index) {
     if (!klass || !name) return 0;
 
@@ -743,11 +743,11 @@ static int class_find_instance_field_index(tbs_class_t *klass, const char *name,
     return 0;
 }
 
-static int class_append_instance_field(tbs_class_t *klass, const char *name,
-                                       tbs_class_t *owner_class,
+static int class_append_instance_field(toad_class_t *klass, const char *name,
+                                       toad_class_t *owner_class,
                                        int access_level,
                                        const char *declared_type,
-                                       tbs_value_t default_value,
+                                       toad_value_t default_value,
                                        int has_default,
                                        int update_existing,
                                        size_t *out_index) {
@@ -765,13 +765,13 @@ static int class_append_instance_field(tbs_class_t *klass, const char *name,
                 : NULL;
         }
         if (update_existing && klass->instance_field_defaults && klass->instance_field_has_default) {
-            tbs_value_t stored_default = { .type = TBS_VAL_NULL };
-            if (has_default && tbs_value_copy_to_pool(
-                                   tbs_value_borrow(default_value), klass->arena,
+            toad_value_t stored_default = { .type = TOAD_VAL_NULL };
+            if (has_default && toad_value_copy_to_pool(
+                                   toad_value_borrow(default_value), klass->arena,
                                    &stored_default) != 0)
                 return 0;
             if (klass->instance_field_has_default[index])
-                tbs_value_destroy(&klass->instance_field_defaults[index]);
+                toad_value_destroy(&klass->instance_field_defaults[index]);
             klass->instance_field_defaults[index] = stored_default;
             klass->instance_field_has_default[index] = has_default ? 1 : 0;
         }
@@ -791,8 +791,8 @@ static int class_append_instance_field(tbs_class_t *klass, const char *name,
             klass->instance_field_names = new_names;
             return 0;
         }
-        tbs_class_t **new_owners =
-            (tbs_class_t **)realloc(klass->instance_field_owners,
+        toad_class_t **new_owners =
+            (toad_class_t **)realloc(klass->instance_field_owners,
                                        new_capacity * sizeof(*new_owners));
         if (!new_owners) {
             klass->instance_field_names = new_names;
@@ -807,8 +807,8 @@ static int class_append_instance_field(tbs_class_t *klass, const char *name,
             klass->instance_field_owners = new_owners;
             return 0;
         }
-        tbs_value_t *new_defaults =
-            (tbs_value_t *)realloc(klass->instance_field_defaults,
+        toad_value_t *new_defaults =
+            (toad_value_t *)realloc(klass->instance_field_defaults,
                                       new_capacity * sizeof(*new_defaults));
         if (!new_defaults) {
             klass->instance_field_names = new_names;
@@ -829,7 +829,7 @@ static int class_append_instance_field(tbs_class_t *klass, const char *name,
             return 0;
         }
         for (size_t i = klass->instance_field_capacity; i < new_capacity; ++i) {
-            new_access[i] = TBS_ACCESS_PUBLIC;
+            new_access[i] = TOAD_ACCESS_PUBLIC;
             new_owners[i] = NULL;
             new_types[i] = NULL;
             memset(&new_defaults[i], 0, sizeof(new_defaults[i]));
@@ -847,9 +847,9 @@ static int class_append_instance_field(tbs_class_t *klass, const char *name,
     char *field_name = class_copy_string(klass->arena, name);
     if (!field_name) return 0;
 
-    tbs_value_t stored_default = { .type = TBS_VAL_NULL };
-    if (has_default && tbs_value_copy_to_pool(
-                           tbs_value_borrow(default_value), klass->arena,
+    toad_value_t stored_default = { .type = TOAD_VAL_NULL };
+    if (has_default && toad_value_copy_to_pool(
+                           toad_value_borrow(default_value), klass->arena,
                            &stored_default) != 0)
         return 0;
 
@@ -866,7 +866,7 @@ static int class_append_instance_field(tbs_class_t *klass, const char *name,
     return 1;
 }
 
-static int class_import_instance_fields(tbs_class_t *klass, tbs_class_t *source) {
+static int class_import_instance_fields(toad_class_t *klass, toad_class_t *source) {
     if (!klass) return 0;
     if (!source) return 1;
 
@@ -874,13 +874,13 @@ static int class_import_instance_fields(tbs_class_t *klass, tbs_class_t *source)
     for (size_t i = 0; i < source->instance_field_count; ++i) {
         int access_level = source->instance_field_access_levels
             ? source->instance_field_access_levels[i]
-            : TBS_ACCESS_PUBLIC;
-        tbs_class_t *owner = source->instance_field_owners
+            : TOAD_ACCESS_PUBLIC;
+        toad_class_t *owner = source->instance_field_owners
             ? source->instance_field_owners[i]
             : source;
-        tbs_value_t default_value = source->instance_field_defaults
+        toad_value_t default_value = source->instance_field_defaults
             ? source->instance_field_defaults[i]
-            : (tbs_value_t){0};
+            : (toad_value_t){0};
         int has_default = source->instance_field_has_default
             ? source->instance_field_has_default[i]
             : 0;
@@ -895,28 +895,28 @@ static int class_import_instance_fields(tbs_class_t *klass, tbs_class_t *source)
     return 1;
 }
 
-static int class_sync_prototype_instance_fields(tbs_class_t *klass) {
+static int class_sync_prototype_instance_fields(toad_class_t *klass) {
     if (!klass) return 0;
     return class_import_instance_fields(klass, klass->prototype);
 }
 
-static int class_ensure_instance_field(tbs_class_t *klass, const char *name,
+static int class_ensure_instance_field(toad_class_t *klass, const char *name,
                                        size_t *out_index) {
     if (!klass || !name) return 0;
     if (!class_sync_prototype_instance_fields(klass)) return 0;
-    return class_append_instance_field(klass, name, klass, TBS_ACCESS_PUBLIC, NULL,
-                                       (tbs_value_t){0}, 0, 0, out_index);
+    return class_append_instance_field(klass, name, klass, TOAD_ACCESS_PUBLIC, NULL,
+                                       (toad_value_t){0}, 0, 0, out_index);
 }
 
-static int instance_ensure_slot_capacity(tbs_instance_t *instance, size_t needed) {
+static int instance_ensure_slot_capacity(toad_instance_t *instance, size_t needed) {
     if (!instance) return 0;
     if (needed <= instance->field_slot_capacity) return 1;
 
     size_t new_capacity = instance->field_slot_capacity > 0 ? instance->field_slot_capacity : 8;
     while (new_capacity < needed) new_capacity *= 2;
 
-    tbs_value_t *new_slots =
-        (tbs_value_t *)realloc(instance->field_slots, new_capacity * sizeof(*new_slots));
+    toad_value_t *new_slots =
+        (toad_value_t *)realloc(instance->field_slots, new_capacity * sizeof(*new_slots));
     if (!new_slots) return 0;
 
     unsigned char *new_used =
@@ -934,8 +934,8 @@ static int instance_ensure_slot_capacity(tbs_instance_t *instance, size_t needed
         return 0;
     }
 
-    tbs_cmeta_string_slot_t *new_strings =
-        (tbs_cmeta_string_slot_t *)realloc(
+    toad_cmeta_string_slot_t *new_strings =
+        (toad_cmeta_string_slot_t *)realloc(
             instance->cmeta_string_slots, new_capacity * sizeof(*new_strings));
     if (!new_strings) {
         instance->field_slots = new_slots;
@@ -959,26 +959,26 @@ static int instance_ensure_slot_capacity(tbs_instance_t *instance, size_t needed
     return 1;
 }
 
-static tbs_func_t *class_clone_func(mem_pool_t *arena,
-                                       tbs_func_t *func,
-                                       tbs_class_t *owner_class) {
+static toad_func_t *class_clone_func(mem_pool_t *arena,
+                                       toad_func_t *func,
+                                       toad_class_t *owner_class) {
     if (!arena || !func) return NULL;
 
-    tbs_func_t *copy = (tbs_func_t *)mem_alloc(arena, sizeof(tbs_func_t));
+    toad_func_t *copy = (toad_func_t *)mem_alloc(arena, sizeof(toad_func_t));
     if (!copy) return NULL;
 
     *copy = *func;
-    if (copy->closure_env) tbs_env_retain(copy->closure_env);
+    if (copy->closure_env) toad_env_retain(copy->closure_env);
     copy->name = class_copy_string(arena, func->name ? func->name : "");
     copy->owner_class = owner_class;
     copy->next = NULL;
     return copy;
 }
 
-static void class_release_method_closure(tbs_func_t *func) {
+static void class_release_method_closure(toad_func_t *func) {
     if (!func) return;
     if (func->closure_env) {
-        tbs_env_release(func->closure_env);
+        toad_env_release(func->closure_env);
         func->closure_env = NULL;
     }
 }
@@ -993,11 +993,11 @@ static void class_release_method_table_closures(void *table) {
     }
 }
 
-static void class_add_abstract_method_signature_entry(tbs_class_t *klass,
+static void class_add_abstract_method_signature_entry(toad_class_t *klass,
                                                       const char *name,
-                                                      tbs_func_t *signature);
+                                                      toad_func_t *signature);
 
-static void class_clone_methods(tbs_class_t *dst, void *src_table, int is_static) {
+static void class_clone_methods(toad_class_t *dst, void *src_table, int is_static) {
     if (!dst || !src_table) return;
 
     HTAB(method_entry_t) *htab = (HTAB(method_entry_t) *)src_table;
@@ -1007,16 +1007,16 @@ static void class_clone_methods(tbs_class_t *dst, void *src_table, int is_static
     for (htab_size_t i = 0; i < bound; ++i) {
         if (els_addr[i].hash != HTAB_DELETED_HASH &&
             method_entry_is_for_func(els_addr[i].el)) {
-            tbs_func_t *method =
+            toad_func_t *method =
                 class_clone_func(dst->arena, els_addr[i].el.func, dst);
             if (method) {
-                tbs_class_add_method(dst, method->name, method, is_static);
+                toad_class_add_method(dst, method->name, method, is_static);
             }
         }
     }
 }
 
-static void class_clone_constructors(tbs_class_t *dst, void *src_table) {
+static void class_clone_constructors(toad_class_t *dst, void *src_table) {
     if (!dst || !src_table) return;
 
     HTAB(method_entry_t) *htab = (HTAB(method_entry_t) *)src_table;
@@ -1026,16 +1026,16 @@ static void class_clone_constructors(tbs_class_t *dst, void *src_table) {
     for (htab_size_t i = 0; i < bound; ++i) {
         if (els_addr[i].hash != HTAB_DELETED_HASH &&
             method_entry_is_for_func(els_addr[i].el)) {
-            tbs_func_t *constructor =
+            toad_func_t *constructor =
                 class_clone_func(dst->arena, els_addr[i].el.func, dst);
             if (constructor) {
-                tbs_class_add_constructor(dst, constructor);
+                toad_class_add_constructor(dst, constructor);
             }
         }
     }
 }
 
-static void class_clone_abstract_methods(tbs_class_t *dst, void *src_table) {
+static void class_clone_abstract_methods(toad_class_t *dst, void *src_table) {
     if (!dst || !src_table) return;
 
     HTAB(method_entry_t) *htab = (HTAB(method_entry_t) *)src_table;
@@ -1045,14 +1045,14 @@ static void class_clone_abstract_methods(tbs_class_t *dst, void *src_table) {
     for (htab_size_t i = 0; i < bound; ++i) {
         if (els_addr[i].hash != HTAB_DELETED_HASH) {
             if (els_addr[i].el.func) {
-                tbs_func_t *signature =
+                toad_func_t *signature =
                     class_clone_func(dst->arena, els_addr[i].el.func, dst);
                 if (signature) {
                     class_add_abstract_method_signature_entry(
                         dst, els_addr[i].el.name, signature);
                 }
             } else {
-                tbs_class_add_abstract_method(dst, els_addr[i].el.name);
+                toad_class_add_abstract_method(dst, els_addr[i].el.name);
             }
         }
     }
@@ -1062,16 +1062,16 @@ static void class_clone_abstract_methods(tbs_class_t *dst, void *src_table) {
  * Class Management Implementation
  * ======================================================================== */
 
-tbs_class_t *tbs_class_create(
+toad_class_t *toad_class_create(
     mem_pool_t *arena,
     const char *name,
-    tbs_node_t *constructor_node,
-    tbs_node_t **method_nodes,
+    toad_node_t *constructor_node,
+    toad_node_t **method_nodes,
     size_t method_count)
 {
     if (!arena || !name) return NULL;
 
-    tbs_class_t *klass = (tbs_class_t *)mem_alloc(arena, sizeof(tbs_class_t));
+    toad_class_t *klass = (toad_class_t *)mem_alloc(arena, sizeof(toad_class_t));
     if (!klass) return NULL;
 
     // Copy name
@@ -1140,18 +1140,18 @@ tbs_class_t *tbs_class_create(
     return klass;
 }
 
-tbs_class_t *tbs_class_clone_to_arena(tbs_class_t *klass, mem_pool_t *arena) {
+toad_class_t *toad_class_clone_to_arena(toad_class_t *klass, mem_pool_t *arena) {
     if (!klass || !arena) return NULL;
     if (klass->arena == arena) return klass;
 
-    tbs_class_t *copy = tbs_class_create(arena, klass->name, NULL, NULL, 0);
+    toad_class_t *copy = toad_class_create(arena, klass->name, NULL, NULL, 0);
     if (!copy) return NULL;
 
     copy->is_abstract = klass->is_abstract;
     copy->is_interface = klass->is_interface;
     copy->is_final = klass->is_final;
     copy->type_id = klass->type_id;
-    copy->prototype = tbs_class_clone_to_arena(klass->prototype, arena);
+    copy->prototype = toad_class_clone_to_arena(klass->prototype, arena);
     copy->constructor = class_clone_func(arena, klass->constructor, copy);
 
     class_clone_constructors(copy, klass->constructors);
@@ -1161,21 +1161,21 @@ tbs_class_t *tbs_class_clone_to_arena(tbs_class_t *klass, mem_pool_t *arena) {
     for (size_t i = 0; i < klass->instance_field_count; ++i) {
         int access_level = klass->instance_field_access_levels
             ? klass->instance_field_access_levels[i]
-            : TBS_ACCESS_PUBLIC;
-        tbs_class_t *source_owner = klass->instance_field_owners
+            : TOAD_ACCESS_PUBLIC;
+        toad_class_t *source_owner = klass->instance_field_owners
             ? klass->instance_field_owners[i]
             : klass;
-        tbs_class_t *owner = copy;
+        toad_class_t *owner = copy;
         if (source_owner == klass) {
             owner = copy;
         } else if (source_owner == klass->prototype) {
             owner = copy->prototype;
         } else if (source_owner) {
-            owner = tbs_class_clone_to_arena(source_owner, arena);
+            owner = toad_class_clone_to_arena(source_owner, arena);
         }
-        tbs_value_t default_value = klass->instance_field_defaults
+        toad_value_t default_value = klass->instance_field_defaults
             ? klass->instance_field_defaults[i]
-            : (tbs_value_t){0};
+            : (toad_value_t){0};
         int has_default = klass->instance_field_has_default
             ? klass->instance_field_has_default[i]
             : 0;
@@ -1186,51 +1186,51 @@ tbs_class_t *tbs_class_clone_to_arena(tbs_class_t *klass, mem_pool_t *arena) {
                                     has_default, 1, NULL);
     }
     for (size_t i = 0; i < klass->interface_count; ++i) {
-        tbs_class_add_interface(copy,
-            tbs_class_clone_to_arena(klass->interfaces[i], arena));
+        toad_class_add_interface(copy,
+            toad_class_clone_to_arena(klass->interfaces[i], arena));
     }
     copy->is_abstract = klass->is_abstract;
     copy->is_interface = klass->is_interface;
     copy->is_final = klass->is_final;
     copy->type_id = klass->type_id;
 
-    if (!tbs_class_finalize_cmeta(copy) ||
-        !tbs_class_finalize_cmeta_data(copy))
+    if (!toad_class_finalize_cmeta(copy) ||
+        !toad_class_finalize_cmeta_data(copy))
         return NULL;
     return copy;
 }
 
-void tbs_class_set_prototype(tbs_class_t *klass, tbs_class_t *parent) {
+void toad_class_set_prototype(toad_class_t *klass, toad_class_t *parent) {
     if (!klass) return;
     class_invalidate_cmeta(klass);
     klass->prototype = parent;
     class_sync_prototype_instance_fields(klass);
 }
 
-void tbs_class_set_abstract(tbs_class_t *klass, int is_abstract) {
+void toad_class_set_abstract(toad_class_t *klass, int is_abstract) {
     if (!klass) return;
     class_invalidate_cmeta(klass);
     klass->is_abstract = is_abstract ? 1 : 0;
 }
 
-void tbs_class_set_interface(tbs_class_t *klass, int is_interface) {
+void toad_class_set_interface(toad_class_t *klass, int is_interface) {
     if (!klass) return;
     class_invalidate_cmeta(klass);
     klass->is_interface = is_interface ? 1 : 0;
     if (klass->is_interface) klass->is_abstract = 1;
 }
 
-void tbs_class_set_final(tbs_class_t *klass, int is_final) {
+void toad_class_set_final(toad_class_t *klass, int is_final) {
     if (!klass) return;
     class_invalidate_cmeta(klass);
     klass->is_final = is_final ? 1 : 0;
 }
 
-int tbs_class_is_final(tbs_class_t *klass) {
+int toad_class_is_final(toad_class_t *klass) {
     return klass && klass->is_final;
 }
 
-void tbs_class_add_interface(tbs_class_t *klass, tbs_class_t *interface_class) {
+void toad_class_add_interface(toad_class_t *klass, toad_class_t *interface_class) {
     if (!klass || !interface_class) return;
     class_invalidate_cmeta(klass);
 
@@ -1242,8 +1242,8 @@ void tbs_class_add_interface(tbs_class_t *klass, tbs_class_t *interface_class) {
         size_t new_capacity = klass->interface_capacity > 0
             ? klass->interface_capacity * 2
             : 4;
-        tbs_class_t **new_interfaces =
-            (tbs_class_t **)mem_alloc(klass->arena,
+        toad_class_t **new_interfaces =
+            (toad_class_t **)mem_alloc(klass->arena,
                                          new_capacity * sizeof(*new_interfaces));
         if (!new_interfaces) return;
         if (klass->interfaces && klass->interface_count > 0) {
@@ -1257,26 +1257,26 @@ void tbs_class_add_interface(tbs_class_t *klass, tbs_class_t *interface_class) {
     klass->interfaces[klass->interface_count++] = interface_class;
 }
 
-int tbs_class_is_a(tbs_class_t *klass, tbs_class_t *target) {
+int toad_class_is_a(toad_class_t *klass, toad_class_t *target) {
     if (!klass || !target) return 0;
 
-    for (tbs_class_t *current = klass; current; current = current->prototype) {
+    for (toad_class_t *current = klass; current; current = current->prototype) {
         if (current == target ||
             (current->type_id != 0 && current->type_id == target->type_id)) {
             return 1;
         }
         for (size_t i = 0; i < current->interface_count; ++i) {
-            if (tbs_class_is_a(current->interfaces[i], target)) return 1;
+            if (toad_class_is_a(current->interfaces[i], target)) return 1;
         }
     }
 
     return 0;
 }
 
-void tbs_class_add_method(
-    tbs_class_t *klass,
+void toad_class_add_method(
+    toad_class_t *klass,
     const char *name,
-    tbs_func_t *method_func,
+    toad_func_t *method_func,
     int is_static)
 {
     if (!klass || !name || !method_func) return;
@@ -1326,9 +1326,9 @@ void tbs_class_add_method(
     free(type_key);
 }
 
-void tbs_class_add_constructor(
-    tbs_class_t *klass,
-    tbs_func_t *constructor_func)
+void toad_class_add_constructor(
+    toad_class_t *klass,
+    toad_func_t *constructor_func)
 {
     if (!klass || !constructor_func || !klass->constructors) return;
     if (!constructor_func->name) constructor_func->name = "constructor";
@@ -1368,10 +1368,10 @@ void tbs_class_add_constructor(
     free(type_key);
 }
 
-tbs_func_t *tbs_class_lookup_constructor_typed(
-    tbs_class_t *klass,
+toad_func_t *toad_class_lookup_constructor_typed(
+    toad_class_t *klass,
     size_t argc,
-    const tbs_value_t *args)
+    const toad_value_t *args)
 {
     if (!klass) return NULL;
 
@@ -1389,7 +1389,7 @@ tbs_func_t *tbs_class_lookup_constructor_typed(
             free(key);
         }
 
-        tbs_func_t *typed_constructor =
+        toad_func_t *typed_constructor =
             method_table_find_typed_match(htab, "constructor", argc, args);
         if (typed_constructor) return typed_constructor;
 
@@ -1411,13 +1411,13 @@ tbs_func_t *tbs_class_lookup_constructor_typed(
     }
 
     if (klass->prototype) {
-        return tbs_class_lookup_constructor_typed(klass->prototype, argc, args);
+        return toad_class_lookup_constructor_typed(klass->prototype, argc, args);
     }
 
     return argc == 0 ? klass->constructor : NULL;
 }
 
-void tbs_class_add_abstract_method(tbs_class_t *klass, const char *name) {
+void toad_class_add_abstract_method(toad_class_t *klass, const char *name) {
     if (!klass || !name || !klass->abstract_methods) return;
     if (class_has_own_concrete_method(klass, name)) return;
 
@@ -1438,9 +1438,9 @@ void tbs_class_add_abstract_method(tbs_class_t *klass, const char *name) {
     HTAB_OP(method_entry_t, do)(htab, entry, HTAB_INSERT, &result);
 }
 
-static void class_add_abstract_method_signature_entry(tbs_class_t *klass,
+static void class_add_abstract_method_signature_entry(toad_class_t *klass,
                                                       const char *name,
-                                                      tbs_func_t *signature) {
+                                                      toad_func_t *signature) {
     if (!klass || !name || !signature || !klass->abstract_methods) return;
     if (class_has_own_concrete_method_signature(klass, name, signature)) return;
 
@@ -1459,25 +1459,25 @@ static void class_add_abstract_method_signature_entry(tbs_class_t *klass,
     HTAB_OP(method_entry_t, do)(htab, entry, HTAB_INSERT, &result);
 }
 
-void tbs_class_add_abstract_method_arity(
-    tbs_class_t *klass,
+void toad_class_add_abstract_method_arity(
+    toad_class_t *klass,
     const char *name,
     size_t argc)
 {
     char *key = method_arity_key(name, argc);
-    tbs_class_add_abstract_method(klass, key ? key : name);
+    toad_class_add_abstract_method(klass, key ? key : name);
     free(key);
 }
 
-void tbs_class_add_abstract_method_signature(
-    tbs_class_t *klass,
+void toad_class_add_abstract_method_signature(
+    toad_class_t *klass,
     const char *name,
-    tbs_node_t **arg_params,
+    toad_node_t **arg_params,
     size_t argc,
-    tbs_env_t *closure_env,
+    toad_env_t *closure_env,
     int is_static_method)
 {
-    tbs_func_t method;
+    toad_func_t method;
     memset(&method, 0, sizeof(method));
     method.name = (char *)name;
     method.is_script = 1;
@@ -1504,11 +1504,11 @@ void tbs_class_add_abstract_method_signature(
         }
     }
 
-    tbs_func_t *signature =
-        (tbs_func_t *)mem_alloc(klass->arena, sizeof(tbs_func_t));
+    toad_func_t *signature =
+        (toad_func_t *)mem_alloc(klass->arena, sizeof(toad_func_t));
     if (signature) {
         *signature = method;
-        if (signature->closure_env) tbs_env_retain(signature->closure_env);
+        if (signature->closure_env) toad_env_retain(signature->closure_env);
         signature->name = class_copy_string(klass->arena, name);
         signature->next = NULL;
         class_add_abstract_method_signature_entry(klass, key_value, signature);
@@ -1518,9 +1518,9 @@ void tbs_class_add_abstract_method_signature(
     free(type_key);
 }
 
-void tbs_class_add_abstract_methods_from(
-    tbs_class_t *klass,
-    tbs_class_t *interface_class)
+void toad_class_add_abstract_methods_from(
+    toad_class_t *klass,
+    toad_class_t *interface_class)
 {
     if (!klass || !interface_class || !interface_class->abstract_methods) return;
 
@@ -1540,14 +1540,14 @@ void tbs_class_add_abstract_methods_from(
                 class_add_abstract_method_signature_entry(
                     klass, els_addr[i].el.name, els_addr[i].el.func);
             } else {
-                tbs_class_add_abstract_method(klass, els_addr[i].el.name);
+                toad_class_add_abstract_method(klass, els_addr[i].el.name);
             }
         }
     }
 }
 
-tbs_func_t *tbs_class_lookup_method(
-    tbs_class_t *klass,
+toad_func_t *toad_class_lookup_method(
+    toad_class_t *klass,
     const char *name,
     int is_static)
 {
@@ -1566,14 +1566,14 @@ tbs_func_t *tbs_class_lookup_method(
 
     // Try prototype chain
     if (klass->prototype) {
-        return tbs_class_lookup_method(klass->prototype, name, is_static);
+        return toad_class_lookup_method(klass->prototype, name, is_static);
     }
 
     return NULL;
 }
 
-tbs_func_t *tbs_class_lookup_method_arity(
-    tbs_class_t *klass,
+toad_func_t *toad_class_lookup_method_arity(
+    toad_class_t *klass,
     const char *name,
     int is_static,
     size_t argc)
@@ -1597,17 +1597,17 @@ tbs_func_t *tbs_class_lookup_method_arity(
     }
 
     if (klass->prototype) {
-        tbs_func_t *parent_method =
-            tbs_class_lookup_method_arity(klass->prototype, name, is_static, argc);
+        toad_func_t *parent_method =
+            toad_class_lookup_method_arity(klass->prototype, name, is_static, argc);
         if (parent_method) return parent_method;
     }
 
     return NULL;
 }
 
-tbs_func_t *tbs_class_lookup_method_signature(
-    tbs_class_t *klass,
-    tbs_func_t *signature)
+toad_func_t *toad_class_lookup_method_signature(
+    toad_class_t *klass,
+    toad_func_t *signature)
 {
     if (!klass || !signature || !signature->name) return NULL;
 
@@ -1620,24 +1620,24 @@ tbs_func_t *tbs_class_lookup_method_signature(
 
         for (htab_size_t i = 0; i < bound; ++i) {
             if (els_addr[i].hash == HTAB_DELETED_HASH) continue;
-            tbs_func_t *method = els_addr[i].el.func;
+            toad_func_t *method = els_addr[i].el.func;
             if (method_signatures_exactly_match(signature, method)) return method;
         }
     }
 
     if (klass->prototype) {
-        return tbs_class_lookup_method_signature(klass->prototype, signature);
+        return toad_class_lookup_method_signature(klass->prototype, signature);
     }
 
     return NULL;
 }
 
-tbs_func_t *tbs_class_lookup_method_typed(
-    tbs_class_t *klass,
+toad_func_t *toad_class_lookup_method_typed(
+    toad_class_t *klass,
     const char *name,
     int is_static,
     size_t argc,
-    const tbs_value_t *args)
+    const toad_value_t *args)
 {
     if (!klass || !name) return NULL;
 
@@ -1657,7 +1657,7 @@ tbs_func_t *tbs_class_lookup_method_typed(
         free(key);
     }
 
-    tbs_func_t *typed_method =
+    toad_func_t *typed_method =
         method_table_find_typed_match(htab, name, argc, args);
     if (typed_method) return typed_method;
 
@@ -1674,66 +1674,66 @@ tbs_func_t *tbs_class_lookup_method_typed(
     }
 
     if (klass->prototype) {
-        tbs_func_t *parent_method =
-            tbs_class_lookup_method_typed(klass->prototype, name, is_static, argc, args);
+        toad_func_t *parent_method =
+            toad_class_lookup_method_typed(klass->prototype, name, is_static, argc, args);
         if (parent_method) return parent_method;
     }
 
     return NULL;
 }
 
-int tbs_class_get_static_field(
-    tbs_class_t *klass,
+int toad_class_get_static_field(
+    toad_class_t *klass,
     const char *name,
-    tbs_value_t *out_value)
+    toad_value_t *out_value)
 {
     if (!klass || !name || !out_value) return 0;
 
     field_entry_t entry;
     if (field_table_find(klass->static_fields, name, &entry)) {
-        *out_value = tbs_value_borrow(entry.value);
+        *out_value = toad_value_borrow(entry.value);
         return 1;
     }
 
     if (klass->prototype) {
-        return tbs_class_get_static_field(klass->prototype, name, out_value);
+        return toad_class_get_static_field(klass->prototype, name, out_value);
     }
 
     return 0;
 }
 
-tbs_value_t *tbs_class_get_static_field_slot(
-    tbs_class_t *klass,
+toad_value_t *toad_class_get_static_field_slot(
+    toad_class_t *klass,
     const char *name,
-    tbs_class_t **owner_class)
+    toad_class_t **owner_class)
 {
     if (!klass || !name) return NULL;
 
-    tbs_value_t *slot = field_table_find_slot(klass->static_fields, name);
+    toad_value_t *slot = field_table_find_slot(klass->static_fields, name);
     if (slot) {
         if (owner_class) *owner_class = klass;
         return slot;
     }
 
     if (klass->prototype) {
-        return tbs_class_get_static_field_slot(klass->prototype, name, owner_class);
+        return toad_class_get_static_field_slot(klass->prototype, name, owner_class);
     }
 
     return NULL;
 }
 
-void tbs_class_set_static_field(
-    tbs_class_t *klass,
+void toad_class_set_static_field(
+    toad_class_t *klass,
     const char *name,
-    tbs_value_t value)
+    toad_value_t value)
 {
-    tbs_value_t stored;
+    toad_value_t stored;
     const char *declared_type;
     if (!klass || !name || !klass->static_fields) return;
-    declared_type = tbs_class_get_static_field_type(klass, name);
+    declared_type = toad_class_get_static_field_type(klass, name);
     if (declared_type && !instance_value_matches_field_type(klass, value, declared_type))
         return;
-    if (tbs_value_copy_to_pool(tbs_value_borrow(value), klass->arena,
+    if (toad_value_copy_to_pool(toad_value_borrow(value), klass->arena,
                                   &stored) != 0)
         return;
 
@@ -1743,7 +1743,7 @@ void tbs_class_set_static_field(
     field_entry_t result;
     search.name = (char *)name;
     if (HTAB_OP(field_entry_t, do)(htab, search, HTAB_FIND, &result)) {
-        tbs_value_destroy(&result.value);
+        toad_value_destroy(&result.value);
         result.value = stored;
         HTAB_OP(field_entry_t, do)(htab, result, HTAB_REPLACE, &result);
         return;
@@ -1752,7 +1752,7 @@ void tbs_class_set_static_field(
     size_t name_len = strlen(name);
     char *field_name = (char *)mem_alloc(klass->arena, name_len + 1);
     if (!field_name) {
-        tbs_value_destroy(&stored);
+        toad_value_destroy(&stored);
         return;
     }
     memcpy(field_name, name, name_len + 1);
@@ -1760,7 +1760,7 @@ void tbs_class_set_static_field(
     field_entry_t entry;
     entry.name = field_name;
     entry.value = stored;
-    entry.access_level = TBS_ACCESS_PUBLIC;
+    entry.access_level = TOAD_ACCESS_PUBLIC;
     entry.owner_class = klass;
     entry.declared_type = declared_type;
 
@@ -1768,27 +1768,27 @@ void tbs_class_set_static_field(
     klass->static_field_version++;
 }
 
-void tbs_class_declare_static_field(
-    tbs_class_t *klass,
+void toad_class_declare_static_field(
+    toad_class_t *klass,
     const char *name,
-    tbs_value_t value,
+    toad_value_t value,
     int access_level)
 {
-    tbs_class_declare_static_field_typed(klass, name, NULL, value, access_level);
+    toad_class_declare_static_field_typed(klass, name, NULL, value, access_level);
 }
 
-int tbs_class_declare_static_field_typed(
-    tbs_class_t *klass,
+int toad_class_declare_static_field_typed(
+    toad_class_t *klass,
     const char *name,
     const char *declared_type,
-    tbs_value_t value,
+    toad_value_t value,
     int access_level)
 {
-    tbs_value_t stored;
+    toad_value_t stored;
     if (!klass || !name || !klass->static_fields) return 0;
     if (declared_type && !instance_value_matches_field_type(klass, value, declared_type))
         return 0;
-    if (tbs_value_copy_to_pool(tbs_value_borrow(value), klass->arena,
+    if (toad_value_copy_to_pool(toad_value_borrow(value), klass->arena,
                                   &stored) != 0)
         return 0;
 
@@ -1797,7 +1797,7 @@ int tbs_class_declare_static_field_typed(
     field_entry_t result;
     search.name = (char *)name;
     if (HTAB_OP(field_entry_t, do)(htab, search, HTAB_FIND, &result)) {
-        tbs_value_destroy(&result.value);
+        toad_value_destroy(&result.value);
         result.value = stored;
         result.access_level = access_level;
         result.owner_class = klass;
@@ -1810,7 +1810,7 @@ int tbs_class_declare_static_field_typed(
     size_t name_len = strlen(name);
     char *field_name = (char *)mem_alloc(klass->arena, name_len + 1);
     if (!field_name) {
-        tbs_value_destroy(&stored);
+        toad_value_destroy(&stored);
         return 0;
     }
     memcpy(field_name, name, name_len + 1);
@@ -1828,8 +1828,8 @@ int tbs_class_declare_static_field_typed(
     return 1;
 }
 
-const char *tbs_class_get_static_field_type(
-    tbs_class_t *klass,
+const char *toad_class_get_static_field_type(
+    toad_class_t *klass,
     const char *name)
 {
     field_entry_t entry;
@@ -1837,20 +1837,20 @@ const char *tbs_class_get_static_field_type(
     if (field_table_find(klass->static_fields, name, &entry))
         return entry.declared_type;
     if (klass->prototype)
-        return tbs_class_get_static_field_type(klass->prototype, name);
+        return toad_class_get_static_field_type(klass->prototype, name);
     return NULL;
 }
 
-int tbs_class_set_static_field_checked(
-    tbs_class_t *klass,
+int toad_class_set_static_field_checked(
+    toad_class_t *klass,
     const char *name,
-    tbs_value_t value,
+    toad_value_t value,
     char *error_msg,
     size_t error_msg_len)
 {
     const char *declared_type;
     if (!klass || !name) return 0;
-    declared_type = tbs_class_get_static_field_type(klass, name);
+    declared_type = toad_class_get_static_field_type(klass, name);
     if (declared_type && !instance_value_matches_field_type(klass, value, declared_type)) {
         if (error_msg && error_msg_len > 0) {
             snprintf(error_msg, error_msg_len,
@@ -1859,16 +1859,16 @@ int tbs_class_set_static_field_checked(
         }
         return 0;
     }
-    tbs_class_set_static_field(klass, name, value);
+    toad_class_set_static_field(klass, name, value);
     return 1;
 }
 
-int tbs_class_get_static_field_access(
-    tbs_class_t *klass,
+int toad_class_get_static_field_access(
+    toad_class_t *klass,
     const char *name,
-    tbs_class_t **owner_class)
+    toad_class_t **owner_class)
 {
-    if (!klass || !name) return TBS_ACCESS_PUBLIC;
+    if (!klass || !name) return TOAD_ACCESS_PUBLIC;
 
     field_entry_t entry;
     if (field_table_find(klass->static_fields, name, &entry)) {
@@ -1877,27 +1877,27 @@ int tbs_class_get_static_field_access(
     }
 
     if (klass->prototype)
-        return tbs_class_get_static_field_access(klass->prototype, name, owner_class);
+        return toad_class_get_static_field_access(klass->prototype, name, owner_class);
 
-    return TBS_ACCESS_PUBLIC;
+    return TOAD_ACCESS_PUBLIC;
 }
 
-int tbs_class_declare_instance_field(
-    tbs_class_t *klass,
+int toad_class_declare_instance_field(
+    toad_class_t *klass,
     const char *name,
-    tbs_value_t default_value,
+    toad_value_t default_value,
     int has_default,
     int access_level)
 {
-    return tbs_class_declare_instance_field_typed(
+    return toad_class_declare_instance_field_typed(
         klass, name, NULL, default_value, has_default, access_level);
 }
 
-int tbs_class_declare_instance_field_typed(
-    tbs_class_t *klass,
+int toad_class_declare_instance_field_typed(
+    toad_class_t *klass,
     const char *name,
     const char *declared_type,
-    tbs_value_t default_value,
+    toad_value_t default_value,
     int has_default,
     int access_level)
 {
@@ -1910,8 +1910,8 @@ int tbs_class_declare_instance_field_typed(
                                        default_value, has_default, 1, NULL);
 }
 
-const char *tbs_class_get_instance_field_type(
-    tbs_class_t *klass,
+const char *toad_class_get_instance_field_type(
+    toad_class_t *klass,
     const char *name)
 {
     size_t index = 0;
@@ -1923,22 +1923,22 @@ const char *tbs_class_get_instance_field_type(
     return klass->instance_field_types[index];
 }
 
-int tbs_class_has_instance_field(tbs_class_t *klass, const char *name)
+int toad_class_has_instance_field(toad_class_t *klass, const char *name)
 {
     size_t index = 0;
     return klass && name && class_sync_prototype_instance_fields(klass) &&
            class_find_instance_field_index(klass, name, &index);
 }
 
-int tbs_class_get_instance_field_access(
-    tbs_class_t *klass,
+int toad_class_get_instance_field_access(
+    toad_class_t *klass,
     const char *name,
-    tbs_class_t **owner_class)
+    toad_class_t **owner_class)
 {
     size_t index = 0;
-    if (!klass || !name) return TBS_ACCESS_PUBLIC;
-    if (!class_sync_prototype_instance_fields(klass)) return TBS_ACCESS_PUBLIC;
-    if (!class_find_instance_field_index(klass, name, &index)) return TBS_ACCESS_PUBLIC;
+    if (!klass || !name) return TOAD_ACCESS_PUBLIC;
+    if (!class_sync_prototype_instance_fields(klass)) return TOAD_ACCESS_PUBLIC;
+    if (!class_find_instance_field_index(klass, name, &index)) return TOAD_ACCESS_PUBLIC;
 
     if (owner_class) {
         *owner_class = klass->instance_field_owners && klass->instance_field_owners[index]
@@ -1947,10 +1947,10 @@ int tbs_class_get_instance_field_access(
     }
     return klass->instance_field_access_levels
         ? klass->instance_field_access_levels[index]
-        : TBS_ACCESS_PUBLIC;
+        : TOAD_ACCESS_PUBLIC;
 }
 
-void tbs_class_finalize_abstract_methods(tbs_class_t *klass) {
+void toad_class_finalize_abstract_methods(toad_class_t *klass) {
     if (!klass) return;
 
     if (klass->prototype && klass->prototype->abstract_methods) {
@@ -1968,7 +1968,7 @@ void tbs_class_finalize_abstract_methods(tbs_class_t *klass) {
                     class_add_abstract_method_signature_entry(
                         klass, els_addr[i].el.name, els_addr[i].el.func);
                 } else {
-                    tbs_class_add_abstract_method(klass, els_addr[i].el.name);
+                    toad_class_add_abstract_method(klass, els_addr[i].el.name);
                 }
             }
         }
@@ -1980,15 +1980,15 @@ void tbs_class_finalize_abstract_methods(tbs_class_t *klass) {
     }
 }
 
-int tbs_class_is_abstract(tbs_class_t *klass) {
+int toad_class_is_abstract(toad_class_t *klass) {
     return klass && klass->is_abstract;
 }
 
-int tbs_class_is_interface(tbs_class_t *klass) {
+int toad_class_is_interface(toad_class_t *klass) {
     return klass && klass->is_interface;
 }
 
-int tbs_class_finalize_cmeta(tbs_class_t *klass) {
+int toad_class_finalize_cmeta(toad_class_t *klass) {
     uint64_t hash = UINT64_C(1469598103934665603);
     int needed;
     char *stable_id;
@@ -1998,7 +1998,7 @@ int tbs_class_finalize_cmeta(tbs_class_t *klass) {
     if (klass->cmeta_ready < 0) return 0; /* inheritance/interface cycle */
 
     klass->cmeta_ready = -1;
-    hash = class_cmeta_hash_string(hash, "turboscript.class.v1");
+    hash = class_cmeta_hash_string(hash, "toad.class.v1");
     hash = class_cmeta_hash_string(hash, klass->name);
     hash = class_cmeta_hash_u64(hash, (uint64_t)(klass->is_abstract ? 1u : 0u));
     hash = class_cmeta_hash_u64(hash, (uint64_t)(klass->is_interface ? 1u : 0u));
@@ -2006,8 +2006,8 @@ int tbs_class_finalize_cmeta(tbs_class_t *klass) {
 
     if (klass->prototype) {
         const cmeta_type_desc *parent_type;
-        if (!tbs_class_finalize_cmeta(klass->prototype)) goto fail;
-        parent_type = tbs_class_cmeta_type(klass->prototype);
+        if (!toad_class_finalize_cmeta(klass->prototype)) goto fail;
+        parent_type = toad_class_cmeta_type(klass->prototype);
         if (!parent_type || !parent_type->identity ||
             !parent_type->identity->stable_atom_id) goto fail;
         hash = class_cmeta_hash_string(
@@ -2019,8 +2019,8 @@ int tbs_class_finalize_cmeta(tbs_class_t *klass) {
     hash = class_cmeta_hash_u64(hash, (uint64_t)klass->interface_count);
     for (size_t i = 0; i < klass->interface_count; ++i) {
         const cmeta_type_desc *interface_type;
-        if (!tbs_class_finalize_cmeta(klass->interfaces[i])) goto fail;
-        interface_type = tbs_class_cmeta_type(klass->interfaces[i]);
+        if (!toad_class_finalize_cmeta(klass->interfaces[i])) goto fail;
+        interface_type = toad_class_cmeta_type(klass->interfaces[i]);
         if (!interface_type || !interface_type->identity ||
             !interface_type->identity->stable_atom_id) goto fail;
         hash = class_cmeta_hash_string(
@@ -2037,15 +2037,15 @@ int tbs_class_finalize_cmeta(tbs_class_t *klass) {
         hash = class_cmeta_hash_u64(
             hash, (uint64_t)(klass->instance_field_access_levels
                                  ? klass->instance_field_access_levels[i]
-                                 : TBS_ACCESS_PUBLIC));
+                                 : TOAD_ACCESS_PUBLIC));
     }
 
-    needed = snprintf(NULL, 0, "turboscript.class.%s.%016llx",
+    needed = snprintf(NULL, 0, "toad.class.%s.%016llx",
                       klass->name, (unsigned long long)hash);
     if (needed < 0) goto fail;
     stable_id = (char *)mem_alloc(klass->arena, (size_t)needed + 1u);
     if (!stable_id) goto fail;
-    snprintf(stable_id, (size_t)needed + 1u, "turboscript.class.%s.%016llx",
+    snprintf(stable_id, (size_t)needed + 1u, "toad.class.%s.%016llx",
              klass->name, (unsigned long long)hash);
 
     klass->cmeta_stable_id = stable_id;
@@ -2057,8 +2057,8 @@ int tbs_class_finalize_cmeta(tbs_class_t *klass) {
     klass->cmeta_identity.arity = 0u;
 
     klass->cmeta_type.name = klass->name;
-    klass->cmeta_type.size = sizeof(tbs_instance_t);
-    klass->cmeta_type.align = _Alignof(tbs_instance_t);
+    klass->cmeta_type.size = sizeof(toad_instance_t);
+    klass->cmeta_type.align = _Alignof(toad_instance_t);
     klass->cmeta_type.kind = CMETA_T_OBJECT;
     klass->cmeta_type.pointee = NULL;
     klass->cmeta_type.traits = NULL;
@@ -2073,11 +2073,11 @@ fail:
     return 0;
 }
 
-const cmeta_type_desc *tbs_class_cmeta_type(const tbs_class_t *klass) {
+const cmeta_type_desc *toad_class_cmeta_type(const toad_class_t *klass) {
     return klass && klass->cmeta_ready == 1 ? &klass->cmeta_type : NULL;
 }
 
-void tbs_class_destroy(tbs_class_t *klass) {
+void toad_class_destroy(toad_class_t *klass) {
     if (!klass) return;
 
     // Release captured scopes held by methods before destroying the tables.
@@ -2107,7 +2107,7 @@ void tbs_class_destroy(tbs_class_t *klass) {
             VARR_ADDR(HTAB_EL(field_entry_t), static_fields_htab->els);
         for (htab_size_t i = 0; i < static_fields_htab->els_bound; ++i) {
             if (entries[i].hash != HTAB_DELETED_HASH)
-                tbs_value_destroy(&entries[i].el.value);
+                toad_value_destroy(&entries[i].el.value);
         }
         HTAB_OP(field_entry_t, destroy)(&static_fields_htab);
     }
@@ -2118,7 +2118,7 @@ void tbs_class_destroy(tbs_class_t *klass) {
     if (klass->instance_field_defaults && klass->instance_field_has_default) {
         for (size_t i = 0; i < klass->instance_field_count; ++i) {
             if (klass->instance_field_has_default[i])
-                tbs_value_destroy(&klass->instance_field_defaults[i]);
+                toad_value_destroy(&klass->instance_field_defaults[i]);
         }
     }
     free(klass->instance_field_names);
@@ -2145,84 +2145,84 @@ void tbs_class_destroy(tbs_class_t *klass) {
  * ======================================================================== */
 
 typedef struct {
-    tbs_instance_t *destination;
+    toad_instance_t *destination;
 } instance_clone_fields_ctx_t;
 
-static void instance_clone_field(const char *name, tbs_value_t *field, void *user_data) {
+static void instance_clone_field(const char *name, toad_value_t *field, void *user_data) {
     instance_clone_fields_ctx_t *ctx = (instance_clone_fields_ctx_t *)user_data;
     if (ctx && ctx->destination && name && field)
-        tbs_instance_set_field(ctx->destination, name, *field);
+        toad_instance_set_field(ctx->destination, name, *field);
 }
 
-static tbs_value_t instance_clone_stored_value(tbs_instance_t *instance,
-                                                   tbs_value_t value) {
+static toad_value_t instance_clone_stored_value(toad_instance_t *instance,
+                                                   toad_value_t value) {
     mem_pool_t *arena = instance ? instance->arena : NULL;
     if (!arena) return value;
 
     switch (value.type) {
-        case TBS_VAL_STRING:
-        case TBS_VAL_BIGINT:
-        case TBS_VAL_ENUM:
-        case TBS_VAL_FLAGS:
-        case TBS_VAL_BYTES:
-        case TBS_VAL_VECTOR:
-        case TBS_VAL_TYPED_ARRAY:
-        case TBS_VAL_LIST:
-        case TBS_VAL_SET:
-        case TBS_VAL_MAP:
-        case TBS_VAL_OBJECT: {
-            tbs_value_t stored = { .type = TBS_VAL_NULL };
-            if (tbs_value_copy_to_pool(tbs_value_borrow(value), arena,
+        case TOAD_VAL_STRING:
+        case TOAD_VAL_BIGINT:
+        case TOAD_VAL_ENUM:
+        case TOAD_VAL_FLAGS:
+        case TOAD_VAL_BYTES:
+        case TOAD_VAL_VECTOR:
+        case TOAD_VAL_TYPED_ARRAY:
+        case TOAD_VAL_LIST:
+        case TOAD_VAL_SET:
+        case TOAD_VAL_MAP:
+        case TOAD_VAL_OBJECT: {
+            toad_value_t stored = { .type = TOAD_VAL_NULL };
+            if (toad_value_copy_to_pool(toad_value_borrow(value), arena,
                                           &stored) != 0)
-                return (tbs_value_t){ .type = TBS_VAL_NULL };
+                return (toad_value_t){ .type = TOAD_VAL_NULL };
             return stored;
         }
-        case TBS_VAL_CLASS: {
-            tbs_class_t *klass = value.data.class_val.klass;
+        case TOAD_VAL_CLASS: {
+            toad_class_t *klass = value.data.class_val.klass;
             if (!klass || klass->arena == arena) return value;
-            return tbs_val_class(tbs_class_clone_to_arena(klass, arena));
+            return toad_val_class(toad_class_clone_to_arena(klass, arena));
         }
-        case TBS_VAL_INSTANCE: {
-            tbs_instance_t *source = value.data.instance_val.instance;
-            tbs_class_t *klass;
-            tbs_instance_t *copy;
+        case TOAD_VAL_INSTANCE: {
+            toad_instance_t *source = value.data.instance_val.instance;
+            toad_class_t *klass;
+            toad_instance_t *copy;
             if (!source || source->arena == arena) return value;
             klass = source->klass;
             if (klass && klass->arena != arena)
-                klass = tbs_class_clone_to_arena(klass, arena);
-            copy = tbs_instance_create(klass, arena);
-            if (!copy) return (tbs_value_t){ .type = TBS_VAL_NULL };
+                klass = toad_class_clone_to_arena(klass, arena);
+            copy = toad_instance_create(klass, arena);
+            if (!copy) return (toad_value_t){ .type = TOAD_VAL_NULL };
             instance_clone_fields_ctx_t clone_ctx = {copy};
-            tbs_instance_foreach_named_field(source, instance_clone_field, &clone_ctx);
-            return tbs_val_instance(copy);
+            toad_instance_foreach_named_field(source, instance_clone_field, &clone_ctx);
+            return toad_val_instance(copy);
         }
-        case TBS_VAL_BOUND_METHOD: {
-            tbs_instance_t *source = value.data.bound_method_val.instance;
-            tbs_value_t stored_instance;
+        case TOAD_VAL_BOUND_METHOD: {
+            toad_instance_t *source = value.data.bound_method_val.instance;
+            toad_value_t stored_instance;
             if (!source || source->arena == arena) return value;
-            stored_instance = instance_clone_stored_value(instance, tbs_val_instance(source));
-            if (stored_instance.type != TBS_VAL_INSTANCE) return stored_instance;
-            return tbs_val_bound_method(stored_instance.data.instance_val.instance,
+            stored_instance = instance_clone_stored_value(instance, toad_val_instance(source));
+            if (stored_instance.type != TOAD_VAL_INSTANCE) return stored_instance;
+            return toad_val_bound_method(stored_instance.data.instance_val.instance,
                                            value.data.bound_method_val.method);
         }
-        case TBS_VAL_FUNCTION:
-        case TBS_VAL_COROUTINE:
+        case TOAD_VAL_FUNCTION:
+        case TOAD_VAL_COROUTINE:
         default:
             return value;
     }
 }
 
-static void instance_release_stored_value(tbs_value_t value) {
-    tbs_value_destroy(&value);
+static void instance_release_stored_value(toad_value_t value) {
+    toad_value_destroy(&value);
 }
 
-tbs_instance_t *tbs_instance_create(
-    tbs_class_t *klass,
+toad_instance_t *toad_instance_create(
+    toad_class_t *klass,
     mem_pool_t *arena)
 {
     if (!klass || !arena) return NULL;
 
-    tbs_instance_t *instance = (tbs_instance_t *)mem_alloc(arena, sizeof(tbs_instance_t));
+    toad_instance_t *instance = (toad_instance_t *)mem_alloc(arena, sizeof(toad_instance_t));
     if (!instance) return NULL;
 
     instance->klass = klass;
@@ -2248,25 +2248,25 @@ tbs_instance_t *tbs_instance_create(
         instance_ensure_slot_capacity(instance, klass->instance_field_count)) {
         for (size_t i = 0; i < klass->instance_field_count; ++i) {
             if (!klass->instance_field_names[i]) continue;
-            tbs_value_t value;
+            toad_value_t value;
             if (klass->instance_field_has_default &&
                 klass->instance_field_has_default[i]) {
                 value = klass->instance_field_defaults[i];
             } else {
                 memset(&value, 0, sizeof(value));
-                value.type = TBS_VAL_NULL;
+                value.type = TOAD_VAL_NULL;
             }
-            tbs_instance_set_field(instance, klass->instance_field_names[i], value);
+            toad_instance_set_field(instance, klass->instance_field_names[i], value);
         }
     }
 
     return instance;
 }
 
-int tbs_instance_get_field(
-    tbs_instance_t *instance,
+int toad_instance_get_field(
+    toad_instance_t *instance,
     const char *name,
-    tbs_value_t *out_value)
+    toad_value_t *out_value)
 {
     if (!instance || !name || !out_value) return 0;
 
@@ -2274,7 +2274,7 @@ int tbs_instance_get_field(
     if (class_find_instance_field_index(instance->klass, name, &index) &&
         index < instance->field_slot_count &&
         instance->field_slot_used && instance->field_slot_used[index]) {
-        *out_value = tbs_value_borrow(instance->field_slots[index]);
+        *out_value = toad_value_borrow(instance->field_slots[index]);
         return 1;
     }
 
@@ -2287,15 +2287,15 @@ int tbs_instance_get_field(
     search.name = (char *)name;
 
     if (HTAB_OP(field_entry_t, do)(htab, search, HTAB_FIND, &result)) {
-        *out_value = tbs_value_borrow(result.value);
+        *out_value = toad_value_borrow(result.value);
         return 1;
     }
 
     return 0;
 }
 
-tbs_value_t *tbs_instance_get_field_slot(
-    tbs_instance_t *instance,
+toad_value_t *toad_instance_get_field_slot(
+    toad_instance_t *instance,
     const char *name)
 {
     if (!instance || !name) return NULL;
@@ -2311,16 +2311,16 @@ tbs_value_t *tbs_instance_get_field_slot(
     return field_table_find_slot(instance->fields, name);
 }
 
-void tbs_instance_set_field(
-    tbs_instance_t *instance,
+void toad_instance_set_field(
+    toad_instance_t *instance,
     const char *name,
-    tbs_value_t value)
+    toad_value_t value)
 {
-    tbs_value_t stored;
+    toad_value_t stored;
     const char *declared_type;
     if (!instance || !name) return;
     if (!instance->fields) return;
-    declared_type = tbs_class_get_instance_field_type(instance->klass, name);
+    declared_type = toad_class_get_instance_field_type(instance->klass, name);
     if (declared_type && !instance_value_matches_field_type(
             instance->klass, value, declared_type))
         return;
@@ -2346,17 +2346,17 @@ void tbs_instance_set_field(
                     slot_type &&
                     (strcmp(slot_type, "bool") == 0 ||
                      strcmp(slot_type, "boolean") == 0) &&
-                    stored.type == TBS_VAL_BOOL &&
+                    stored.type == TOAD_VAL_BOOL &&
                     stored.data.boolean != 0;
             }
             if (instance->cmeta_string_slots) {
-                tbs_cmeta_string_slot_t *projection =
+                toad_cmeta_string_slot_t *projection =
                     &instance->cmeta_string_slots[slot_index];
                 projection->data = NULL;
                 projection->length = 0u;
                 projection->owned = 0u;
                 if (slot_type && strcmp(slot_type, "string") == 0 &&
-                    stored.type == TBS_VAL_STRING) {
+                    stored.type == TOAD_VAL_STRING) {
                     projection->data = (char *)stored.data.string.data;
                     projection->length = stored.data.string.len;
                 }
@@ -2390,7 +2390,7 @@ void tbs_instance_set_field(
     field_entry_t entry;
     entry.name = field_name;
     entry.value = stored;
-    entry.access_level = TBS_ACCESS_PUBLIC;
+    entry.access_level = TOAD_ACCESS_PUBLIC;
     entry.owner_class = instance->klass;
     entry.declared_type = NULL;
 
@@ -2399,51 +2399,51 @@ void tbs_instance_set_field(
     if (!has_slot) instance->field_version++;
 }
 
-static int instance_value_matches_field_type(tbs_class_t *klass,
-                                              tbs_value_t value,
+static int instance_value_matches_field_type(toad_class_t *klass,
+                                              toad_value_t value,
                                               const char *declared_type) {
-    tbs_class_t *value_class = NULL;
+    toad_class_t *value_class = NULL;
     if (!klass || !declared_type) return 1;
-    if (value.type == TBS_VAL_NULL) return 1;
+    if (value.type == TOAD_VAL_NULL) return 1;
     if (strcmp(declared_type, "any") == 0) return 1;
     if (strcmp(declared_type, "number") == 0 || strcmp(declared_type, "float") == 0)
-        return value.type == TBS_VAL_NUMBER;
+        return value.type == TOAD_VAL_NUMBER;
     if (strcmp(declared_type, "int") == 0 || strcmp(declared_type, "int64") == 0 ||
         strcmp(declared_type, "integer") == 0)
-        return value.type == TBS_VAL_INTEGER;
+        return value.type == TOAD_VAL_INTEGER;
     if (strcmp(declared_type, "bool") == 0 || strcmp(declared_type, "boolean") == 0)
-        return value.type == TBS_VAL_BOOL;
-    if (strcmp(declared_type, "string") == 0) return value.type == TBS_VAL_STRING;
-    if (strcmp(declared_type, "bytes") == 0) return value.type == TBS_VAL_BYTES;
+        return value.type == TOAD_VAL_BOOL;
+    if (strcmp(declared_type, "string") == 0) return value.type == TOAD_VAL_STRING;
+    if (strcmp(declared_type, "bytes") == 0) return value.type == TOAD_VAL_BYTES;
     if (strcmp(declared_type, "map") == 0)
-        return value.type == TBS_VAL_MAP || value.type == TBS_VAL_OBJECT;
-    if (strcmp(declared_type, "object") == 0) return value.type == TBS_VAL_OBJECT;
+        return value.type == TOAD_VAL_MAP || value.type == TOAD_VAL_OBJECT;
+    if (strcmp(declared_type, "object") == 0) return value.type == TOAD_VAL_OBJECT;
     if (strcmp(declared_type, "list") == 0 || strcmp(declared_type, "array") == 0)
-        return value.type == TBS_VAL_LIST || value.type == TBS_VAL_SET ||
-               value.type == TBS_VAL_VECTOR;
-    if (strcmp(declared_type, "class") == 0) return value.type == TBS_VAL_CLASS;
-    if (strcmp(declared_type, "instance") == 0) return value.type == TBS_VAL_INSTANCE;
+        return value.type == TOAD_VAL_LIST || value.type == TOAD_VAL_SET ||
+               value.type == TOAD_VAL_VECTOR;
+    if (strcmp(declared_type, "class") == 0) return value.type == TOAD_VAL_CLASS;
+    if (strcmp(declared_type, "instance") == 0) return value.type == TOAD_VAL_INSTANCE;
     if (strcmp(declared_type, "function") == 0)
-        return value.type == TBS_VAL_FUNCTION || value.type == TBS_VAL_BOUND_METHOD;
-    if (strcmp(declared_type, "null") == 0) return value.type == TBS_VAL_NULL;
+        return value.type == TOAD_VAL_FUNCTION || value.type == TOAD_VAL_BOUND_METHOD;
+    if (strcmp(declared_type, "null") == 0) return value.type == TOAD_VAL_NULL;
 
-    if (value.type == TBS_VAL_INSTANCE && value.data.instance_val.instance)
+    if (value.type == TOAD_VAL_INSTANCE && value.data.instance_val.instance)
         value_class = value.data.instance_val.instance->klass;
-    else if (value.type == TBS_VAL_CLASS && value.data.class_val.klass)
+    else if (value.type == TOAD_VAL_CLASS && value.data.class_val.klass)
         value_class = value.data.class_val.klass;
     return value_class && class_name_match_depth(value_class, declared_type) >= 0;
 }
 
-int tbs_instance_set_field_checked(
-    tbs_instance_t *instance,
+int toad_instance_set_field_checked(
+    toad_instance_t *instance,
     const char *name,
-    tbs_value_t value,
+    toad_value_t value,
     char *error_msg,
     size_t error_msg_len)
 {
     const char *declared_type;
     if (!instance || !name) return 0;
-    declared_type = tbs_class_get_instance_field_type(instance->klass, name);
+    declared_type = toad_class_get_instance_field_type(instance->klass, name);
     if (declared_type && !instance_value_matches_field_type(
             instance->klass, value, declared_type)) {
         if (error_msg && error_msg_len > 0) {
@@ -2453,13 +2453,13 @@ int tbs_instance_set_field_checked(
         }
         return 0;
     }
-    tbs_instance_set_field(instance, name, value);
+    toad_instance_set_field(instance, name, value);
     return 1;
 }
 
-void tbs_instance_foreach_field(
-    tbs_instance_t *instance,
-    tbs_instance_field_visitor_t visitor,
+void toad_instance_foreach_field(
+    toad_instance_t *instance,
+    toad_instance_field_visitor_t visitor,
     void *user_data)
 {
     if (!instance || !instance->fields || !visitor) return;
@@ -2475,9 +2475,9 @@ void tbs_instance_foreach_field(
     }
 }
 
-void tbs_instance_foreach_named_field(
-    tbs_instance_t *instance,
-    tbs_instance_named_field_visitor_t visitor,
+void toad_instance_foreach_named_field(
+    toad_instance_t *instance,
+    toad_instance_named_field_visitor_t visitor,
     void *user_data)
 {
     if (!instance || !instance->fields || !visitor) return;
@@ -2493,9 +2493,9 @@ void tbs_instance_foreach_named_field(
     }
 }
 
-void tbs_class_foreach_static_field(
-    tbs_class_t *klass,
-    tbs_instance_field_visitor_t visitor,
+void toad_class_foreach_static_field(
+    toad_class_t *klass,
+    toad_instance_field_visitor_t visitor,
     void *user_data)
 {
     if (!klass || !klass->static_fields || !visitor) return;
@@ -2511,9 +2511,9 @@ void tbs_class_foreach_static_field(
     }
 }
 
-void tbs_class_foreach_named_static_field(
-    tbs_class_t *klass,
-    tbs_instance_named_field_visitor_t visitor,
+void toad_class_foreach_named_static_field(
+    toad_class_t *klass,
+    toad_instance_named_field_visitor_t visitor,
     void *user_data)
 {
     if (!klass || !klass->static_fields || !visitor) return;
@@ -2529,34 +2529,34 @@ void tbs_class_foreach_named_static_field(
     }
 }
 
-tbs_func_t *tbs_instance_get_method(
-    tbs_instance_t *instance,
+toad_func_t *toad_instance_get_method(
+    toad_instance_t *instance,
     const char *name)
 {
     if (!instance || !name) return NULL;
 
     // Lookup in class (will search prototype chain)
-    return tbs_class_lookup_method(instance->klass, name, 0);
+    return toad_class_lookup_method(instance->klass, name, 0);
 }
 
-tbs_func_t *tbs_instance_get_method_arity(
-    tbs_instance_t *instance,
+toad_func_t *toad_instance_get_method_arity(
+    toad_instance_t *instance,
     const char *name,
     size_t argc)
 {
     if (!instance || !name) return NULL;
-    return tbs_class_lookup_method_arity(instance->klass, name, 0, argc);
+    return toad_class_lookup_method_arity(instance->klass, name, 0, argc);
 }
 
-int tbs_instance_of(
-    tbs_instance_t *instance,
-    tbs_class_t *klass)
+int toad_instance_of(
+    toad_instance_t *instance,
+    toad_class_t *klass)
 {
     if (!instance || !klass) return 0;
-    return tbs_class_is_a(instance->klass, klass);
+    return toad_class_is_a(instance->klass, klass);
 }
 
-void tbs_instance_destroy(tbs_instance_t *instance) {
+void toad_instance_destroy(toad_instance_t *instance) {
     if (!instance) return;
 
     // Free hash table
@@ -2566,7 +2566,7 @@ void tbs_instance_destroy(tbs_instance_t *instance) {
             VARR_ADDR(HTAB_EL(field_entry_t), fields_htab->els);
         for (htab_size_t i = 0; i < fields_htab->els_bound; ++i) {
             if (entries[i].hash != HTAB_DELETED_HASH)
-                tbs_value_destroy(&entries[i].el.value);
+                toad_value_destroy(&entries[i].el.value);
         }
         HTAB_OP(field_entry_t, destroy)(&fields_htab);
     }

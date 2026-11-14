@@ -1,25 +1,25 @@
-#ifndef TBS_UNIVERSE_BINDINGS_H
-#define TBS_UNIVERSE_BINDINGS_H
+#ifndef TOAD_UNIVERSE_BINDINGS_H
+#define TOAD_UNIVERSE_BINDINGS_H
 
-#include <turboscript/engine.h>
+#include <toad/engine.h>
 #include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-tbs_value_t fn_universe_is_active(size_t argc, tbs_value_t *args, tbs_env_t *env, mem_pool_t *arena);
-tbs_value_t fn_universe_active_count(size_t argc, tbs_value_t *args, tbs_env_t *env, mem_pool_t *arena);
-tbs_value_t fn_universe_adj_factor(size_t argc, tbs_value_t *args, tbs_env_t *env, mem_pool_t *arena);
-tbs_value_t fn_universe_adjust_price(size_t argc, tbs_value_t *args, tbs_env_t *env, mem_pool_t *arena);
-tbs_value_t fn_universe_adjust_prices(size_t argc, tbs_value_t *args, tbs_env_t *env, mem_pool_t *arena);
-tbs_value_t fn_universe_rank(size_t argc, tbs_value_t *args, tbs_env_t *env, mem_pool_t *arena);
-tbs_value_t fn_universe_top_n(size_t argc, tbs_value_t *args, tbs_env_t *env, mem_pool_t *arena);
-tbs_value_t fn_universe_filter_gt(size_t argc, tbs_value_t *args, tbs_env_t *env, mem_pool_t *arena);
-tbs_value_t fn_universe_zscore(size_t argc, tbs_value_t *args, tbs_env_t *env, mem_pool_t *arena);
-tbs_value_t fn_universe_clip(size_t argc, tbs_value_t *args, tbs_env_t *env, mem_pool_t *arena);
-tbs_value_t fn_universe_cross_sum(size_t argc, tbs_value_t *args, tbs_env_t *env, mem_pool_t *arena);
-tbs_value_t fn_universe_demean(size_t argc, tbs_value_t *args, tbs_env_t *env, mem_pool_t *arena);
+toad_value_t fn_universe_is_active(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena);
+toad_value_t fn_universe_active_count(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena);
+toad_value_t fn_universe_adj_factor(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena);
+toad_value_t fn_universe_adjust_price(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena);
+toad_value_t fn_universe_adjust_prices(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena);
+toad_value_t fn_universe_rank(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena);
+toad_value_t fn_universe_top_n(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena);
+toad_value_t fn_universe_filter_gt(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena);
+toad_value_t fn_universe_zscore(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena);
+toad_value_t fn_universe_clip(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena);
+toad_value_t fn_universe_cross_sum(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena);
+toad_value_t fn_universe_demean(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena);
 
 #ifdef __cplusplus
 }

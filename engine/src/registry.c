@@ -4,69 +4,69 @@
  */
 
 #include "internal.h"
-#include <turboscript/class.h>
+#include <toad/class.h>
 
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #define REGISTRY_INITIAL_CAP 256
 
-static tbs_func_entry_t *g_registry = NULL;
+static toad_func_entry_t *g_registry = NULL;
 static size_t g_registry_count = 0;
 static size_t g_registry_cap = 0;
 static int g_registry_ready = 0;
 
-static const cmeta_type_identity tbs_env_cmeta_identity =
-    CMETA_TYPE_ID_ATOM_INIT("turboscript.exprtk.env");
-static const cmeta_type_identity tbs_scratch_cmeta_identity =
-    CMETA_TYPE_ID_ATOM_INIT("turboscript.exprtk.scratch");
+static const cmeta_type_identity toad_env_cmeta_identity =
+    CMETA_TYPE_ID_ATOM_INIT("toad.engine.env");
+static const cmeta_type_identity toad_scratch_cmeta_identity =
+    CMETA_TYPE_ID_ATOM_INIT("toad.engine.scratch");
 
-static const cmeta_type_desc tbs_env_cmeta_type = {
-    .name = "tbs_env_t",
-    .size = sizeof(tbs_env_t),
-    .align = _Alignof(tbs_env_t),
+static const cmeta_type_desc toad_env_cmeta_type = {
+    .name = "toad_env_t",
+    .size = sizeof(toad_env_t),
+    .align = _Alignof(toad_env_t),
     .kind = CMETA_T_OBJECT,
     .pointee = NULL,
     .traits = NULL,
-    .identity = &tbs_env_cmeta_identity
+    .identity = &toad_env_cmeta_identity
 };
-static const cmeta_type_desc tbs_scratch_cmeta_type = {
+static const cmeta_type_desc toad_scratch_cmeta_type = {
     .name = "mem_pool_t",
     .size = sizeof(mem_pool_t),
     .align = _Alignof(mem_pool_t),
     .kind = CMETA_T_OBJECT,
     .pointee = NULL,
     .traits = NULL,
-    .identity = &tbs_scratch_cmeta_identity
+    .identity = &toad_scratch_cmeta_identity
 };
 
-static const cmeta_type_identity tbs_env_ptr_cmeta_identity =
-    CMETA_TYPE_ID_POINTER_INIT(&tbs_env_cmeta_identity);
-static const cmeta_type_identity tbs_scratch_ptr_cmeta_identity =
-    CMETA_TYPE_ID_POINTER_INIT(&tbs_scratch_cmeta_identity);
+static const cmeta_type_identity toad_env_ptr_cmeta_identity =
+    CMETA_TYPE_ID_POINTER_INIT(&toad_env_cmeta_identity);
+static const cmeta_type_identity toad_scratch_ptr_cmeta_identity =
+    CMETA_TYPE_ID_POINTER_INIT(&toad_scratch_cmeta_identity);
 
-static const cmeta_type_desc tbs_env_ptr_cmeta_type = {
-    .name = "tbs_env_t *",
-    .size = sizeof(tbs_env_t *),
-    .align = _Alignof(tbs_env_t *),
+static const cmeta_type_desc toad_env_ptr_cmeta_type = {
+    .name = "toad_env_t *",
+    .size = sizeof(toad_env_t *),
+    .align = _Alignof(toad_env_t *),
     .kind = CMETA_T_POINTER,
-    .pointee = &tbs_env_cmeta_type,
+    .pointee = &toad_env_cmeta_type,
     .traits = NULL,
-    .identity = &tbs_env_ptr_cmeta_identity
+    .identity = &toad_env_ptr_cmeta_identity
 };
-static const cmeta_type_desc tbs_scratch_ptr_cmeta_type = {
+static const cmeta_type_desc toad_scratch_ptr_cmeta_type = {
     .name = "mem_pool_t *",
     .size = sizeof(mem_pool_t *),
     .align = _Alignof(mem_pool_t *),
     .kind = CMETA_T_POINTER,
-    .pointee = &tbs_scratch_cmeta_type,
+    .pointee = &toad_scratch_cmeta_type,
     .traits = NULL,
-    .identity = &tbs_scratch_ptr_cmeta_identity
+    .identity = &toad_scratch_ptr_cmeta_identity
 };
 
-int tbs_func_entry_reflect(
-    const tbs_func_entry_t *entry,
-    tbs_function_reflection_t *out) {
+int toad_func_entry_reflect(
+    const toad_func_entry_t *entry,
+    toad_function_reflection_t *out) {
     if (!entry || !entry->name || !entry->fn || !out) return 0;
 
     memset(out, 0, sizeof(*out));
@@ -74,21 +74,21 @@ int tbs_func_entry_reflect(
         sizeof(cmeta_param_desc), "argc", &cmeta_type_size, CMETA_PARAM_IN
     };
     out->params[1] = (cmeta_param_desc){
-        sizeof(cmeta_param_desc), "args", tbs_value_ptr_cmeta_type(),
+        sizeof(cmeta_param_desc), "args", toad_value_ptr_cmeta_type(),
         CMETA_PARAM_INOUT | CMETA_PARAM_BORROWED | CMETA_PARAM_NULLABLE
     };
     out->params[2] = (cmeta_param_desc){
-        sizeof(cmeta_param_desc), "env", &tbs_env_ptr_cmeta_type,
+        sizeof(cmeta_param_desc), "env", &toad_env_ptr_cmeta_type,
         CMETA_PARAM_INOUT | CMETA_PARAM_BORROWED
     };
     out->params[3] = (cmeta_param_desc){
-        sizeof(cmeta_param_desc), "scratch", &tbs_scratch_ptr_cmeta_type,
+        sizeof(cmeta_param_desc), "scratch", &toad_scratch_ptr_cmeta_type,
         CMETA_PARAM_INOUT | CMETA_PARAM_BORROWED
     };
     out->function = (cmeta_function_desc){
         .size = sizeof(cmeta_function_desc),
         .name = entry->name,
-        .return_type = tbs_value_cmeta_type(),
+        .return_type = toad_value_cmeta_type(),
         .params = out->params,
         .param_count = 4u,
         .effects = CMETA_EFFECT_UNKNOWN,
@@ -96,7 +96,7 @@ int tbs_func_entry_reflect(
         /*
          * Raw Engine builtin results are not one uniform ownership class.
          * A builtin may return a scratch-borrowed dynamic payload. The
-         * authoritative escape boundary is tbs_call_builtin(), which
+         * authoritative escape boundary is toad_call_builtin(), which
          * clones/promotes the raw value into the caller env before scratch
          * teardown. Do not infer VALUE from the by-value C return spelling.
          */
@@ -106,16 +106,16 @@ int tbs_func_entry_reflect(
     return cmeta_function_desc_valid(&out->function);
 }
 
-int tbs_module_function_reflect(
-    const tbs_module_t *module,
+int toad_module_function_reflect(
+    const toad_module_t *module,
     size_t index,
-    tbs_function_reflection_t *out) {
+    toad_function_reflection_t *out) {
     if (!module || !module->entries || index >= module->count) return 0;
-    return tbs_func_entry_reflect(&module->entries[index], out);
+    return toad_func_entry_reflect(&module->entries[index], out);
 }
 
-static tbs_value_t tbs_call_undefined(tbs_env_t *env, const char *name) {
-    tbs_value_t zero = { .type = TBS_VAL_NUMBER, .data.number = 0.0 };
+static toad_value_t toad_call_undefined(toad_env_t *env, const char *name) {
+    toad_value_t zero = { .type = TOAD_VAL_NUMBER, .data.number = 0.0 };
 
     if (!env) return zero;
 
@@ -123,42 +123,42 @@ static tbs_value_t tbs_call_undefined(tbs_env_t *env, const char *name) {
              name ? name : "<null>");
     env->error_line = env->last_line;
     env->error_column = env->last_column;
-    env->flow = tbs_FLOW_THROW;
-    env->error_value = tbs_val_str(vstr_from_cstr(env->error_msg));
+    env->flow = toad_FLOW_THROW;
+    env->error_value = toad_val_str(vstr_from_cstr(env->error_msg));
     return zero;
 }
 
 static int entry_cmp(const void *a, const void *b) {
-    return strcmp(((const tbs_func_entry_t *)a)->name,
-                  ((const tbs_func_entry_t *)b)->name);
+    return strcmp(((const toad_func_entry_t *)a)->name,
+                  ((const toad_func_entry_t *)b)->name);
 }
 
 static int search_cmp(const void *key, const void *entry) {
-    return strcmp((const char *)key, ((const tbs_func_entry_t *)entry)->name);
+    return strcmp((const char *)key, ((const toad_func_entry_t *)entry)->name);
 }
 
-static double tbs_numeric_value(tbs_value_t value) {
-    if (value.type == TBS_VAL_INTEGER) return (double)value.data.integer;
-    if (value.type == TBS_VAL_NUMBER) return value.data.number;
+static double toad_numeric_value(toad_value_t value) {
+    if (value.type == TOAD_VAL_INTEGER) return (double)value.data.integer;
+    if (value.type == TOAD_VAL_NUMBER) return value.data.number;
     return 0.0;
 }
 
-static tbs_value_t *normalize_numeric_args(tbs_value_t *args, size_t argc, tbs_value_t *stack_args,
+static toad_value_t *normalize_numeric_args(toad_value_t *args, size_t argc, toad_value_t *stack_args,
                                               size_t stack_cap, int *needs_free) {
     if (needs_free) *needs_free = 0;
     if (!args || argc == 0) return args;
 
-    tbs_value_t *normalized = stack_args;
+    toad_value_t *normalized = stack_args;
     if (argc > stack_cap) {
-        normalized = (tbs_value_t *)malloc(argc * sizeof(tbs_value_t));
+        normalized = (toad_value_t *)malloc(argc * sizeof(toad_value_t));
         if (!normalized) return args;
         if (needs_free) *needs_free = 1;
     }
 
     for (size_t i = 0; i < argc; ++i) {
         normalized[i] = args[i];
-        if (normalized[i].type == TBS_VAL_INTEGER) {
-            normalized[i] = tbs_val_num((double)normalized[i].data.integer);
+        if (normalized[i].type == TOAD_VAL_INTEGER) {
+            normalized[i] = toad_val_num((double)normalized[i].data.integer);
         }
     }
 
@@ -181,7 +181,7 @@ static int builtin_needs_raw_args(const char *name) {
  * ========================================================================= */
 
 /** Build sorted cache of all module entries for O(log n) lookup. */
-static void build_mod_cache(tbs_env_t *env) {
+static void build_mod_cache(toad_env_t *env) {
     if (!env || !env->modules || env->module_count == 0) return;
 
     /* Count total entries across all modules */
@@ -191,48 +191,48 @@ static void build_mod_cache(tbs_env_t *env) {
     if (total == 0) return;
 
     /* Allocate and flatten */
-    tbs_func_entry_t *cache = (tbs_func_entry_t *)malloc(total * sizeof(tbs_func_entry_t));
+    toad_func_entry_t *cache = (toad_func_entry_t *)malloc(total * sizeof(toad_func_entry_t));
     if (!cache) return;
 
     size_t idx = 0;
     for (size_t m = 0; m < env->module_count; m++) {
-        const tbs_module_t *mod = env->modules[m];
+        const toad_module_t *mod = env->modules[m];
         for (size_t i = 0; i < mod->count; i++)
             cache[idx++] = mod->entries[i];
     }
 
     /* Sort by name for binary search */
-    qsort(cache, total, sizeof(tbs_func_entry_t), entry_cmp);
+    qsort(cache, total, sizeof(toad_func_entry_t), entry_cmp);
 
     env->mod_cache = cache;
     env->mod_cache_count = total;
 }
 
 /** O(log n) lookup in the sorted module cache. */
-static const tbs_func_entry_t *mod_cache_find_entry(
-    tbs_env_t *env, const char *name) {
+static const toad_func_entry_t *mod_cache_find_entry(
+    toad_env_t *env, const char *name) {
     if (!env || !name) return NULL;
     if (!env->mod_cache) build_mod_cache(env);
     if (!env->mod_cache || env->mod_cache_count == 0) return NULL;
 
-    return (const tbs_func_entry_t *)bsearch(
-        name, (tbs_func_entry_t *)env->mod_cache, env->mod_cache_count,
-        sizeof(tbs_func_entry_t), search_cmp);
+    return (const toad_func_entry_t *)bsearch(
+        name, (toad_func_entry_t *)env->mod_cache, env->mod_cache_count,
+        sizeof(toad_func_entry_t), search_cmp);
 }
 
-static tbs_builtin_fn mod_cache_find(tbs_env_t *env, const char *name) {
-    const tbs_func_entry_t *hit = mod_cache_find_entry(env, name);
+static toad_builtin_fn mod_cache_find(toad_env_t *env, const char *name) {
+    const toad_func_entry_t *hit = mod_cache_find_entry(env, name);
     return hit ? hit->fn : NULL;
 }
 
-static const tbs_func_entry_t *mod_find_entry_in_named_module(
-    tbs_env_t *env, const char *module_name, size_t module_name_len,
+static const toad_func_entry_t *mod_find_entry_in_named_module(
+    toad_env_t *env, const char *module_name, size_t module_name_len,
     const char *entry_name) {
     if (!env || !module_name || !entry_name) return NULL;
 
-    for (tbs_env_t *e = env; e; e = e->parent) {
+    for (toad_env_t *e = env; e; e = e->parent) {
         for (size_t m = 0; m < e->module_count; ++m) {
-            const tbs_module_t *mod = e->modules[m];
+            const toad_module_t *mod = e->modules[m];
             if (!mod || !mod->module_name) continue;
             if (strlen(mod->module_name) != module_name_len ||
                 strncmp(mod->module_name, module_name, module_name_len) != 0)
@@ -247,10 +247,10 @@ static const tbs_func_entry_t *mod_find_entry_in_named_module(
     return NULL;
 }
 
-static tbs_builtin_fn mod_find_in_named_module(
-    tbs_env_t *env, const char *module_name, size_t module_name_len,
+static toad_builtin_fn mod_find_in_named_module(
+    toad_env_t *env, const char *module_name, size_t module_name_len,
     const char *entry_name) {
-    const tbs_func_entry_t *hit = mod_find_entry_in_named_module(
+    const toad_func_entry_t *hit = mod_find_entry_in_named_module(
         env, module_name, module_name_len, entry_name);
     return hit ? hit->fn : NULL;
 }
@@ -265,12 +265,12 @@ static int is_global_compat_namespace(const char *module_name, size_t module_nam
     return 0;
 }
 
-void tbs_registry_add_module(const tbs_module_t *mod) {
+void toad_registry_add_module(const toad_module_t *mod) {
     if (!mod) return;
     for (size_t i = 0; i < mod->count; ++i) {
         if (g_registry_count >= g_registry_cap) {
             size_t new_cap = g_registry_cap == 0 ? REGISTRY_INITIAL_CAP : g_registry_cap * 2;
-            tbs_func_entry_t *grown = (tbs_func_entry_t *)realloc(g_registry, new_cap * sizeof(tbs_func_entry_t));
+            toad_func_entry_t *grown = (toad_func_entry_t *)realloc(g_registry, new_cap * sizeof(toad_func_entry_t));
             if (!grown) return;
             g_registry = grown;
             g_registry_cap = new_cap;
@@ -280,35 +280,35 @@ void tbs_registry_add_module(const tbs_module_t *mod) {
     g_registry_ready = 0; // Need re-sort
 }
 
-void tbs_registry_init(void) {
+void toad_registry_init(void) {
     if (g_registry_ready) return;
 
     /* Register core module by default */
-    tbs_registry_add_module(tbs_module_core());
+    toad_registry_add_module(toad_module_core());
 
-    qsort(g_registry, g_registry_count, sizeof(tbs_func_entry_t), entry_cmp);
+    qsort(g_registry, g_registry_count, sizeof(toad_func_entry_t), entry_cmp);
     g_registry_ready = 1;
 }
 
-static const tbs_func_entry_t *tbs_registry_find_entry(
+static const toad_func_entry_t *toad_registry_find_entry(
     const char *name) {
     if (!name) return NULL;
-    if (!g_registry_ready) tbs_registry_init();
+    if (!g_registry_ready) toad_registry_init();
     if (g_registry_count == 0) return NULL;
 
-    return (const tbs_func_entry_t *)bsearch(
+    return (const toad_func_entry_t *)bsearch(
         name, g_registry, g_registry_count,
-        sizeof(tbs_func_entry_t), search_cmp);
+        sizeof(toad_func_entry_t), search_cmp);
 }
 
-tbs_builtin_fn tbs_registry_find(const char *name) {
-    const tbs_func_entry_t *hit = tbs_registry_find_entry(name);
+toad_builtin_fn toad_registry_find(const char *name) {
+    const toad_func_entry_t *hit = toad_registry_find_entry(name);
     return hit ? hit->fn : NULL;
 }
 
-static const tbs_func_entry_t *tbs_find_builtin_entry(
-    const char *name, tbs_env_t *env) {
-    const tbs_func_entry_t *hit;
+static const toad_func_entry_t *toad_find_builtin_entry(
+    const char *name, toad_env_t *env) {
+    const toad_func_entry_t *hit;
     const char *dot;
 
     if (!name) return NULL;
@@ -323,32 +323,32 @@ static const tbs_func_entry_t *tbs_find_builtin_entry(
             if (hit) return hit;
         }
     }
-    return tbs_registry_find_entry(name);
+    return toad_registry_find_entry(name);
 }
 
-tbs_builtin_fn tbs_find_builtin(const char *name, tbs_env_t *env) {
-    const tbs_func_entry_t *hit = tbs_find_builtin_entry(name, env);
+toad_builtin_fn toad_find_builtin(const char *name, toad_env_t *env) {
+    const toad_func_entry_t *hit = toad_find_builtin_entry(name, env);
     return hit ? hit->fn : NULL;
 }
 
-int tbs_find_builtin_reflection(
-    const char *name, tbs_env_t *env, tbs_function_reflection_t *out) {
-    const tbs_func_entry_t *entry;
+int toad_find_builtin_reflection(
+    const char *name, toad_env_t *env, toad_function_reflection_t *out) {
+    const toad_func_entry_t *entry;
 
     if (!out) return 0;
     memset(out, 0, sizeof(*out));
-    entry = tbs_find_builtin_entry(name, env);
-    return entry != NULL && tbs_func_entry_reflect(entry, out);
+    entry = toad_find_builtin_entry(name, env);
+    return entry != NULL && toad_func_entry_reflect(entry, out);
 }
 
-tbs_value_t tbs_call_builtin(tbs_builtin_fn fn, size_t argc,
-                                   tbs_value_t *args, tbs_env_t *env) {
+toad_value_t toad_call_builtin(toad_builtin_fn fn, size_t argc,
+                                   toad_value_t *args, toad_env_t *env) {
     mem_pool_t scratch;
-    tbs_value_t raw;
-    tbs_value_t promoted;
+    toad_value_t raw;
+    toad_value_t promoted;
 
     if (!fn || !env || mem_init(&scratch, 0) != 0) {
-        promoted = tbs_val_num(0.0);
+        promoted = toad_val_num(0.0);
         if (env) {
             env->aborted = 1;
             snprintf(env->error_msg, sizeof(env->error_msg),
@@ -357,41 +357,41 @@ tbs_value_t tbs_call_builtin(tbs_builtin_fn fn, size_t argc,
         return promoted;
     }
     raw = fn(argc, args, env, &scratch);
-    promoted = tbs_value_clone_to_env(raw, env);
-    tbs_value_destroy(&raw);
+    promoted = toad_value_clone_to_env(raw, env);
+    toad_value_destroy(&raw);
     mem_destroy(&scratch);
     return promoted;
 }
 
-tbs_value_t tbs_call_internal(const char *name, size_t argc,
-                                    tbs_value_t *args, tbs_env_t *env) {
-    tbs_value_t stack_args[8];
+toad_value_t toad_call_internal(const char *name, size_t argc,
+                                    toad_value_t *args, toad_env_t *env) {
+    toad_value_t stack_args[8];
     int normalized_needs_free = 0;
-    tbs_value_t *normalized_args = normalize_numeric_args(args, argc, stack_args, 8, &normalized_needs_free);
-    tbs_value_t *builtin_args = builtin_needs_raw_args(name) ? args : normalized_args;
+    toad_value_t *normalized_args = normalize_numeric_args(args, argc, stack_args, 8, &normalized_needs_free);
+    toad_value_t *builtin_args = builtin_needs_raw_args(name) ? args : normalized_args;
 
     /* 1. Check native/script functions in environment */
     if (env) {
-        tbs_env_t *curr_env_iter = env;
+        toad_env_t *curr_env_iter = env;
         while (curr_env_iter) {
-            tbs_func_t *f = curr_env_iter->funcs;
+            toad_func_t *f = curr_env_iter->funcs;
             while (f) {
                 if (strcmp(f->name, name) == 0) {
                     if (f->is_script) {
-                        tbs_value_t result = eval_script_function(f, argc, args, env, env);
+                        toad_value_t result = eval_script_function(f, argc, args, env, env);
                         if (normalized_needs_free) free(normalized_args);
                         return result;
                     } else {
-                        tbs_value_t *native_args =
+                        toad_value_t *native_args =
                             (f->data.native.flags &
-                             TBS_NATIVE_PRESERVE_VALUE_TYPES)
+                             TOAD_NATIVE_PRESERVE_VALUE_TYPES)
                                 ? args
                                 : normalized_args;
-                        tbs_value_t raw =
+                        toad_value_t raw =
                             f->data.native.fn(argc, native_args, env,
                                               f->data.native.user_data);
-                        tbs_value_t result = tbs_value_clone_to_env(raw, env);
-                        tbs_value_destroy(&raw);
+                        toad_value_t result = toad_value_clone_to_env(raw, env);
+                        toad_value_destroy(&raw);
                         if (normalized_needs_free) free(normalized_args);
                         return result;
                     }
@@ -404,20 +404,20 @@ tbs_value_t tbs_call_internal(const char *name, size_t argc,
 
     /* 1.25 Check if name is a variable holding a function value */
     if (env) {
-        tbs_value_t callee = tbs_env_get(env, name);
-        if (callee.type == TBS_VAL_CLASS) {
-            tbs_value_t result =
-                tbs_oop_instantiate_class_value(callee, name, argc, args, env);
+        toad_value_t callee = toad_env_get(env, name);
+        if (callee.type == TOAD_VAL_CLASS) {
+            toad_value_t result =
+                toad_oop_instantiate_class_value(callee, name, argc, args, env);
             if (normalized_needs_free) free(normalized_args);
             return result;
         }
-        if (callee.type == TBS_VAL_BOUND_METHOD) {
-            tbs_value_t result = tbs_oop_call_bound_method(callee, argc, args, env);
+        if (callee.type == TOAD_VAL_BOUND_METHOD) {
+            toad_value_t result = toad_oop_call_bound_method(callee, argc, args, env);
             if (normalized_needs_free) free(normalized_args);
             return result;
         }
-        if (callee.type == TBS_VAL_FUNCTION && callee.data.function.body) {
-            tbs_value_t result = tbs_call_function_value(callee, argc, args, env);
+        if (callee.type == TOAD_VAL_FUNCTION && callee.data.function.body) {
+            toad_value_t result = toad_call_function_value(callee, argc, args, env);
             if (normalized_needs_free) free(normalized_args);
             return result;
         }
@@ -426,9 +426,9 @@ tbs_value_t tbs_call_internal(const char *name, size_t argc,
     /* 1.5 Per-env module cache — O(log n) sorted-array lookup */
     if (env) {
         /* Try non-namespaced first */
-        tbs_builtin_fn mod_fn = mod_cache_find(env, name);
+        toad_builtin_fn mod_fn = mod_cache_find(env, name);
         if (mod_fn) {
-            tbs_value_t result = tbs_call_builtin(mod_fn, argc, builtin_args, env);
+            toad_value_t result = toad_call_builtin(mod_fn, argc, builtin_args, env);
             if (normalized_needs_free) free(normalized_args);
             return result;
         }
@@ -438,7 +438,7 @@ tbs_value_t tbs_call_internal(const char *name, size_t argc,
         if (dot) {
             mod_fn = mod_find_in_named_module(env, name, (size_t)(dot - name), dot + 1);
             if (mod_fn) {
-                tbs_value_t result = tbs_call_builtin(mod_fn, argc, builtin_args, env);
+                toad_value_t result = toad_call_builtin(mod_fn, argc, builtin_args, env);
                 if (normalized_needs_free) free(normalized_args);
                 return result;
             }
@@ -447,9 +447,9 @@ tbs_value_t tbs_call_internal(const char *name, size_t argc,
 
     /* 2. Module registry — O(log n) sorted-array lookup */
     /* Try full name first (e.g., "vec.reverse") */
-    tbs_builtin_fn mod_fn = tbs_registry_find(name);
+    toad_builtin_fn mod_fn = toad_registry_find(name);
     if (mod_fn) {
-        tbs_value_t result = tbs_call_builtin(mod_fn, argc, builtin_args, env);
+        toad_value_t result = toad_call_builtin(mod_fn, argc, builtin_args, env);
         if (normalized_needs_free) free(normalized_args);
         return result;
     }
@@ -458,14 +458,14 @@ tbs_value_t tbs_call_internal(const char *name, size_t argc,
      * by env modules above and must not fall back to unrelated short names. */
     const char *final_dot = strchr(name, '.');
     if (final_dot && is_global_compat_namespace(name, (size_t)(final_dot - name))) {
-        mod_fn = tbs_registry_find(final_dot + 1);
+        mod_fn = toad_registry_find(final_dot + 1);
         if (mod_fn) {
-            tbs_value_t result = tbs_call_builtin(mod_fn, argc, builtin_args, env);
+            toad_value_t result = toad_call_builtin(mod_fn, argc, builtin_args, env);
             if (normalized_needs_free) free(normalized_args);
             return result;
         }
     }
 
     if (normalized_needs_free) free(normalized_args);
-    return tbs_call_undefined(env, name);
+    return toad_call_undefined(env, name);
 }

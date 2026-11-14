@@ -1,14 +1,14 @@
 #include "../src/internal.h"
-#include <turboscript/types.h>
+#include <toad/types.h>
 #include "tinytest.h"
 #include "file/fs.h"
-#include <turboscript/script.h>
+#include <toad/script.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 typedef struct {
-  turbo_script_ctx_t *ctx;
+  toad_script_ctx_t *ctx;
   const char *script;
   int result;
 } script_coro_arg_t;
@@ -24,19 +24,19 @@ static void ts_test_make_name(char *buf, size_t buf_size, const char *prefix, co
   snprintf(buf, buf_size, "%s_%lu%s", prefix, ts_test_nonce(), tail);
 }
 
-static tbs_value_t test_triple_fn(size_t argc, tbs_value_t *args, tbs_env_t *env, void *user_data) {
+static toad_value_t test_triple_fn(size_t argc, toad_value_t *args, toad_env_t *env, void *user_data) {
   (void)user_data;
-  if (argc != 1 || args[0].type != TBS_VAL_NUMBER) {
-    return (tbs_value_t){TBS_VAL_NUMBER, .data.number = 0.0};
+  if (argc != 1 || args[0].type != TOAD_VAL_NUMBER) {
+    return (toad_value_t){TOAD_VAL_NUMBER, .data.number = 0.0};
   }
-  return (tbs_value_t){TBS_VAL_NUMBER, .data.number = args[0].data.number * 3.0};
+  return (toad_value_t){TOAD_VAL_NUMBER, .data.number = args[0].data.number * 3.0};
 }
 
 
-spec("turbo_script_io") {
+spec("toad_script_io") {
   describe("Module Import: dot notation") {
     it("should import fs module and use dot notation") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_BARE);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
       check_not_null(ctx);
 
       const char *script = ""
@@ -45,32 +45,32 @@ spec("turbo_script_io") {
                            "io.file_remove(\"test_dot.txt\"); "
                            "gone = io.file_exists(\"test_dot.txt\");";
 
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("FS dot Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("FS dot Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      const char *data_str = ts_get_str(ctx, "data");
+      const char *data_str = toad_script_get_str(ctx, "data");
       check_not_null(data_str);
       check(strcmp((data_str), ("dot notation works")) == 0);
-      check(fabs((double)(ts_get_num(ctx, "gone")) - (double)(0.0)) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "gone")) - (double)(0.0)) <= (double)(0.1));
 
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
 
     it("should still support file import with init_bare") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_BARE);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
       check_not_null(ctx);
 
-      turbo_script_run(ctx, ""
+      toad_script_run(ctx, ""
                             "write_file(\"utils_dot.tbs\", \"func square(x) { return x * x; };\");");
 
       const char *script = "import(\"utils_dot.tbs\"); "
                            "res = square(7);";
 
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "res")) - (double)(49.0)) <= (double)(0.1));
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "res")) - (double)(49.0)) <= (double)(0.1));
 
-      turbo_script_run(ctx, "file_remove(\"utils_dot.tbs\");");
-      turbo_script_free(ctx);
+      toad_script_run(ctx, "file_remove(\"utils_dot.tbs\");");
+      toad_script_free(ctx);
     }
   }
 
@@ -83,7 +83,7 @@ spec("turbo_script_io") {
         printf("[SKIPPED] set TS_NET_TESTS=1 to run the network-dependent http.get test\n");
         return;
       }
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 
       const char *script = ""
                            "import(\"net\");\n"
@@ -91,350 +91,350 @@ spec("turbo_script_io") {
                            "var is_ok = (res.status == 200);\n"
                            "var has_headers = (map.size(res.headers) > 0);\n";
 
-      int run_res = turbo_script_run(ctx, script);
-      if (run_res != 0) printf("Net Plugin Error: %s\n", turbo_script_get_error(ctx));
+      int run_res = toad_script_run(ctx, script);
+      if (run_res != 0) printf("Net Plugin Error: %s\n", toad_script_get_error(ctx));
       check((run_res) == (0));
-      check(fabs((double)(ts_get_num(ctx, "is_ok")) - (double)(1.0)) <= (double)(0.1));
-      check(fabs((double)(ts_get_num(ctx, "has_headers")) - (double)(1.0)) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "is_ok")) - (double)(1.0)) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "has_headers")) - (double)(1.0)) <= (double)(0.1));
 
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
   }
 
   describe("Vector Sort") {
     it("should sort ascending") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 
       const char *script = "var v = [3, 1, 4, 1, 5, 9, 2, 6];"
                            "var s = vec.sort(v);"
                            "var first = s[0];"
                            "var last = s[7];";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "first")) - (double)(1.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "last")) - (double)(9.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "first")) - (double)(1.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "last")) - (double)(9.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
 
     it("should sort descending") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 
       const char *script = "var v = [3, 1, 4, 1, 5];"
                            "var s = vec.sort_desc(v);"
                            "var first = s[0];"
                            "var last = s[4];";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "first")) - (double)(5.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "last")) - (double)(1.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "first")) - (double)(5.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "last")) - (double)(1.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
 
     it("should not modify original vector") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = "var v = [3, 1, 2];"
                            "var s = vec.sort(v);"
                            "var orig_first = v[0];";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "orig_first")) - (double)(3.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "orig_first")) - (double)(3.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
 
     it("should handle single element") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = " var v = [42];"
                            "var s = vec.sort(v);"
                            "var val = s[0];";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "val")) - (double)(42.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "val")) - (double)(42.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
   }
 
   describe("Vector Unique") {
     it("should remove duplicates and sort") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = "var v = [3, 1, 2, 1, 3, 2];"
                            "var u = vec.unique(v);"
                            "var n = vec.len(u);"
                            "var first = u[0];"
                            "var last = u[2];";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "n")) - (double)(3.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "first")) - (double)(1.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "last")) - (double)(3.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "n")) - (double)(3.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "first")) - (double)(1.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "last")) - (double)(3.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
 
     it("should handle all same values") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = "var v = [5, 5, 5, 5];"
                            "var u = vec.unique(v);"
                            "var n = vec.len(u);";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "n")) - (double)(1.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "n")) - (double)(1.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
   }
 
   describe("String Join") {
     it("should join vector with delimiter") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = "var v = [1, 2, 3];"
                            "var s = join(v, \",\");";
-      check((turbo_script_run(ctx, script)) == (0));
-      const char *result = ts_get_str(ctx, "s");
+      check((toad_script_run(ctx, script)) == (0));
+      const char *result = toad_script_get_str(ctx, "s");
       check_not_null(result);
       check(strcmp((result), ("1,2,3")) == 0);
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
 
     it("should handle single element") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = "var v = [42];"
                            "var s = join(v, \"-\");";
-      check((turbo_script_run(ctx, script)) == (0));
-      const char *result = ts_get_str(ctx, "s");
+      check((toad_script_run(ctx, script)) == (0));
+      const char *result = toad_script_get_str(ctx, "s");
       check_not_null(result);
       check(strcmp((result), ("42")) == 0);
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
   }
 
   describe("Structured Text Write") {
     it("should write and read back CSV text with IO functions") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_BARE);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
 
-      int r1 = turbo_script_run(ctx, "var data = \"name,age,role\\nAlice,30,dev\\nBob,40,mgr\";"
+      int r1 = toad_script_run(ctx, "var data = \"name,age,role\\nAlice,30,dev\\nBob,40,mgr\";"
                                      "var res = io.write_file(\"_test_csv_write.csv\", data);"
                                      "var content = read_file(\"_test_csv_write.csv\");"
                                      "file_remove(\"_test_csv_write.csv\");");
-      if (r1 != 0) printf("CSV write Error: %s\n", turbo_script_get_error(ctx));
+      if (r1 != 0) printf("CSV write Error: %s\n", toad_script_get_error(ctx));
       check((r1) == (0));
-      check(fabs((double)(ts_get_num(ctx, "res")) - (double)(0.0)) <= (double)(0.1));
-      const char *content = ts_get_str(ctx, "content");
+      check(fabs((double)(toad_script_get_num(ctx, "res")) - (double)(0.0)) <= (double)(0.1));
+      const char *content = toad_script_get_str(ctx, "content");
       check_not_null(content);
       check(strcmp((content), ("name,age,role\nAlice,30,dev\nBob,40,mgr")) == 0);
 
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
   }
 
   describe("Vector Reverse") {
     it("should reverse a vector") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 
       const char *script = " var v = [1, 2, 3, 4, 5];"
                            "var r = vec.reverse(v);"
                            "var first = r[0];"
                            "var last = r[4];";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "first")) - (double)(5.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "last")) - (double)(1.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "first")) - (double)(5.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "last")) - (double)(1.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
 
     it("should handle single element") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 
       const char *script = " var v = [42];"
                            "var r = vec.reverse(v);"
                            "var val = r[0];";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "val")) - (double)(42.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "val")) - (double)(42.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
 
     it("should not modify original vector") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 
       const char *script = " var v = [1, 2, 3];"
                            "var r = vec.reverse(v);"
                            "var orig = v[0];";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "orig")) - (double)(1.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "orig")) - (double)(1.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
   }
 
   describe("Vector Concat") {
     it("should merge two vectors") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 
       const char *script = " var a = [1, 2, 3];"
                            "var b = [4, 5];"
                            "var c = vec.concat(a, b);"
                            "var n = vec.len(c);"
                            "var last = c[4];";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "n")) - (double)(5.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "last")) - (double)(5.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "n")) - (double)(5.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "last")) - (double)(5.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
 
     it("should handle one empty vector") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 
-      ts_bind_vec(ctx, "a", (const double[]){1.0, 2.0}, 2);
+      toad_script_bind_vec(ctx, "a", (const double[]){1.0, 2.0}, 2);
       const char *script = " var b = vec.range(0);"
                            "var c = vec.concat(a, b);"
                            "var n = vec.len(c);";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "n")) - (double)(2.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "n")) - (double)(2.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
   }
 
   describe("Vector Range") {
     it("should generate vec.range(5)") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 
       const char *script = " var v = vec.range(5);"
                            "var n = vec.len(v);"
                            "var first = v[0];"
                            "var last = v[4];";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "n")) - (double)(5.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "first")) - (double)(0.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "last")) - (double)(4.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "n")) - (double)(5.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "first")) - (double)(0.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "last")) - (double)(4.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
 
     it("should generate vec.range(2, 5)") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 
       const char *script = " var v = vec.range(2, 5);"
                            "var n = vec.len(v);"
                            "var first = v[0];"
                            "var last = v[2];";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "n")) - (double)(3.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "first")) - (double)(2.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "last")) - (double)(4.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "n")) - (double)(3.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "first")) - (double)(2.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "last")) - (double)(4.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
 
     it("should return empty for vec.range(0)") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 
       const char *script = "var v = vec.range(0);"
                            "var n = vec.len(v);";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "n")) - (double)(0.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "n")) - (double)(0.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
   }
 
   describe("Vector Cumsum") {
     it("should compute cumulative sum") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = "var v = [1, 2, 3];"
                            "var cs = vec.cumsum(v);"
                            "var a = cs[0];"
                            "var b = cs[1];"
                            "var c = cs[2];";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "a")) - (double)(1.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "b")) - (double)(3.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "c")) - (double)(6.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "a")) - (double)(1.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "b")) - (double)(3.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "c")) - (double)(6.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
 
     it("should handle single element") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = "var v = [42];"
                            "var cs = vec.cumsum(v);"
                            "var val = cs[0];";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "val")) - (double)(42.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "val")) - (double)(42.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
   }
 
   describe("Vector Diff") {
     it("should compute first-order differences") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 
       const char *script = " var v = [1, 3, 6];"
                            "var d = vec.diff(v);"
                            "var n = vec.len(d);"
                            "var a = d[0];"
                            "var b = d[1];";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "n")) - (double)(2.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "a")) - (double)(2.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "b")) - (double)(3.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "n")) - (double)(2.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "a")) - (double)(2.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "b")) - (double)(3.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
 
     it("should return empty for single element") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 
       const char *script = " var v = [42];"
                            "var d = vec.diff(v);"
                            "var n = vec.len(d);";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "n")) - (double)(0.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "n")) - (double)(0.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
   }
 
   describe("Vector Find") {
     it("should return index when found") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 
       const char *script = " var v = [10, 20, 30, 40];"
                            "var idx = vec.find(v, 30);";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "idx")) - (double)(2.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "idx")) - (double)(2.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
 
     it("should return -1 when not found") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 
       const char *script = " var v = [10, 20, 30];"
                            "var idx = vec.find(v, 99);";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "idx")) - (double)(-1.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "idx")) - (double)(-1.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
   }
 
   describe("String Format") {
     it("should format with %%s and %%d") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = "var s = "
                            "format(\"%s is %d\", \"age\", 30);";
-      check((turbo_script_run(ctx, script)) == (0));
-      const char *val = ts_get_str(ctx, "s");
+      check((toad_script_run(ctx, script)) == (0));
+      const char *val = toad_script_get_str(ctx, "s");
       check_not_null(val);
       check(strcmp((val), ("age is 30")) == 0);
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
 
     it("should format with %%g") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = "var s = format(\"pi=%g\", 3.14);";
-      check((turbo_script_run(ctx, script)) == (0));
-      const char *val = ts_get_str(ctx, "s");
+      check((toad_script_run(ctx, script)) == (0));
+      const char *val = toad_script_get_str(ctx, "s");
       check_not_null(val);
       check(strcmp((val), ("pi=3.14")) == 0);
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
 
     it("should escape %% as literal percent") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = "var s = format(\"%d%%\", 100);";
-      check((turbo_script_run(ctx, script)) == (0));
-      const char *val = ts_get_str(ctx, "s");
+      check((toad_script_run(ctx, script)) == (0));
+      const char *val = toad_script_get_str(ctx, "s");
       check_not_null(val);
       check(strcmp((val), ("100%")) == 0);
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
   }
 
   describe("Pipeline Primitives") {
     it("should support vector map filter reduce take drop and lag") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script =
           "var out = [1, -2, 3, 0] |> filter(x => x > 0) |> map(x => x * 10); "
           "var out_n = vec.len(out); "
@@ -450,24 +450,24 @@ spec("turbo_script_io") {
           "var db = d[1]; "
           "var la = l[0]; "
           "var lb = l[1];";
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("Pipeline primitives Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("Pipeline primitives Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      check(fabs((double)(ts_get_num(ctx, "out_n")) - (double)(2.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "out_a")) - (double)(10.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "out_b")) - (double)(30.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "total")) - (double)(10.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "tn")) - (double)(2.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "dn")) - (double)(2.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "ta")) - (double)(5.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "db")) - (double)(7.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "la")) - (double)(-1.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "lb")) - (double)(10.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check(fabs((double)(toad_script_get_num(ctx, "out_n")) - (double)(2.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "out_a")) - (double)(10.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "out_b")) - (double)(30.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "total")) - (double)(10.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "tn")) - (double)(2.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "dn")) - (double)(2.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "ta")) - (double)(5.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "db")) - (double)(7.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "la")) - (double)(-1.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "lb")) - (double)(10.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
 
     it("should support Java-style streams over containers") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script =
           "var rows = list(map{price:10, qty:2}, map{price:3, qty:5}, map{price:8, qty:1}); "
           "var total = rows.stream()"
@@ -480,16 +480,16 @@ spec("turbo_script_io") {
           "var plain = map{__ts_stream:1, source:list(1,2)}; "
           "var marker_len = plain.length(); "
           "var score = total + nums.length() + nums[0] + entries.length() + line_count + marker_len;";
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("Java-style container stream Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("Java-style container stream Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      check(fabs((double)(ts_get_num(ctx, "total")) - (double)(28.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "score")) - (double)(67.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check(fabs((double)(toad_script_get_num(ctx, "total")) - (double)(28.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "score")) - (double)(67.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
 
     it("should support Java-style streams through MIR JIT") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script =
           "var rows = list(map{price:10, qty:2}, map{price:3, qty:5}, map{price:8, qty:1}); "
           "var total = rows.stream()"
@@ -498,16 +498,16 @@ spec("turbo_script_io") {
           "  .reduce(0, (acc, v) => acc + v); "
           "var count = [1, 2, 3, 4].stream().filter(x => x > 2).count(); "
           "var score = total + count;";
-      int res = turbo_script_run_jit(ctx, script);
-      if (res != 0) printf("Java-style JIT stream Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run_jit(ctx, script);
+      if (res != 0) printf("Java-style JIT stream Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      check(fabs((double)(ts_get_num(ctx, "total")) - (double)(28.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "score")) - (double)(30.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check(fabs((double)(toad_script_get_num(ctx, "total")) - (double)(28.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "score")) - (double)(30.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
 
     it("should support text streams through MIR JIT") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script =
           "var line_total = stream.text(\" a \\nbb\\n\\nccc\")"
           "  .lines()"
@@ -520,17 +520,17 @@ spec("turbo_script_io") {
           "  .map(sym => sym.length())"
           "  .reduce(0, (acc, n) => acc + n); "
           "var score = line_total + token_total;";
-      int res = turbo_script_run_jit(ctx, script);
-      if (res != 0) printf("Java-style text stream JIT Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run_jit(ctx, script);
+      if (res != 0) printf("Java-style text stream JIT Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      check(fabs((double)(ts_get_num(ctx, "line_total")) - (double)(6.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "token_total")) - (double)(12.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "score")) - (double)(18.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check(fabs((double)(toad_script_get_num(ctx, "line_total")) - (double)(6.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "token_total")) - (double)(12.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "score")) - (double)(18.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
 
     it("should support file source streams through MIR JIT") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *line_text = " a \nbb\n\nccc";
       const char *token_text = "AAPL,MSFT,TSLA";
       char line_path[96];
@@ -561,20 +561,20 @@ spec("turbo_script_io") {
           "var score = line_total + token_total;",
           line_path, token_path);
 
-      res = turbo_script_run_jit(ctx, script);
-      if (res != 0) printf("Java-style file source stream Error: %s\n", turbo_script_get_error(ctx));
+      res = toad_script_run_jit(ctx, script);
+      if (res != 0) printf("Java-style file source stream Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      check(fabs((double)(ts_get_num(ctx, "line_total")) - (double)(6.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "token_total")) - (double)(12.0)) <= (double)(0.001));
-      check(fabs((double)(ts_get_num(ctx, "score")) - (double)(18.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "line_total")) - (double)(6.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "token_total")) - (double)(12.0)) <= (double)(0.001));
+      check(fabs((double)(toad_script_get_num(ctx, "score")) - (double)(18.0)) <= (double)(0.001));
       fs_unlink(line_path);
       fs_unlink(token_path);
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
 
     it("should count and materialize file text lines through CFlow") {
-      turbo_script_ctx_t *interp = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
-      turbo_script_ctx_t *jit = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *interp = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *jit = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *line_text = "a\r\nb\n";
       char line_path[96];
       char script[1024];
@@ -597,32 +597,32 @@ spec("turbo_script_io") {
                "last_line = collected[2];",
                line_path, line_path, line_path);
 
-      check_equal(turbo_script_run(interp, script), 0);
-      check_equal(turbo_script_run_jit(jit, script), 0);
+      check_equal(toad_script_run(interp, script), 0);
+      check_equal(toad_script_run_jit(jit, script), 0);
 
-      check(fabs(ts_get_num(interp, "line_count") - 3.0) <= 1e-9);
-      check(fabs(ts_get_num(jit, "line_count") - 3.0) <= 1e-9);
-      check(fabs(ts_get_num(interp, "list_count") - 3.0) <= 1e-9);
-      check(fabs(ts_get_num(jit, "list_count") - 3.0) <= 1e-9);
-      check(fabs(ts_get_num(interp, "collect_count") - 3.0) <= 1e-9);
-      check(fabs(ts_get_num(jit, "collect_count") - 3.0) <= 1e-9);
-      check_not_null(ts_get_str(interp, "first_line"));
-      check_not_null(ts_get_str(jit, "first_line"));
-      check_not_null(ts_get_str(interp, "last_line"));
-      check_not_null(ts_get_str(jit, "last_line"));
-      check(strcmp(ts_get_str(interp, "first_line"), "a") == 0);
-      check(strcmp(ts_get_str(jit, "first_line"), "a") == 0);
-      check(strcmp(ts_get_str(interp, "last_line"), "") == 0);
-      check(strcmp(ts_get_str(jit, "last_line"), "") == 0);
+      check(fabs(toad_script_get_num(interp, "line_count") - 3.0) <= 1e-9);
+      check(fabs(toad_script_get_num(jit, "line_count") - 3.0) <= 1e-9);
+      check(fabs(toad_script_get_num(interp, "list_count") - 3.0) <= 1e-9);
+      check(fabs(toad_script_get_num(jit, "list_count") - 3.0) <= 1e-9);
+      check(fabs(toad_script_get_num(interp, "collect_count") - 3.0) <= 1e-9);
+      check(fabs(toad_script_get_num(jit, "collect_count") - 3.0) <= 1e-9);
+      check_not_null(toad_script_get_str(interp, "first_line"));
+      check_not_null(toad_script_get_str(jit, "first_line"));
+      check_not_null(toad_script_get_str(interp, "last_line"));
+      check_not_null(toad_script_get_str(jit, "last_line"));
+      check(strcmp(toad_script_get_str(interp, "first_line"), "a") == 0);
+      check(strcmp(toad_script_get_str(jit, "first_line"), "a") == 0);
+      check(strcmp(toad_script_get_str(interp, "last_line"), "") == 0);
+      check(strcmp(toad_script_get_str(jit, "last_line"), "") == 0);
 
       fs_unlink(line_path);
-      turbo_script_free(jit);
-      turbo_script_free(interp);
+      toad_script_free(jit);
+      toad_script_free(interp);
     }
 
     it("should map file text line lengths through typed CFlow") {
-      turbo_script_ctx_t *interp = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
-      turbo_script_ctx_t *jit = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *interp = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *jit = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *line_text = "a\nbb\n";
       char line_path[96];
       char script[1024];
@@ -644,26 +644,26 @@ spec("turbo_script_io") {
                "last_length = lengths[2];",
                line_path);
 
-      check_equal(turbo_script_run(interp, script), 0);
-      check_equal(turbo_script_run_jit(jit, script), 0);
+      check_equal(toad_script_run(interp, script), 0);
+      check_equal(toad_script_run_jit(jit, script), 0);
 
-      check(fabs(ts_get_num(interp, "length_count") - 3.0) <= 1e-9);
-      check(fabs(ts_get_num(jit, "length_count") - 3.0) <= 1e-9);
-      check(fabs(ts_get_num(interp, "first_length") - 1.0) <= 1e-9);
-      check(fabs(ts_get_num(jit, "first_length") - 1.0) <= 1e-9);
-      check(fabs(ts_get_num(interp, "second_length") - 2.0) <= 1e-9);
-      check(fabs(ts_get_num(jit, "second_length") - 2.0) <= 1e-9);
-      check(fabs(ts_get_num(interp, "last_length") - 0.0) <= 1e-9);
-      check(fabs(ts_get_num(jit, "last_length") - 0.0) <= 1e-9);
+      check(fabs(toad_script_get_num(interp, "length_count") - 3.0) <= 1e-9);
+      check(fabs(toad_script_get_num(jit, "length_count") - 3.0) <= 1e-9);
+      check(fabs(toad_script_get_num(interp, "first_length") - 1.0) <= 1e-9);
+      check(fabs(toad_script_get_num(jit, "first_length") - 1.0) <= 1e-9);
+      check(fabs(toad_script_get_num(interp, "second_length") - 2.0) <= 1e-9);
+      check(fabs(toad_script_get_num(jit, "second_length") - 2.0) <= 1e-9);
+      check(fabs(toad_script_get_num(interp, "last_length") - 0.0) <= 1e-9);
+      check(fabs(toad_script_get_num(jit, "last_length") - 0.0) <= 1e-9);
 
       fs_unlink(line_path);
-      turbo_script_free(jit);
-      turbo_script_free(interp);
+      toad_script_free(jit);
+      toad_script_free(interp);
     }
 
     it("should filter nonempty file text lines through typed CFlow") {
-      turbo_script_ctx_t *interp = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
-      turbo_script_ctx_t *jit = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *interp = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *jit = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *line_text = "a\n\nbb\n";
       char line_path[96];
       char script[1400];
@@ -686,30 +686,30 @@ spec("turbo_script_io") {
                "second_line = nonempty_lines[1];",
                line_path, line_path);
 
-      check_equal(turbo_script_run(interp, script), 0);
-      check_equal(turbo_script_run_jit(jit, script), 0);
+      check_equal(toad_script_run(interp, script), 0);
+      check_equal(toad_script_run_jit(jit, script), 0);
 
-      check(fabs(ts_get_num(interp, "nonempty_count") - 2.0) <= 1e-9);
-      check(fabs(ts_get_num(jit, "nonempty_count") - 2.0) <= 1e-9);
-      check(fabs(ts_get_num(interp, "line_count") - 2.0) <= 1e-9);
-      check(fabs(ts_get_num(jit, "line_count") - 2.0) <= 1e-9);
-      check_not_null(ts_get_str(interp, "first_line"));
-      check_not_null(ts_get_str(jit, "first_line"));
-      check_not_null(ts_get_str(interp, "second_line"));
-      check_not_null(ts_get_str(jit, "second_line"));
-      check(strcmp(ts_get_str(interp, "first_line"), "a") == 0);
-      check(strcmp(ts_get_str(jit, "first_line"), "a") == 0);
-      check(strcmp(ts_get_str(interp, "second_line"), "bb") == 0);
-      check(strcmp(ts_get_str(jit, "second_line"), "bb") == 0);
+      check(fabs(toad_script_get_num(interp, "nonempty_count") - 2.0) <= 1e-9);
+      check(fabs(toad_script_get_num(jit, "nonempty_count") - 2.0) <= 1e-9);
+      check(fabs(toad_script_get_num(interp, "line_count") - 2.0) <= 1e-9);
+      check(fabs(toad_script_get_num(jit, "line_count") - 2.0) <= 1e-9);
+      check_not_null(toad_script_get_str(interp, "first_line"));
+      check_not_null(toad_script_get_str(jit, "first_line"));
+      check_not_null(toad_script_get_str(interp, "second_line"));
+      check_not_null(toad_script_get_str(jit, "second_line"));
+      check(strcmp(toad_script_get_str(interp, "first_line"), "a") == 0);
+      check(strcmp(toad_script_get_str(jit, "first_line"), "a") == 0);
+      check(strcmp(toad_script_get_str(interp, "second_line"), "bb") == 0);
+      check(strcmp(toad_script_get_str(jit, "second_line"), "bb") == 0);
 
       fs_unlink(line_path);
-      turbo_script_free(jit);
-      turbo_script_free(interp);
+      toad_script_free(jit);
+      toad_script_free(interp);
     }
 
     it("should split file text through CFlow in interpreter and JIT") {
-      turbo_script_ctx_t *interp = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
-      turbo_script_ctx_t *jit = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *interp = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *jit = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *token_text = ",A,,B,";
       char token_path[96];
       char script[1280];
@@ -733,49 +733,49 @@ spec("turbo_script_io") {
                "last_token = collected[4];",
                token_path, token_path, token_path);
 
-      check_equal(turbo_script_run(interp, script), 0);
-      check_equal(turbo_script_run_jit(jit, script), 0);
+      check_equal(toad_script_run(interp, script), 0);
+      check_equal(toad_script_run_jit(jit, script), 0);
 
-      check(fabs(ts_get_num(interp, "token_count") - 5.0) <= 1e-9);
-      check(fabs(ts_get_num(jit, "token_count") - 5.0) <= 1e-9);
-      check(fabs(ts_get_num(interp, "tokens_count") - 5.0) <= 1e-9);
-      check(fabs(ts_get_num(jit, "tokens_count") - 5.0) <= 1e-9);
-      check(fabs(ts_get_num(interp, "collect_count") - 5.0) <= 1e-9);
-      check(fabs(ts_get_num(jit, "collect_count") - 5.0) <= 1e-9);
-      check_not_null(ts_get_str(interp, "second_token"));
-      check_not_null(ts_get_str(jit, "second_token"));
-      check_not_null(ts_get_str(interp, "fourth_token"));
-      check_not_null(ts_get_str(jit, "fourth_token"));
-      check_not_null(ts_get_str(interp, "last_token"));
-      check_not_null(ts_get_str(jit, "last_token"));
-      check(strcmp(ts_get_str(interp, "second_token"), "A") == 0);
-      check(strcmp(ts_get_str(jit, "second_token"), "A") == 0);
-      check(strcmp(ts_get_str(interp, "fourth_token"), "B") == 0);
-      check(strcmp(ts_get_str(jit, "fourth_token"), "B") == 0);
-      check(strcmp(ts_get_str(interp, "last_token"), "") == 0);
-      check(strcmp(ts_get_str(jit, "last_token"), "") == 0);
+      check(fabs(toad_script_get_num(interp, "token_count") - 5.0) <= 1e-9);
+      check(fabs(toad_script_get_num(jit, "token_count") - 5.0) <= 1e-9);
+      check(fabs(toad_script_get_num(interp, "tokens_count") - 5.0) <= 1e-9);
+      check(fabs(toad_script_get_num(jit, "tokens_count") - 5.0) <= 1e-9);
+      check(fabs(toad_script_get_num(interp, "collect_count") - 5.0) <= 1e-9);
+      check(fabs(toad_script_get_num(jit, "collect_count") - 5.0) <= 1e-9);
+      check_not_null(toad_script_get_str(interp, "second_token"));
+      check_not_null(toad_script_get_str(jit, "second_token"));
+      check_not_null(toad_script_get_str(interp, "fourth_token"));
+      check_not_null(toad_script_get_str(jit, "fourth_token"));
+      check_not_null(toad_script_get_str(interp, "last_token"));
+      check_not_null(toad_script_get_str(jit, "last_token"));
+      check(strcmp(toad_script_get_str(interp, "second_token"), "A") == 0);
+      check(strcmp(toad_script_get_str(jit, "second_token"), "A") == 0);
+      check(strcmp(toad_script_get_str(interp, "fourth_token"), "B") == 0);
+      check(strcmp(toad_script_get_str(jit, "fourth_token"), "B") == 0);
+      check(strcmp(toad_script_get_str(interp, "last_token"), "") == 0);
+      check(strcmp(toad_script_get_str(jit, "last_token"), "") == 0);
 
       fs_unlink(token_path);
-      turbo_script_free(jit);
-      turbo_script_free(interp);
+      toad_script_free(jit);
+      toad_script_free(interp);
     }
 
   }
 
   describe("Print") {
     it("should not crash and return 0") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = "var r = "
                            "print(\"hello\", 42, [1, 2, 3]);";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "r")) - (double)(0.0)) <= (double)(0.001));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "r")) - (double)(0.0)) <= (double)(0.001));
+      toad_script_free(ctx);
     }
   }
 
   describe("IO Module: File Operations") {
     it("should enforce the IO failure contract for status and data builtins") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       char missing_path[128];
       char script[512];
       const double *st_data = NULL;
@@ -791,41 +791,41 @@ spec("turbo_script_io") {
                "var fd = format_date(now(), 123);",
                missing_path, missing_path);
 
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("IO failure contract Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("IO failure contract Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      check(fabs((double)(ts_get_num(ctx, "wr")) - (double)(-1.0)) <= (double)(0.1));
-      check_null(ts_get_str(ctx, "rf"));
-      check(fabs((double)(ts_get_num(ctx, "rf")) - (double)(0.0)) <= (double)(0.1));
-      check((ts_get_vec(ctx, "st", &st_data, &st_len)) == (-1));
-      check(fabs((double)(ts_get_num(ctx, "st")) - (double)(0.0)) <= (double)(0.1));
-      check_null(ts_get_str(ctx, "pj"));
-      check(fabs((double)(ts_get_num(ctx, "pj")) - (double)(0.0)) <= (double)(0.1));
-      check(fabs((double)(ts_get_num(ctx, "dt")) - (double)(0.0)) <= (double)(0.1));
-      check_null(ts_get_str(ctx, "fd"));
-      check(fabs((double)(ts_get_num(ctx, "fd")) - (double)(0.0)) <= (double)(0.1));
-      turbo_script_free(ctx);
+      check(fabs((double)(toad_script_get_num(ctx, "wr")) - (double)(-1.0)) <= (double)(0.1));
+      check_null(toad_script_get_str(ctx, "rf"));
+      check(fabs((double)(toad_script_get_num(ctx, "rf")) - (double)(0.0)) <= (double)(0.1));
+      check((toad_script_get_vec(ctx, "st", &st_data, &st_len)) == (-1));
+      check(fabs((double)(toad_script_get_num(ctx, "st")) - (double)(0.0)) <= (double)(0.1));
+      check_null(toad_script_get_str(ctx, "pj"));
+      check(fabs((double)(toad_script_get_num(ctx, "pj")) - (double)(0.0)) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "dt")) - (double)(0.0)) <= (double)(0.1));
+      check_null(toad_script_get_str(ctx, "fd"));
+      check(fabs((double)(toad_script_get_num(ctx, "fd")) - (double)(0.0)) <= (double)(0.1));
+      toad_script_free(ctx);
     }
 
     it("should append_file content") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = ""
                            "write_file(\"_test_append.txt\", \"hello\"); "
                            "var r = append_file(\"_test_append.txt\", \" world\"); "
                            "var data = read_file(\"_test_append.txt\"); "
                            "file_remove(\"_test_append.txt\");";
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("append_file Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("append_file Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      check(fabs((double)(ts_get_num(ctx, "r")) - (double)(0.0)) <= (double)(0.1));
-      const char *data = ts_get_str(ctx, "data");
+      check(fabs((double)(toad_script_get_num(ctx, "r")) - (double)(0.0)) <= (double)(0.1));
+      const char *data = toad_script_get_str(ctx, "data");
       check_not_null(data);
       check(strcmp((data), ("hello world")) == 0);
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
 
     it("should copy and truncate files") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       char src_path[128];
       char dst_path[128];
       char script[640];
@@ -840,43 +840,43 @@ spec("turbo_script_io") {
                "var truncated = read_file(\"%s\");",
                src_path, src_path, dst_path, dst_path, dst_path, dst_path);
 
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("copy/truncate Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("copy/truncate Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      check(fabs((double)(ts_get_num(ctx, "c")) - (double)(0.0)) <= (double)(0.1));
-      check(fabs((double)(ts_get_num(ctx, "t")) - (double)(0.0)) <= (double)(0.1));
-      check(strcmp((ts_get_str(ctx, "copied")), ("abcdef")) == 0);
-      check(strcmp((ts_get_str(ctx, "truncated")), ("abc")) == 0);
+      check(fabs((double)(toad_script_get_num(ctx, "c")) - (double)(0.0)) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "t")) - (double)(0.0)) <= (double)(0.1));
+      check(strcmp((toad_script_get_str(ctx, "copied")), ("abcdef")) == 0);
+      check(strcmp((toad_script_get_str(ctx, "truncated")), ("abc")) == 0);
 
       fs_unlink(src_path);
       fs_unlink(dst_path);
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
 
     it("should get file_size") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = ""
                            "write_file(\"_test_size.txt\", \"12345\"); "
                            "var sz = file_size(\"_test_size.txt\"); "
                            "file_remove(\"_test_size.txt\");";
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("file_size Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("file_size Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      check(fabs((double)(ts_get_num(ctx, "sz")) - (double)(5.0)) <= (double)(0.1));
-      turbo_script_free(ctx);
+      check(fabs((double)(toad_script_get_num(ctx, "sz")) - (double)(5.0)) <= (double)(0.1));
+      toad_script_free(ctx);
     }
 
     it("should return -1 for file_size on missing file") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = ""
                            "var sz = file_size(\"_nonexistent_xyz.txt\");";
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "sz")) - (double)(-1.0)) <= (double)(0.1));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "sz")) - (double)(-1.0)) <= (double)(0.1));
+      toad_script_free(ctx);
     }
 
     it("should get file_stat vector [size, mtime, is_file, is_dir]") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = ""
                            "write_file(\"_test_stat.txt\", \"abc\"); "
                            "var st = file_stat(\"_test_stat.txt\"); "
@@ -885,52 +885,52 @@ spec("turbo_script_io") {
                            "var isf = st[2]; "
                            "var isd = st[3]; "
                            "file_remove(\"_test_stat.txt\");";
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("file_stat Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("file_stat Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      check(fabs((double)(ts_get_num(ctx, "n")) - (double)(4.0)) <= (double)(0.1));
-      check(fabs((double)(ts_get_num(ctx, "sz")) - (double)(3.0)) <= (double)(0.1));
-      check(fabs((double)(ts_get_num(ctx, "isf")) - (double)(1.0)) <= (double)(0.1));
-      check(fabs((double)(ts_get_num(ctx, "isd")) - (double)(0.0)) <= (double)(0.1));
-      turbo_script_free(ctx);
+      check(fabs((double)(toad_script_get_num(ctx, "n")) - (double)(4.0)) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "sz")) - (double)(3.0)) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "isf")) - (double)(1.0)) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "isd")) - (double)(0.0)) <= (double)(0.1));
+      toad_script_free(ctx);
     }
 
     it("should check is_file and is_dir") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = ""
                            "write_file(\"_test_isfile.txt\", \"x\"); "
                            "var f = is_file(\"_test_isfile.txt\"); "
                            "var d = is_dir(\"_test_isfile.txt\"); "
                            "file_remove(\"_test_isfile.txt\");";
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("is_file/is_dir Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("is_file/is_dir Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      check(fabs((double)(ts_get_num(ctx, "f")) - (double)(1.0)) <= (double)(0.1));
-      check(fabs((double)(ts_get_num(ctx, "d")) - (double)(0.0)) <= (double)(0.1));
-      turbo_script_free(ctx);
+      check(fabs((double)(toad_script_get_num(ctx, "f")) - (double)(1.0)) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "d")) - (double)(0.0)) <= (double)(0.1));
+      toad_script_free(ctx);
     }
 
     it("should rename a file") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = ""
                            "write_file(\"_test_rename_a.txt\", \"renamed\"); "
                            "var r = file_rename(\"_test_rename_a.txt\", \"_test_rename_b.txt\"); "
                            "var data = read_file(\"_test_rename_b.txt\"); "
                            "file_remove(\"_test_rename_b.txt\");";
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("file_rename Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("file_rename Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      check(fabs((double)(ts_get_num(ctx, "r")) - (double)(0.0)) <= (double)(0.1));
-      const char *data = ts_get_str(ctx, "data");
+      check(fabs((double)(toad_script_get_num(ctx, "r")) - (double)(0.0)) <= (double)(0.1));
+      const char *data = toad_script_get_str(ctx, "data");
       check_not_null(data);
       check(strcmp((data), ("renamed")) == 0);
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
   }
 
   describe("IO Module: Directory Operations") {
     it("should mkdir and rmdir") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       char dir_name[128];
       char script[384];
 
@@ -942,18 +942,18 @@ spec("turbo_script_io") {
                "var gone = is_dir(\"%s\");",
                dir_name, dir_name, dir_name, dir_name);
 
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("mkdir/rmdir Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("mkdir/rmdir Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      check(fabs((double)(ts_get_num(ctx, "r1")) - (double)(0.0)) <= (double)(0.1));
-      check(fabs((double)(ts_get_num(ctx, "exists")) - (double)(1.0)) <= (double)(0.1));
-      check(fabs((double)(ts_get_num(ctx, "r2")) - (double)(0.0)) <= (double)(0.1));
-      check(fabs((double)(ts_get_num(ctx, "gone")) - (double)(0.0)) <= (double)(0.1));
-      turbo_script_free(ctx);
+      check(fabs((double)(toad_script_get_num(ctx, "r1")) - (double)(0.0)) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "exists")) - (double)(1.0)) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "r2")) - (double)(0.0)) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "gone")) - (double)(0.0)) <= (double)(0.1));
+      toad_script_free(ctx);
     }
 
     it("should create and remove directories recursively") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       char root_dir[128];
       char mid_dir[192];
       char nested_dir[192];
@@ -977,40 +977,40 @@ spec("turbo_script_io") {
                "var gone = is_dir(\"%s\");",
                root_dir, root_dir, root_dir);
 
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("recursive dir Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("recursive dir Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      check(fabs((double)(ts_get_num(ctx, "mk")) - (double)(0.0)) <= (double)(0.1));
-      check(fabs((double)(ts_get_num(ctx, "exists")) - (double)(1.0)) <= (double)(0.1));
-      check(strcmp((ts_get_str(ctx, "data")), ("nested")) == 0);
-      check(fabs((double)(ts_get_num(ctx, "rm")) - (double)(0.0)) <= (double)(0.1));
-      check(fabs((double)(ts_get_num(ctx, "gone")) - (double)(0.0)) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "mk")) - (double)(0.0)) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "exists")) - (double)(1.0)) <= (double)(0.1));
+      check(strcmp((toad_script_get_str(ctx, "data")), ("nested")) == 0);
+      check(fabs((double)(toad_script_get_num(ctx, "rm")) - (double)(0.0)) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "gone")) - (double)(0.0)) <= (double)(0.1));
 
-      if (ts_get_num(ctx, "rm") != 0.0) {
+      if (toad_script_get_num(ctx, "rm") != 0.0) {
         fs_unlink(file_path);
         fs_rmdir(nested_dir);
         fs_rmdir(mid_dir);
         fs_rmdir(root_dir);
       }
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
 
     it("should return tmpdir as a string") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = ""
                            "var td = tmpdir(); "
                            "var exists = is_dir(td);";
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("tmpdir Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("tmpdir Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      const char *td = ts_get_str(ctx, "td");
+      const char *td = toad_script_get_str(ctx, "td");
       check_not_null(td);
-      check(fabs((double)(ts_get_num(ctx, "exists")) - (double)(1.0)) <= (double)(0.1));
-      turbo_script_free(ctx);
+      check(fabs((double)(toad_script_get_num(ctx, "exists")) - (double)(1.0)) <= (double)(0.1));
+      toad_script_free(ctx);
     }
 
     it("should list directory entries and glob matching paths") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       char dir_name[128];
       char a_path[192];
       char b_path[192];
@@ -1037,37 +1037,37 @@ spec("turbo_script_io") {
                dir_name, dir_name, dir_name, dir_name, dir_name, dir_name,
                dir_name, dir_name, dir_name);
 
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("listdir/glob Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("listdir/glob Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      check(fabs((double)(ts_get_num(ctx, "r")) - (double)(0.0)) <= (double)(0.1));
-      check(fabs((double)(ts_get_num(ctx, "entry_score")) - (double)(6.0)) <= (double)(0.1));
-      check(fabs((double)(ts_get_num(ctx, "glob_score")) - (double)(4.0)) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "r")) - (double)(0.0)) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "entry_score")) - (double)(6.0)) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "glob_score")) - (double)(4.0)) <= (double)(0.1));
 
       fs_unlink(a_path);
       fs_unlink(b_path);
       fs_unlink(c_path);
       fs_rmdir(dir_name);
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
   }
 
   describe("IO Module: Path Utilities") {
     it("should join paths") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = ""
                            "var p = path_join(\"foo\", \"bar.txt\");";
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("path_join Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("path_join Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      const char *p = ts_get_str(ctx, "p");
+      const char *p = toad_script_get_str(ctx, "p");
       check_not_null(p);
       printf("  path_join result: %s\n", p);
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
 
     it("should extract dirname and basename") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 #ifdef _WIN32
       const char *script = ""
                            "var d = path_dirname(\"C:\\\\foo\\\\bar.txt\"); "
@@ -1077,20 +1077,20 @@ spec("turbo_script_io") {
                            "var d = path_dirname(\"/foo/bar.txt\"); "
                            "var b = path_basename(\"/foo/bar.txt\");";
 #endif
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("dirname/basename Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("dirname/basename Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      const char *d = ts_get_str(ctx, "d");
-      const char *b = ts_get_str(ctx, "b");
+      const char *d = toad_script_get_str(ctx, "d");
+      const char *b = toad_script_get_str(ctx, "b");
       check_not_null(d);
       check_not_null(b);
       printf("  dirname: %s, basename: %s\n", d, b);
       check(strcmp((b), ("bar.txt")) == 0);
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
 
     it("should detect absolute vs relative paths") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 #ifdef _WIN32
       const char *script = ""
                            "var a = path_is_absolute(\"C:\\\\foo\"); "
@@ -1100,47 +1100,47 @@ spec("turbo_script_io") {
                            "var a = path_is_absolute(\"/foo\"); "
                            "var r = path_is_absolute(\"foo/bar\");";
 #endif
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("path_is_absolute Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("path_is_absolute Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      check(fabs((double)(ts_get_num(ctx, "a")) - (double)(1.0)) <= (double)(0.1));
-      check(fabs((double)(ts_get_num(ctx, "r")) - (double)(0.0)) <= (double)(0.1));
-      turbo_script_free(ctx);
+      check(fabs((double)(toad_script_get_num(ctx, "a")) - (double)(1.0)) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "r")) - (double)(0.0)) <= (double)(0.1));
+      toad_script_free(ctx);
     }
   }
 
   describe("IO Module: Date/Time") {
     it("should return now() as a positive timestamp") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = ""
                            "var t = now();";
-      check((turbo_script_run(ctx, script)) == (0));
-      check((ts_get_num(ctx, "t")) > (1700000000.0));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check((toad_script_get_num(ctx, "t")) > (1700000000.0));
+      toad_script_free(ctx);
     }
 
     it("should parse date string to timestamp") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = ""
                            "var t = date(\"2024-01-01 00:00:00\");";
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("date Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("date Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      check((ts_get_num(ctx, "t")) > (0.0));
-      turbo_script_free(ctx);
+      check((toad_script_get_num(ctx, "t")) > (0.0));
+      toad_script_free(ctx);
     }
 
     it("should format_date with default and custom format") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = ""
                            "var t = date(\"2024-01-02 03:04:05\"); "
                            "var s1 = format_date(t); "
                            "var s2 = format_date(t, \"%Y-%m-%d %H:%M:%S\");";
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("format_date Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("format_date Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      const char *s1 = ts_get_str(ctx, "s1");
-      const char *s2 = ts_get_str(ctx, "s2");
+      const char *s1 = toad_script_get_str(ctx, "s1");
+      const char *s2 = toad_script_get_str(ctx, "s2");
       check_not_null(s1);
       check_not_null(s2);
       check(strlen(s1) > 0);
@@ -1149,63 +1149,63 @@ spec("turbo_script_io") {
       check_not_null(strstr(s2, "2024-01-02 "));
       printf("  format_date default: %s\n", s1);
       printf("  format_date custom:  %s\n", s2);
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
 
     it("should support explicit UTC date parsing and formatting") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = ""
                            "var t1 = date_utc(\"2024-01-02 03:04:05\"); "
                            "var t2 = date_utc(\"2024-01-02T03:04:05Z\"); "
                            "var s = format_date_utc(t1, \"%Y-%m-%d %H:%M:%S\");";
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("UTC date/time Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("UTC date/time Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      check(fabs((double)(ts_get_num(ctx, "t1")) - (double)(ts_get_num(ctx, "t2"))) <= (double)(0.1));
-      check(strcmp((ts_get_str(ctx, "s")), ("2024-01-02 03:04:05")) == 0);
-      turbo_script_free(ctx);
+      check(fabs((double)(toad_script_get_num(ctx, "t1")) - (double)(toad_script_get_num(ctx, "t2"))) <= (double)(0.1));
+      check(strcmp((toad_script_get_str(ctx, "s")), ("2024-01-02 03:04:05")) == 0);
+      toad_script_free(ctx);
     }
   }
 
   describe("IO Module: Platform Info") {
     it("should return os_name as a known string") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = ""
                            "var os = os_name();";
-      check((turbo_script_run(ctx, script)) == (0));
-      const char *os = ts_get_str(ctx, "os");
+      check((toad_script_run(ctx, script)) == (0));
+      const char *os = toad_script_get_str(ctx, "os");
       check_not_null(os);
       printf("  os_name: %s\n", os);
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
 
     it("should return pid as a positive number") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = ""
                            "var p = pid();";
-      check((turbo_script_run(ctx, script)) == (0));
-      check((ts_get_num(ctx, "p")) > (0.0));
-      turbo_script_free(ctx);
+      check((toad_script_run(ctx, script)) == (0));
+      check((toad_script_get_num(ctx, "p")) > (0.0));
+      toad_script_free(ctx);
     }
 
     it("should return uptime_ms and monotonic_ms as non-negative") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = ""
                            "var u = uptime_ms(); "
                            "var m = monotonic_ms();";
-      check((turbo_script_run(ctx, script)) == (0));
-      double u = ts_get_num(ctx, "u");
-      double m = ts_get_num(ctx, "m");
+      check((toad_script_run(ctx, script)) == (0));
+      double u = toad_script_get_num(ctx, "u");
+      double m = toad_script_get_num(ctx, "m");
       printf("  uptime_ms: %g, monotonic_ms: %g\n", u, m);
       check(fabs((double)(u >= 0.0) - (double)(1.0)) <= (double)(0.1));
       check(fabs((double)(m >= 0.0) - (double)(1.0)) <= (double)(0.1));
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
   }
 
   describe("IO Module: End-to-End Pipeline") {
     it("should write, append, stat, read, rename, remove in sequence") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = ""
                            "write_file(\"_test_e2e.txt\", \"line1\\n\"); "
                            "append_file(\"_test_e2e.txt\", \"line2\\n\"); "
@@ -1216,74 +1216,74 @@ spec("turbo_script_io") {
                            "var data = read_file(\"_test_e2e_renamed.txt\"); "
                            "file_remove(\"_test_e2e_renamed.txt\"); "
                            "var gone = file_exists(\"_test_e2e_renamed.txt\");";
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("E2E IO Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("E2E IO Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      check((ts_get_num(ctx, "sz")) > (0.0));
-      check(fabs((double)(ts_get_num(ctx, "sz")) - (double)(ts_get_num(ctx, "st_sz"))) <= (double)(0.1));
-      check(fabs((double)(ts_get_num(ctx, "gone")) - (double)(0.0)) <= (double)(0.1));
-      const char *data = ts_get_str(ctx, "data");
+      check((toad_script_get_num(ctx, "sz")) > (0.0));
+      check(fabs((double)(toad_script_get_num(ctx, "sz")) - (double)(toad_script_get_num(ctx, "st_sz"))) <= (double)(0.1));
+      check(fabs((double)(toad_script_get_num(ctx, "gone")) - (double)(0.0)) <= (double)(0.1));
+      const char *data = toad_script_get_str(ctx, "data");
       check_not_null(data);
       printf("  E2E data: %s\n", data);
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
 
     it("should use tmpdir + path_join for temp file workflow") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = ""
                            "var td = tmpdir(); "
                            "var p = path_join(td, \"_test_tmpfile.txt\"); "
                            "var wr = write_file(p, \"temp data\"); "
                            "var data = read_file(p); "
                            "file_remove(p);";
-      int res = turbo_script_run(ctx, script);
-      if (res != 0) printf("tmpdir pipeline Error: %s\n", turbo_script_get_error(ctx));
+      int res = toad_script_run(ctx, script);
+      if (res != 0) printf("tmpdir pipeline Error: %s\n", toad_script_get_error(ctx));
       check((res) == (0));
-      const char *td = ts_get_str(ctx, "td");
-      const char *p = ts_get_str(ctx, "p");
+      const char *td = toad_script_get_str(ctx, "td");
+      const char *p = toad_script_get_str(ctx, "p");
       printf("  tmpdir: %s\n", td ? td : "(null)");
       printf("  path:   %s\n", p ? p : "(null)");
-      check(fabs((double)(ts_get_num(ctx, "wr")) - (double)(0.0)) <= (double)(0.1));
-      const char *data = ts_get_str(ctx, "data");
+      check(fabs((double)(toad_script_get_num(ctx, "wr")) - (double)(0.0)) <= (double)(0.1));
+      const char *data = toad_script_get_str(ctx, "data");
       check_not_null(data);
       check(strcmp((data), ("temp data")) == 0);
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
   }
 
   describe("Async Await Syntax") {
     it("should await plain values") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       check_not_null(ctx);
 
-      check((turbo_script_run(ctx, "var result = await 42;")) == (0));
-      check(fabs((double)(ts_get_num(ctx, "result")) - (double)(42.0)) <= (double)(0.001));
+      check((toad_script_run(ctx, "var result = await 42;")) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "result")) - (double)(42.0)) <= (double)(0.001));
 
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
 
     it("should treat async functions as normal callable functions") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = "async func add_one(x) { return x + 1; }"
                            "var result = await add_one(41);";
       check_not_null(ctx);
 
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "result")) - (double)(42.0)) <= (double)(0.001));
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "result")) - (double)(42.0)) <= (double)(0.001));
 
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
 
     it("should unwrap coroutine-style result maps") {
-      turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script = "var packet = map {status: \"suspended\", value: 42};"
                            "var result = await packet;";
       check_not_null(ctx);
 
-      check((turbo_script_run(ctx, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx, "result")) - (double)(42.0)) <= (double)(0.001));
+      check((toad_script_run(ctx, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx, "result")) - (double)(42.0)) <= (double)(0.001));
 
-      turbo_script_free(ctx);
+      toad_script_free(ctx);
     }
 
   }

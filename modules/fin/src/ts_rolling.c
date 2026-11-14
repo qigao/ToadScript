@@ -4,7 +4,7 @@
  */
 #include "ts.h"
 #include "ts_internal.h"
-#include <turboscript/simd.h>
+#include <toad/simd.h>
 #include <math.h>
 #include <string.h>
 
@@ -12,7 +12,7 @@
 /* Rolling Window Functions                                                  */
 /* ========================================================================= */
 
-size_t tbs_ts_rolling_mean(const double *in, size_t n, size_t period, double *out) {
+size_t toad_ts_rolling_mean(const double *in, size_t n, size_t period, double *out) {
     if (period == 0 || n < period) return 0;
     double sum = simd_sum(in, period);
     for (size_t i = 0; i < period - 1; i++) out[i] = 0;
@@ -24,7 +24,7 @@ size_t tbs_ts_rolling_mean(const double *in, size_t n, size_t period, double *ou
     return n;
 }
 
-size_t tbs_ts_rolling_std(const double *in, size_t n, size_t period, double *out) {
+size_t toad_ts_rolling_std(const double *in, size_t n, size_t period, double *out) {
     if (period < 2 || n < period) return 0;
     double sum = simd_sum(in, period);
     double sum2 = simd_dot(in, in, period);
@@ -41,27 +41,27 @@ size_t tbs_ts_rolling_std(const double *in, size_t n, size_t period, double *out
     return n;
 }
 
-size_t tbs_ts_rolling_skew(const double *in, size_t n, size_t period, double *out) {
+size_t toad_ts_rolling_skew(const double *in, size_t n, size_t period, double *out) {
     if (period < 3 || n < period) return 0;
     for (size_t i = 0; i < period - 1; i++) out[i] = 0;
     for (size_t i = period - 1; i < n; i++) {
         const double *sub = &in[i - period + 1];
-        out[i] = tbs_skewness(sub, period);
+        out[i] = toad_skewness(sub, period);
     }
     return n;
 }
 
-size_t tbs_ts_rolling_kurt(const double *in, size_t n, size_t period, double *out) {
+size_t toad_ts_rolling_kurt(const double *in, size_t n, size_t period, double *out) {
     if (period < 4 || n < period) return 0;
     for (size_t i = 0; i < period - 1; i++) out[i] = 0;
     for (size_t i = period - 1; i < n; i++) {
         const double *sub = &in[i - period + 1];
-        out[i] = tbs_kurtosis(sub, period);
+        out[i] = toad_kurtosis(sub, period);
     }
     return n;
 }
 
-size_t tbs_ts_rolling_corr(const double *a, const double *b, size_t n, size_t period, double *out) {
+size_t toad_ts_rolling_corr(const double *a, const double *b, size_t n, size_t period, double *out) {
     if (period < 2 || n < period) return 0;
     for (size_t i = 0; i < period - 1; i++) out[i] = 0;
     for (size_t i = period - 1; i < n; i++) {
@@ -88,7 +88,7 @@ size_t tbs_ts_rolling_corr(const double *a, const double *b, size_t n, size_t pe
     return n;
 }
 
-size_t tbs_ts_rolling_beta(const double *y, const double *x, size_t n, size_t period, double *out) {
+size_t toad_ts_rolling_beta(const double *y, const double *x, size_t n, size_t period, double *out) {
     if (period < 2 || n < period) return 0;
     for (size_t i = 0; i < period - 1; i++) out[i] = 0;
     for (size_t i = period - 1; i < n; i++) {
@@ -103,7 +103,7 @@ size_t tbs_ts_rolling_beta(const double *y, const double *x, size_t n, size_t pe
 /* Expanding Window Functions                                                */
 /* ========================================================================= */
 
-size_t tbs_ts_expanding_mean(const double *in, size_t n, double *out) {
+size_t toad_ts_expanding_mean(const double *in, size_t n, double *out) {
     if (n == 0) return 0;
     double sum = 0;
     for (size_t i = 0; i < n; i++) {
@@ -113,7 +113,7 @@ size_t tbs_ts_expanding_mean(const double *in, size_t n, double *out) {
     return n;
 }
 
-size_t tbs_ts_expanding_std(const double *in, size_t n, double *out) {
+size_t toad_ts_expanding_std(const double *in, size_t n, double *out) {
     if (n < 2) { if (n == 1) out[0] = 0; return n; }
     double sum = 0, sum2 = 0;
     out[0] = 0;
@@ -132,7 +132,7 @@ size_t tbs_ts_expanding_std(const double *in, size_t n, double *out) {
 /* Exponentially Weighted Moving Functions                                   */
 /* ========================================================================= */
 
-size_t tbs_ts_ewm_mean(const double *in, size_t n, size_t span, double *out) {
+size_t toad_ts_ewm_mean(const double *in, size_t n, size_t span, double *out) {
     if (n == 0 || span == 0) return 0;
     double alpha = 2.0 / ((double)span + 1.0);
     out[0] = in[0];
@@ -141,7 +141,7 @@ size_t tbs_ts_ewm_mean(const double *in, size_t n, size_t span, double *out) {
     return n;
 }
 
-size_t tbs_ts_ewm_std(const double *in, size_t n, size_t span, double *out) {
+size_t toad_ts_ewm_std(const double *in, size_t n, size_t span, double *out) {
     if (n < 2 || span == 0) { if (n >= 1) out[0] = 0; return n; }
     double alpha = 2.0 / ((double)span + 1.0);
     double ewm = in[0], ewm2 = in[0] * in[0];
@@ -159,7 +159,7 @@ size_t tbs_ts_ewm_std(const double *in, size_t n, size_t span, double *out) {
 /* Return Calculations                                                       */
 /* ========================================================================= */
 
-size_t tbs_ts_pct_change(const double *in, size_t n, size_t period, double *out) {
+size_t toad_ts_pct_change(const double *in, size_t n, size_t period, double *out) {
     if (n == 0 || period == 0) return 0;
     for (size_t i = 0; i < period && i < n; i++) out[i] = 0;
     for (size_t i = period; i < n; i++)
@@ -167,7 +167,7 @@ size_t tbs_ts_pct_change(const double *in, size_t n, size_t period, double *out)
     return n;
 }
 
-size_t tbs_ts_log_return(const double *in, size_t n, double *out) {
+size_t toad_ts_log_return(const double *in, size_t n, double *out) {
     if (n < 2) { if (n == 1) out[0] = 0; return n; }
     out[0] = 0;
     for (size_t i = 1; i < n; i++)
@@ -175,7 +175,7 @@ size_t tbs_ts_log_return(const double *in, size_t n, double *out) {
     return n;
 }
 
-size_t tbs_ts_cum_return(const double *in, size_t n, double *out) {
+size_t toad_ts_cum_return(const double *in, size_t n, double *out) {
     if (n == 0) return 0;
     out[0] = 1.0 + in[0];
     for (size_t i = 1; i < n; i++)

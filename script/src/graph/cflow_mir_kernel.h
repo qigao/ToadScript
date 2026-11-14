@@ -1,8 +1,8 @@
-#ifndef TURBO_SCRIPT_CFLOW_MIR_KERNEL_H
-#define TURBO_SCRIPT_CFLOW_MIR_KERNEL_H
+#ifndef TOAD_SCRIPT_CFLOW_MIR_KERNEL_H
+#define TOAD_SCRIPT_CFLOW_MIR_KERNEL_H
 
 #include "cmeta_bridge.h"
-#include <turboscript/script.h>
+#include <toad/script.h>
 #include <cmeta/cmeta.h>
 #include <stdbool.h>
 
@@ -13,7 +13,7 @@ extern "C" {
 typedef struct ts_cflow_mir_kernel_s ts_cflow_mir_kernel_t;
 
 /*
- * TurboScript owns the MIR kernel. CFlow may copy callable by value into Graph
+ * Toad owns the MIR kernel. CFlow may copy callable by value into Graph
  * and Plan snapshots, so owner must outlive every Graph/Plan that contains
  * callable. Destroy Plan/Graph first, then destroy this binding.
  */
@@ -23,12 +23,12 @@ typedef struct ts_cflow_mir_kernel_binding {
 } ts_cflow_mir_kernel_binding_t;
 
 /*
- * Compile one PURE, capture-free TurboScript lambda into a MIR-backed CMeta
+ * Compile one PURE, capture-free Toad lambda into a MIR-backed CMeta
  * callable. MAP/FILTER use one numeric argument; REDUCE uses the canonical
  * homogeneous (accumulator, value) -> accumulator contract.
  */
-bool ts_cflow_mir_kernel_bind(turbo_script_ctx_t *runtime_ctx,
-                              const tbs_node_t *lambda,
+bool ts_cflow_mir_kernel_bind(toad_script_ctx_t *runtime_ctx,
+                              const toad_node_t *lambda,
                               ts_cmeta_lambda_role_t role,
                               ts_cflow_mir_kernel_binding_t *out,
                               const char **error);
@@ -40,4 +40,4 @@ void ts_cflow_mir_kernel_binding_destroy(
 }
 #endif
 
-#endif /* TURBO_SCRIPT_CFLOW_MIR_KERNEL_H */
+#endif /* TOAD_SCRIPT_CFLOW_MIR_KERNEL_H */

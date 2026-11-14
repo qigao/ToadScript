@@ -1,5 +1,5 @@
-#ifndef TURBO_SCRIPT_HOST_API_INTERNAL_H
-#define TURBO_SCRIPT_HOST_API_INTERNAL_H
+#ifndef TOAD_SCRIPT_HOST_API_INTERNAL_H
+#define TOAD_SCRIPT_HOST_API_INTERNAL_H
 
 /*
  * Host ABI v1 is public in <script.h>.
@@ -8,6 +8,6 @@
  * and private tests while the repository converges on the public declaration
  * as the single source of truth.
  */
-#include <turboscript/script.h>
+#include <toad/script.h>
 
-#endif /* TURBO_SCRIPT_HOST_API_INTERNAL_H */
+#endif /* TOAD_SCRIPT_HOST_API_INTERNAL_H */

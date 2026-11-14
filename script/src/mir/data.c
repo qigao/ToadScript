@@ -3,12 +3,12 @@
 #include "internal.h"
 #include <stdlib.h>
 
-int ts_vector_literal_needs_value_eval(ts_mir_compiler_t *c, tbs_node_t *node) {
-  if (!node || node->type != TBS_NODE_VECTOR) return 1;
+int ts_vector_literal_needs_value_eval(ts_mir_compiler_t *c, toad_node_t *node) {
+  if (!node || node->type != TOAD_NODE_VECTOR) return 1;
 
   for (size_t i = 0; i < node->data.vector.count; ++i) {
-    tbs_node_t *element = node->data.vector.elements[i];
-    if (!element || element->type == TBS_NODE_SPREAD || ts_is_non_numeric_node(element) ||
+    toad_node_t *element = node->data.vector.elements[i];
+    if (!element || element->type == TOAD_NODE_SPREAD || ts_is_non_numeric_node(element) ||
         ts_expr_contains_value_call(c, element) || ts_index_assignment_needs_value_eval(c, element)) {
       return 1;
     }
@@ -18,13 +18,13 @@ int ts_vector_literal_needs_value_eval(ts_mir_compiler_t *c, tbs_node_t *node) {
 }
 
 MIR_reg_t ts_emit_vector_literal_assign(ts_mir_compiler_t *c, const char *target_name,
-                                               tbs_node_t *node) {
+                                               toad_node_t *node) {
   MIR_reg_t element_regs[16];
   MIR_reg_t arr_reg;
   MIR_reg_t res = ts_mir_new_temp_reg(c);
   size_t count;
 
-  if (!target_name || !node || node->type != TBS_NODE_VECTOR ||
+  if (!target_name || !node || node->type != TOAD_NODE_VECTOR ||
       node->data.vector.count > 16 || ts_vector_literal_needs_value_eval(c, node)) {
     return 0;
   }
@@ -47,12 +47,12 @@ MIR_reg_t ts_emit_vector_literal_assign(ts_mir_compiler_t *c, const char *target
   return res;
 }
 
-int ts_map_literal_needs_value_eval(ts_mir_compiler_t *c, tbs_node_t *node) {
-  if (!node || node->type != TBS_NODE_MAP_LITERAL) return 1;
+int ts_map_literal_needs_value_eval(ts_mir_compiler_t *c, toad_node_t *node) {
+  if (!node || node->type != TOAD_NODE_MAP_LITERAL) return 1;
 
   for (size_t i = 0; i < node->data.map_literal.count; ++i) {
-    tbs_node_t *value = node->data.map_literal.values[i];
-    if (!node->data.map_literal.keys[i] || !value || value->type == TBS_NODE_SPREAD ||
+    toad_node_t *value = node->data.map_literal.values[i];
+    if (!node->data.map_literal.keys[i] || !value || value->type == TOAD_NODE_SPREAD ||
         ts_is_non_numeric_node(value) || ts_expr_contains_value_call(c, value) ||
         ts_index_assignment_needs_value_eval(c, value)) {
       return 1;
@@ -63,13 +63,13 @@ int ts_map_literal_needs_value_eval(ts_mir_compiler_t *c, tbs_node_t *node) {
 }
 
 MIR_reg_t ts_emit_map_literal_assign(ts_mir_compiler_t *c, const char *target_name,
-                                            tbs_node_t *node) {
+                                            toad_node_t *node) {
   MIR_reg_t value_regs[16];
   MIR_reg_t arr_reg;
   MIR_reg_t res = ts_mir_new_temp_reg(c);
   size_t count;
 
-  if (!target_name || !node || node->type != TBS_NODE_MAP_LITERAL ||
+  if (!target_name || !node || node->type != TOAD_NODE_MAP_LITERAL ||
       node->data.map_literal.count > 16 || ts_map_literal_needs_value_eval(c, node)) {
     return 0;
   }
@@ -94,11 +94,11 @@ MIR_reg_t ts_emit_map_literal_assign(ts_mir_compiler_t *c, const char *target_na
 }
 
 MIR_reg_t ts_emit_map_value_literal_assign(ts_mir_compiler_t *c, const char *target_name,
-                                                  tbs_node_t *node) {
+                                                  toad_node_t *node) {
   MIR_reg_t res = ts_mir_new_temp_reg(c);
   MIR_reg_t target = ts_mir_get_or_create_reg(c, target_name);
 
-  if (!target_name || !node || node->type != TBS_NODE_MAP_LITERAL) return 0;
+  if (!target_name || !node || node->type != TOAD_NODE_MAP_LITERAL) return 0;
 
   ts_emit_sync_to_env(c);
   MIR_append_insn(c->ctx, c->func,
@@ -119,10 +119,10 @@ MIR_reg_t ts_emit_map_value_literal_assign(ts_mir_compiler_t *c, const char *tar
 }
 
 MIR_reg_t ts_emit_string_literal_assign(ts_mir_compiler_t *c, const char *target_name,
-                                               tbs_node_t *node) {
+                                               toad_node_t *node) {
   MIR_reg_t res = ts_mir_new_temp_reg(c);
 
-  if (!target_name || !node || node->type != TBS_NODE_STRING ||
+  if (!target_name || !node || node->type != TOAD_NODE_STRING ||
       !node->data.string.value.data) {
     return 0;
   }
@@ -141,10 +141,10 @@ MIR_reg_t ts_emit_string_literal_assign(ts_mir_compiler_t *c, const char *target
 }
 
 MIR_reg_t ts_emit_template_string_assign(ts_mir_compiler_t *c, const char *target_name,
-                                                tbs_node_t *node) {
+                                                toad_node_t *node) {
   MIR_reg_t res = ts_mir_new_temp_reg(c);
 
-  if (!target_name || !node || node->type != TBS_NODE_TEMPLATE_STRING) {
+  if (!target_name || !node || node->type != TOAD_NODE_TEMPLATE_STRING) {
     return 0;
   }
 
@@ -164,12 +164,12 @@ MIR_reg_t ts_emit_template_string_assign(ts_mir_compiler_t *c, const char *targe
 
 /* --- Access helpers: member/index fast path + runtime helpers --- */
 MIR_reg_t ts_emit_member_access(ts_mir_compiler_t *c, const char *obj_name,
-                                       const char *member, tbs_node_t *object_node) {
-  tbs_value_t obj = tbs_env_get(&c->ts_ctx->env, obj_name);
+                                       const char *member, toad_node_t *object_node) {
+  toad_value_t obj = toad_env_get(&c->ts_ctx->env, obj_name);
   MIR_reg_t oop_slot = ts_try_emit_oop_member_get_slot(c, obj_name, member, object_node);
   if (oop_slot) return oop_slot;
 
-  if (tbs_value_is_object_like(&obj) && tbs_map_has(&obj, member)) {
+  if (toad_value_is_object_like(&obj) && toad_map_has(&obj, member)) {
     MIR_reg_t ptr_reg = ts_mir_get_or_add_map_ptr(c, obj_name, member);
 
     if (ptr_reg) {
@@ -191,8 +191,8 @@ MIR_reg_t ts_emit_member_access(ts_mir_compiler_t *c, const char *obj_name,
     return res;
   }
 
-  tbs_oop_field_cache_t *cache =
-      (tbs_oop_field_cache_t *)calloc(1, sizeof(tbs_oop_field_cache_t));
+  toad_oop_field_cache_t *cache =
+      (toad_oop_field_cache_t *)calloc(1, sizeof(toad_oop_field_cache_t));
   MIR_reg_t res = ts_mir_new_temp_reg(c);
   MIR_append_insn(c->ctx, c->func,
                   MIR_new_call_insn(c->ctx, 8, MIR_new_ref_op(c->ctx, c->ext.member_get_proto),
@@ -207,11 +207,11 @@ MIR_reg_t ts_emit_member_access(ts_mir_compiler_t *c, const char *obj_name,
 
 MIR_reg_t ts_emit_member_access_assign(ts_mir_compiler_t *c, const char *target_name,
                                        const char *obj_name, const char *member,
-                                       tbs_node_t *object_node) {
+                                       toad_node_t *object_node) {
   MIR_reg_t res = ts_mir_new_temp_reg(c);
   MIR_reg_t target = ts_mir_get_or_create_reg(c, target_name);
-  tbs_oop_field_cache_t *cache =
-      (tbs_oop_field_cache_t *)calloc(1, sizeof(tbs_oop_field_cache_t));
+  toad_oop_field_cache_t *cache =
+      (toad_oop_field_cache_t *)calloc(1, sizeof(toad_oop_field_cache_t));
   (void)target;
 
   ts_emit_sync_to_env(c);
@@ -282,18 +282,18 @@ void ts_emit_reload_from_env(ts_mir_compiler_t *c) {
   ts_mir_clear_dirty_flags(c);
 }
 
-MIR_reg_t ts_emit_unsupported_node(ts_mir_compiler_t *c, tbs_node_t *node) {
-  if (node && node->type == TBS_NODE_MEMBER_CALL) {
+MIR_reg_t ts_emit_unsupported_node(ts_mir_compiler_t *c, toad_node_t *node) {
+  if (node && node->type == TOAD_NODE_MEMBER_CALL) {
     ts_mir_fail(c,
                 "MIR lowering error: unsupported member call '%s' on syntax object type %d",
                 node->data.member_call.method ? node->data.member_call.method : "<null>",
                 node->data.member_call.object ? (int)node->data.member_call.object->type : -1);
     return ts_emit_zero_reg(c);
   }
-  if (node && (node->type == TBS_NODE_ASSIGNMENT ||
-               node->type == TBS_NODE_CONSTANT_DECL)) {
-    tbs_node_t *value = node->data.assignment.value;
-    if (value && value->type == TBS_NODE_FUNCTION_CALL) {
+  if (node && (node->type == TOAD_NODE_ASSIGNMENT ||
+               node->type == TOAD_NODE_CONSTANT_DECL)) {
+    toad_node_t *value = node->data.assignment.value;
+    if (value && value->type == TOAD_NODE_FUNCTION_CALL) {
       ts_mir_fail(c,
                   "MIR lowering error: unsupported assignment '%s' with RHS function call "
                   "'%s' argc %zu",
@@ -308,7 +308,7 @@ MIR_reg_t ts_emit_unsupported_node(ts_mir_compiler_t *c, tbs_node_t *node) {
                 value ? (int)value->type : -1);
     return ts_emit_zero_reg(c);
   }
-  if (node && node->type == TBS_NODE_INDEX) {
+  if (node && node->type == TOAD_NODE_INDEX) {
     ts_mir_fail(c,
                 "MIR lowering error: unsupported index array syntax node type %d",
                 node->data.index_access.array ? (int)node->data.index_access.array->type : -1);
@@ -320,12 +320,12 @@ MIR_reg_t ts_emit_unsupported_node(ts_mir_compiler_t *c, tbs_node_t *node) {
 }
 
 MIR_reg_t ts_emit_index_access(ts_mir_compiler_t *c, const char *name,
-                                      tbs_node_t *index_node) {
+                                      toad_node_t *index_node) {
   MIR_reg_t idx_reg = ts_compile_expr(c, index_node);
 
   /* Native fast path for vectors pre-bound in env at compile time. */
-  tbs_value_t existing = tbs_env_get(&c->ts_ctx->env, name);
-  int is_prebound = (existing.type == TBS_VAL_VECTOR && existing.data.vector.data != NULL);
+  toad_value_t existing = toad_env_get(&c->ts_ctx->env, name);
+  int is_prebound = (existing.type == TOAD_VAL_VECTOR && existing.data.vector.data != NULL);
   if (is_prebound) {
     MIR_reg_t ptr_reg = ts_mir_get_or_add_vec_ptr(c, name);
 

@@ -1,8 +1,8 @@
 /* Public MIR compile and execution API. */
 
 #include "../host/internal.h"
-#include <turboscript/grammar.h>
-#include <turboscript/class.h>
+#include <toad/grammar.h>
+#include <toad/class.h>
 #include "internal.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,7 +29,7 @@ struct ts_mir_artifact_s {
   void **host_export_addresses;
   size_t export_count;
   /* Borrowed from the module-retained context for the artifact lifetime. */
-  turbo_script_ctx_t *registry_owner_ctx;
+  toad_script_ctx_t *registry_owner_ctx;
   /* Owns every string address embedded as a MIR immediate. They are released
    * only after MIR_gen_finish/MIR_finish can no longer execute or inspect code. */
   ts_mir_owned_string_block_t *owned_string_blocks;
@@ -47,16 +47,16 @@ static ts_compiled_func_t *ts_mir_find_artifact_function(ts_mir_compiler_t *comp
   return NULL;
 }
 
-static tbs_node_t *ts_mir_native_numeric_expression(tbs_node_t *function_node) {
-  tbs_node_t *statement;
-  if (!function_node || function_node->type != TBS_NODE_FUNCTION_DEFINITION) return NULL;
+static toad_node_t *ts_mir_native_numeric_expression(toad_node_t *function_node) {
+  toad_node_t *statement;
+  if (!function_node || function_node->type != TOAD_NODE_FUNCTION_DEFINITION) return NULL;
   statement = function_node->data.func_def.body;
-  if (statement && statement->type == TBS_NODE_BLOCK) {
+  if (statement && statement->type == TOAD_NODE_BLOCK) {
     if (!statement->data.block.statements || statement->data.block.count != 1) return NULL;
     statement = statement->data.block.statements[0];
   }
-  if (!statement || statement->type != TBS_NODE_FLOW ||
-      statement->data.flow.type != tbs_TOKEN_RETURN)
+  if (!statement || statement->type != TOAD_NODE_FLOW ||
+      statement->data.flow.type != toad_TOKEN_RETURN)
     return NULL;
   return statement->data.flow.value;
 }
@@ -64,7 +64,7 @@ static tbs_node_t *ts_mir_native_numeric_expression(tbs_node_t *function_node) {
 /* Single AST-to-MIR lowering core. Callers retain ownership of the supplied
  * MIR context/module and decide how long linked code remains alive. */
 static int ts_mir_lower_owned_module(MIR_context_t mir_ctx, MIR_module_t module,
-                                     turbo_script_ctx_t *compile_ctx, tbs_node_t *ast,
+                                     toad_script_ctx_t *compile_ctx, toad_node_t *ast,
                                      const char *prefix, const ts_mir_lowering_policy_t *policy,
                                      const ts_host_export_table_t *exports,
                                      MIR_item_t *out_initializer, MIR_item_t *out_export_items,
@@ -72,7 +72,7 @@ static int ts_mir_lower_owned_module(MIR_context_t mir_ctx, MIR_module_t module,
                                      MIR_item_t *out_host_export_wrappers,
                                      ts_mir_owned_string_block_t **out_owned_strings) {
   ts_mir_compiler_t compiler = {0};
-  const tbs_node_t **metadata_nodes = NULL;
+  const toad_node_t **metadata_nodes = NULL;
   size_t export_count = exports ? vec_size(&exports->entries) : 0;
   int success = 0;
   int module_finished = 0;
@@ -91,7 +91,7 @@ static int ts_mir_lower_owned_module(MIR_context_t mir_ctx, MIR_module_t module,
     return -1;
   *out_initializer = NULL;
   if (export_count) {
-    metadata_nodes = (const tbs_node_t **)calloc(export_count, sizeof(*metadata_nodes));
+    metadata_nodes = (const toad_node_t **)calloc(export_count, sizeof(*metadata_nodes));
     if (!metadata_nodes) return -1;
   }
   compiler.ctx = mir_ctx;
@@ -110,11 +110,11 @@ static int ts_mir_lower_owned_module(MIR_context_t mir_ctx, MIR_module_t module,
   }
   ts_mir_init_externals(&compiler);
   ts_prescan_class_names(&compiler, ast);
-  for (tbs_func_t *f = compile_ctx->env.funcs; f; f = f->next) {
+  for (toad_func_t *f = compile_ctx->env.funcs; f; f = f->next) {
     if (f->is_script && f->data.script.body && f->data.script.arg_count <= 16) {
       int all_vars = 1;
       for (size_t i = 0; i < f->data.script.arg_count; ++i) {
-        if (f->data.script.arg_params[i]->type != TBS_NODE_VARIABLE) {
+        if (f->data.script.arg_params[i]->type != TOAD_NODE_VARIABLE) {
           all_vars = 0;
           break;
         }
@@ -263,7 +263,7 @@ done:
   return success ? 0 : -1;
 }
 
-int ts_mir_artifact_compile(turbo_script_ctx_t *compile_ctx, tbs_node_t *ast,
+int ts_mir_artifact_compile(toad_script_ctx_t *compile_ctx, toad_node_t *ast,
                             const ts_host_export_table_t *exports,
                             ts_mir_artifact_t **out_artifact) {
   ts_mir_artifact_t *artifact = NULL;
@@ -311,10 +311,10 @@ int ts_mir_artifact_compile(turbo_script_ctx_t *compile_ctx, tbs_node_t *ast,
         (uint8_t)(artifact->numeric_export_wrappers[i] != NULL &&
                   ts_mir_function_is_native_numeric_export(entry->function_node));
     if (artifact->native_numeric_exports[i]) {
-      tbs_node_t *expression = ts_mir_native_numeric_expression(entry->function_node);
+      toad_node_t *expression = ts_mir_native_numeric_expression(entry->function_node);
       size_t expression_steps;
       if (!expression) goto done;
-      expression_steps = tbs_node_count(expression);
+      expression_steps = toad_node_count(expression);
       if (expression_steps > SIZE_MAX - TS_MIR_NATIVE_CALL_OVERHEAD_STEPS) goto done;
       /* Include the generated wrapper's dispatch and return units so native
        * exports consume the same per-call budget in interpreter and JIT mode. */
@@ -343,8 +343,8 @@ int ts_mir_artifact_compile(turbo_script_ctx_t *compile_ctx, tbs_node_t *ast,
 
 done:
   if (!success) {
-    if (compile_ctx && compile_ctx->error_code == TURBO_SCRIPT_ERROR_NONE) {
-      compile_ctx->error_code = artifact ? TURBO_SCRIPT_ERROR_JIT : TURBO_SCRIPT_ERROR_OOM;
+    if (compile_ctx && compile_ctx->error_code == TOAD_SCRIPT_ERROR_NONE) {
+      compile_ctx->error_code = artifact ? TOAD_SCRIPT_ERROR_JIT : TOAD_SCRIPT_ERROR_OOM;
       snprintf(compile_ctx->error_msg, sizeof(compile_ctx->error_msg),
                "Host module MIR artifact compilation failed");
     }
@@ -373,7 +373,7 @@ void ts_mir_artifact_destroy(ts_mir_artifact_t *artifact) {
   free(artifact);
 }
 
-int ts_mir_artifact_execute_numeric(ts_mir_artifact_t *artifact, turbo_script_ctx_t *runtime_ctx,
+int ts_mir_artifact_execute_numeric(ts_mir_artifact_t *artifact, toad_script_ctx_t *runtime_ctx,
                                     size_t export_index, int use_jit, const double *args,
                                     size_t arg_count, double *out_result) {
   MIR_val_t mir_args[18] = {0};
@@ -384,7 +384,7 @@ int ts_mir_artifact_execute_numeric(ts_mir_artifact_t *artifact, turbo_script_ct
       !artifact->export_items[export_index] || !artifact->numeric_export_wrappers[export_index])
     return -1;
   runtime_ctx->env.aborted = 0;
-  runtime_ctx->env.flow = tbs_FLOW_NORMAL;
+  runtime_ctx->env.flow = toad_FLOW_NORMAL;
   runtime_ctx->env.error_msg[0] = '\0';
   mir_args[0].a = runtime_ctx;
   mir_args[1].a = &runtime_ctx->env;
@@ -393,7 +393,7 @@ int ts_mir_artifact_execute_numeric(ts_mir_artifact_t *artifact, turbo_script_ct
   if (!use_jit) {
     MIR_interp_arr(artifact->ctx, artifact->export_items[export_index], &result, arg_count + 2,
                    mir_args);
-    if (runtime_ctx->env.aborted || runtime_ctx->env.flow == tbs_FLOW_THROW) return -1;
+    if (runtime_ctx->env.aborted || runtime_ctx->env.flow == toad_FLOW_THROW) return -1;
     *out_result = result.d;
     return 0;
   }
@@ -401,24 +401,24 @@ int ts_mir_artifact_execute_numeric(ts_mir_artifact_t *artifact, turbo_script_ct
   result.d = ((double (*)(void *, void *,
                           const double *))artifact->numeric_export_addresses[export_index])(
       runtime_ctx, &runtime_ctx->env, args);
-  if (runtime_ctx->env.aborted || runtime_ctx->env.flow == tbs_FLOW_THROW) return -1;
+  if (runtime_ctx->env.aborted || runtime_ctx->env.flow == toad_FLOW_THROW) return -1;
   *out_result = result.d;
   return 0;
 }
 
-static int ts_mir_artifact_call_begin(ts_mir_artifact_t *artifact, turbo_script_ctx_t *runtime_ctx,
-                                      size_t export_index, const tbs_value_t *args,
-                                      size_t arg_count, tbs_value_t *out_value) {
+static int ts_mir_artifact_call_begin(ts_mir_artifact_t *artifact, toad_script_ctx_t *runtime_ctx,
+                                      size_t export_index, const toad_value_t *args,
+                                      size_t arg_count, toad_value_t *out_value) {
   if (out_value) {
     memset(out_value, 0, sizeof(*out_value));
-    out_value->type = TBS_VAL_NULL;
+    out_value->type = TOAD_VAL_NULL;
   }
   if (!artifact || !runtime_ctx || export_index >= artifact->export_count ||
       !artifact->registry_owner_ctx || arg_count > 16 ||
       arg_count != artifact->export_arities[export_index] || (!args && arg_count) || !out_value)
     return -1;
   runtime_ctx->env.aborted = 0;
-  runtime_ctx->env.flow = tbs_FLOW_NORMAL;
+  runtime_ctx->env.flow = toad_FLOW_NORMAL;
   runtime_ctx->env.curr_recursion = 0;
   runtime_ctx->env.curr_nodes = 0;
   runtime_ctx->env.curr_loop_iterations = 0;
@@ -427,9 +427,9 @@ static int ts_mir_artifact_call_begin(ts_mir_artifact_t *artifact, turbo_script_
   runtime_ctx->env.error_line = 0;
   runtime_ctx->env.error_column = 0;
   runtime_ctx->env.error_msg[0] = '\0';
-  cmeta_data_value_destroy(tbs_value_cmeta_data(), &runtime_ctx->env.error_value);
-  runtime_ctx->env.error_value.type = TBS_VAL_NULL;
-  runtime_ctx->error_code = TURBO_SCRIPT_ERROR_NONE;
+  cmeta_data_value_destroy(toad_value_cmeta_data(), &runtime_ctx->env.error_value);
+  runtime_ctx->env.error_value.type = TOAD_VAL_NULL;
+  runtime_ctx->error_code = TOAD_SCRIPT_ERROR_NONE;
   runtime_ctx->error_msg[0] = '\0';
   return 0;
 }
@@ -441,31 +441,31 @@ int ts_mir_artifact_export_is_native_numeric(const ts_mir_artifact_t *artifact,
 }
 
 static int ts_mir_artifact_try_native_numeric(ts_mir_artifact_t *artifact,
-                                              turbo_script_ctx_t *runtime_ctx, size_t export_index,
-                                              int use_jit, const tbs_value_t *args,
-                                              size_t arg_count, tbs_value_t *out_value) {
+                                              toad_script_ctx_t *runtime_ctx, size_t export_index,
+                                              int use_jit, const toad_value_t *args,
+                                              size_t arg_count, toad_value_t *out_value) {
   double numeric_args[16];
   double result;
   size_t frame_bytes;
   int frame_entered = 0;
   if (!ts_mir_artifact_export_is_native_numeric(artifact, export_index)) return 0;
   for (size_t i = 0; i < arg_count; ++i) {
-    if (args[i].type != TBS_VAL_NUMBER) return 0;
+    if (args[i].type != TOAD_VAL_NUMBER) return 0;
     numeric_args[i] = args[i].data.number;
   }
-  frame_bytes = sizeof(tbs_env_t) + arg_count * sizeof(tbs_value_t);
+  frame_bytes = sizeof(toad_env_t) + arg_count * sizeof(toad_value_t);
   if (runtime_ctx->env.safe_point) {
     if (runtime_ctx->env.safe_point(runtime_ctx->env.safe_point_user_data,
-                                    TBS_SAFE_POINT_FUNCTION_ENTER, frame_bytes) != 0) {
+                                    TOAD_SAFE_POINT_FUNCTION_ENTER, frame_bytes) != 0) {
       runtime_ctx->env.aborted = 1;
       return -1;
     }
     frame_entered = 1;
-    if (runtime_ctx->env.safe_point(runtime_ctx->env.safe_point_user_data, TBS_SAFE_POINT_STEP,
+    if (runtime_ctx->env.safe_point(runtime_ctx->env.safe_point_user_data, TOAD_SAFE_POINT_STEP,
                                     artifact->native_step_costs[export_index]) != 0) {
       runtime_ctx->env.aborted = 1;
       (void)runtime_ctx->env.safe_point(runtime_ctx->env.safe_point_user_data,
-                                        TBS_SAFE_POINT_FUNCTION_LEAVE, frame_bytes);
+                                        TOAD_SAFE_POINT_FUNCTION_LEAVE, frame_bytes);
       return -1;
     }
   }
@@ -474,22 +474,22 @@ static int ts_mir_artifact_try_native_numeric(ts_mir_artifact_t *artifact,
                                       &result) != 0) {
     if (frame_entered)
       (void)runtime_ctx->env.safe_point(runtime_ctx->env.safe_point_user_data,
-                                        TBS_SAFE_POINT_FUNCTION_LEAVE, frame_bytes);
+                                        TOAD_SAFE_POINT_FUNCTION_LEAVE, frame_bytes);
     return -1;
   }
   if (frame_entered &&
       runtime_ctx->env.safe_point(runtime_ctx->env.safe_point_user_data,
-                                  TBS_SAFE_POINT_FUNCTION_LEAVE, frame_bytes) != 0) {
+                                  TOAD_SAFE_POINT_FUNCTION_LEAVE, frame_bytes) != 0) {
     runtime_ctx->env.aborted = 1;
     return -1;
   }
-  *out_value = tbs_val_num(result);
+  *out_value = toad_val_num(result);
   return 1;
 }
 
-int ts_mir_artifact_call_interp(ts_mir_artifact_t *artifact, turbo_script_ctx_t *runtime_ctx,
-                                size_t export_index, const tbs_value_t *args, size_t arg_count,
-                                tbs_value_t *out_value) {
+int ts_mir_artifact_call_interp(ts_mir_artifact_t *artifact, toad_script_ctx_t *runtime_ctx,
+                                size_t export_index, const toad_value_t *args, size_t arg_count,
+                                toad_value_t *out_value) {
   MIR_val_t mir_args[4] = {0};
   MIR_val_t result = {0};
   int native_status;
@@ -504,16 +504,16 @@ int ts_mir_artifact_call_interp(ts_mir_artifact_t *artifact, turbo_script_ctx_t 
   mir_args[2].u = arg_count;
   mir_args[3].a = out_value;
   MIR_interp_arr(artifact->ctx, artifact->host_export_wrappers[export_index], &result, 4, mir_args);
-  if (result.i != 0 || runtime_ctx->env.aborted || runtime_ctx->env.flow == tbs_FLOW_THROW) {
-    cmeta_data_value_destroy(tbs_value_cmeta_data(), out_value);
+  if (result.i != 0 || runtime_ctx->env.aborted || runtime_ctx->env.flow == toad_FLOW_THROW) {
+    cmeta_data_value_destroy(toad_value_cmeta_data(), out_value);
     return -1;
   }
   return 0;
 }
 
-int ts_mir_artifact_call_jit(ts_mir_artifact_t *artifact, turbo_script_ctx_t *runtime_ctx,
-                             size_t export_index, const tbs_value_t *args, size_t arg_count,
-                             tbs_value_t *out_value) {
+int ts_mir_artifact_call_jit(ts_mir_artifact_t *artifact, toad_script_ctx_t *runtime_ctx,
+                             size_t export_index, const toad_value_t *args, size_t arg_count,
+                             toad_value_t *out_value) {
   ts_mir_host_export_fn function;
   int native_status;
   if (ts_mir_artifact_call_begin(artifact, runtime_ctx, export_index, args, arg_count, out_value) !=
@@ -525,20 +525,20 @@ int ts_mir_artifact_call_jit(ts_mir_artifact_t *artifact, turbo_script_ctx_t *ru
   if (native_status != 0) return native_status > 0 ? 0 : -1;
   function = (ts_mir_host_export_fn)artifact->host_export_addresses[export_index];
   if (function(runtime_ctx, args, arg_count, out_value) != 0 || runtime_ctx->env.aborted ||
-      runtime_ctx->env.flow == tbs_FLOW_THROW) {
-    cmeta_data_value_destroy(tbs_value_cmeta_data(), out_value);
+      runtime_ctx->env.flow == toad_FLOW_THROW) {
+    cmeta_data_value_destroy(toad_value_cmeta_data(), out_value);
     return -1;
   }
   return 0;
 }
 
 int ts_mir_artifact_execute_initializer(ts_mir_artifact_t *artifact,
-                                        turbo_script_ctx_t *runtime_ctx, int use_jit) {
+                                        toad_script_ctx_t *runtime_ctx, int use_jit) {
   MIR_val_t argument = {0};
   MIR_val_t result = {0};
   if (!artifact || !runtime_ctx) return -1;
   runtime_ctx->env.aborted = 0;
-  runtime_ctx->env.flow = tbs_FLOW_NORMAL;
+  runtime_ctx->env.flow = toad_FLOW_NORMAL;
   runtime_ctx->env.error_msg[0] = '\0';
   if (use_jit) {
     if (!artifact->initializer_address) return -1;
@@ -547,7 +547,7 @@ int ts_mir_artifact_execute_initializer(ts_mir_artifact_t *artifact,
     argument.a = runtime_ctx;
     MIR_interp_arr(artifact->ctx, artifact->initializer, &result, 1, &argument);
   }
-  return runtime_ctx->env.aborted || runtime_ctx->env.flow == tbs_FLOW_THROW ? -1 : 0;
+  return runtime_ctx->env.aborted || runtime_ctx->env.flow == toad_FLOW_THROW ? -1 : 0;
 }
 
 /* =========================================================================
@@ -571,7 +571,7 @@ static uint64_t ts_get_time_us(void) {
  * Public API: Compile, Exec, Run
  * ========================================================================= */
 
-static int ts_track_compiled_ast(turbo_script_ctx_t *ctx, tbs_node_t *ast) {
+static int ts_track_compiled_ast(toad_script_ctx_t *ctx, toad_node_t *ast) {
   if (!ctx || !ast) return 0;
   for (size_t i = 0; i < ctx->compiled_ast_count; ++i) {
     if (ctx->compiled_asts[i] == ast) return 1;
@@ -579,8 +579,8 @@ static int ts_track_compiled_ast(turbo_script_ctx_t *ctx, tbs_node_t *ast) {
 
   if (ctx->compiled_ast_count >= ctx->compiled_ast_capacity) {
     size_t new_cap = ctx->compiled_ast_capacity == 0 ? 16 : ctx->compiled_ast_capacity * 2;
-    tbs_node_t **new_asts =
-        (tbs_node_t **)realloc(ctx->compiled_asts, new_cap * sizeof(tbs_node_t *));
+    toad_node_t **new_asts =
+        (toad_node_t **)realloc(ctx->compiled_asts, new_cap * sizeof(toad_node_t *));
     if (!new_asts) return 0;
     ctx->compiled_asts = new_asts;
     ctx->compiled_ast_capacity = new_cap;
@@ -590,24 +590,24 @@ static int ts_track_compiled_ast(turbo_script_ctx_t *ctx, tbs_node_t *ast) {
   return 1;
 }
 
-static int turbo_script_compile_mir_backend(turbo_script_ctx_t *ctx, const char *script,
-                                            tbs_node_t *provided_ast, int use_interp) {
+static int toad_script_compile_mir_backend(toad_script_ctx_t *ctx, const char *script,
+                                            toad_node_t *provided_ast, int use_interp) {
   uint64_t start_time = 0;
   MIR_context_t mir_ctx = NULL;
-  tbs_node_t *ast = provided_ast;
+  toad_node_t *ast = provided_ast;
   int owns_ast = provided_ast == NULL;
 
   if (!ctx) return -1;
   if (ctx->memory_exhausted) {
-    ctx->error_code = TURBO_SCRIPT_ERROR_STATE;
+    ctx->error_code = TOAD_SCRIPT_ERROR_STATE;
     snprintf(ctx->error_msg, sizeof(ctx->error_msg),
              "memory policy: context is exhausted and must be recreated");
     return -1;
   }
-  ctx->error_code = TURBO_SCRIPT_ERROR_NONE;
+  ctx->error_code = TOAD_SCRIPT_ERROR_NONE;
   ctx->error_msg[0] = '\0';
   if (!ast && !script) {
-    ctx->error_code = TURBO_SCRIPT_ERROR_ARGUMENT;
+    ctx->error_code = TOAD_SCRIPT_ERROR_ARGUMENT;
     snprintf(ctx->error_msg, sizeof(ctx->error_msg), "JIT compile error: script is NULL");
     return -1;
   }
@@ -628,18 +628,18 @@ static int turbo_script_compile_mir_backend(turbo_script_ctx_t *ctx, const char 
   }
 
   if (!ast) {
-    ast = turbo_script_parse_with_error(ctx, script);
+    ast = toad_script_parse_with_error(ctx, script);
     if (!ast) return -1;
   }
 
-  if (tbs_validate(ast, &ctx->env, ctx->error_msg, sizeof(ctx->error_msg)) != 0) {
-    ctx->error_code = TURBO_SCRIPT_ERROR_VALIDATE;
-    if (owns_ast) tbs_free(ast);
+  if (toad_validate(ast, &ctx->env, ctx->error_msg, sizeof(ctx->error_msg)) != 0) {
+    ctx->error_code = TOAD_SCRIPT_ERROR_VALIDATE;
+    if (owns_ast) toad_free(ast);
     return -1;
   }
   if (!ts_track_compiled_ast(ctx, ast)) {
-    if (owns_ast) tbs_free(ast);
-    ctx->error_code = TURBO_SCRIPT_ERROR_OOM;
+    if (owns_ast) toad_free(ast);
+    ctx->error_code = TOAD_SCRIPT_ERROR_OOM;
     snprintf(ctx->error_msg, sizeof(ctx->error_msg), "JIT compile error: out of memory");
     return -1;
   }
@@ -661,7 +661,7 @@ static int turbo_script_compile_mir_backend(turbo_script_ctx_t *ctx, const char 
     ctx->mir_owned_string_blocks = owned_strings;
   }
   if (lower_status != 0) {
-    if (ctx->error_code == TURBO_SCRIPT_ERROR_NONE) ctx->error_code = TURBO_SCRIPT_ERROR_JIT;
+    if (ctx->error_code == TOAD_SCRIPT_ERROR_NONE) ctx->error_code = TOAD_SCRIPT_ERROR_JIT;
     return -1;
   }
   MIR_load_module(mir_ctx, mod);
@@ -688,38 +688,38 @@ static int turbo_script_compile_mir_backend(turbo_script_ctx_t *ctx, const char 
   return 0;
 }
 
-TURBO_SCRIPT_C_API int turbo_script_compile_mir(turbo_script_ctx_t *ctx, const char *script) {
-  return turbo_script_compile_mir_backend(ctx, script, NULL, 0);
+TOAD_SCRIPT_C_API int toad_script_compile_mir(toad_script_ctx_t *ctx, const char *script) {
+  return toad_script_compile_mir_backend(ctx, script, NULL, 0);
 }
 
-TURBO_SCRIPT_C_API int turbo_script_compile_mir_interp(turbo_script_ctx_t *ctx,
+TOAD_SCRIPT_C_API int toad_script_compile_mir_interp(toad_script_ctx_t *ctx,
                                                        const char *script) {
-  return turbo_script_compile_mir_backend(ctx, script, NULL, 1);
+  return toad_script_compile_mir_backend(ctx, script, NULL, 1);
 }
 
-TURBO_SCRIPT_C_API int turbo_script_compile_mir_ast(turbo_script_ctx_t *ctx, tbs_node_t *ast,
+TOAD_SCRIPT_C_API int toad_script_compile_mir_ast(toad_script_ctx_t *ctx, toad_node_t *ast,
                                                     const char *script) {
-  return turbo_script_compile_mir_backend(ctx, script, ast, 0);
+  return toad_script_compile_mir_backend(ctx, script, ast, 0);
 }
 
-TURBO_SCRIPT_C_API int turbo_script_compile_mir_interp_ast(turbo_script_ctx_t *ctx,
-                                                           tbs_node_t *ast, const char *script) {
-  return turbo_script_compile_mir_backend(ctx, script, ast, 1);
+TOAD_SCRIPT_C_API int toad_script_compile_mir_interp_ast(toad_script_ctx_t *ctx,
+                                                           toad_node_t *ast, const char *script) {
+  return toad_script_compile_mir_backend(ctx, script, ast, 1);
 }
 
-static void ts_jit_reset_runtime_state(turbo_script_ctx_t *ctx) {
+static void ts_jit_reset_runtime_state(toad_script_ctx_t *ctx) {
   ctx->env.aborted = 0;
-  ctx->env.flow = tbs_FLOW_NORMAL;
+  ctx->env.flow = toad_FLOW_NORMAL;
   ctx->env.curr_nodes = 0;
   ctx->env.curr_loop_iterations = 0;
   ctx->env.curr_recursion = 0;
   ctx->env.error_msg[0] = '\0';
 }
 
-static int ts_jit_finish_runtime_state(turbo_script_ctx_t *ctx) {
-  if (ctx->env.aborted || ctx->env.flow == tbs_FLOW_THROW) {
-    if (ctx->error_code == TURBO_SCRIPT_ERROR_NONE) {
-      ctx->error_code = TURBO_SCRIPT_ERROR_RUNTIME;
+static int ts_jit_finish_runtime_state(toad_script_ctx_t *ctx) {
+  if (ctx->env.aborted || ctx->env.flow == toad_FLOW_THROW) {
+    if (ctx->error_code == TOAD_SCRIPT_ERROR_NONE) {
+      ctx->error_code = TOAD_SCRIPT_ERROR_RUNTIME;
     }
     if (ctx->error_msg[0] == '\0') {
       const char *msg = ctx->env.error_msg[0] ? ctx->env.error_msg : "JIT runtime error";
@@ -730,7 +730,7 @@ static int ts_jit_finish_runtime_state(turbo_script_ctx_t *ctx) {
   return 0;
 }
 
-static int ts_jit_exec_fn(turbo_script_ctx_t *ctx, void *fn_ptr) {
+static int ts_jit_exec_fn(toad_script_ctx_t *ctx, void *fn_ptr) {
   typedef double (*jit_fn_t)(void *);
 
   if (!ctx || !fn_ptr) return -1;
@@ -739,12 +739,12 @@ static int ts_jit_exec_fn(turbo_script_ctx_t *ctx, void *fn_ptr) {
   return ts_jit_finish_runtime_state(ctx);
 }
 
-TURBO_SCRIPT_C_API int turbo_script_exec_jit(turbo_script_ctx_t *ctx) {
+TOAD_SCRIPT_C_API int toad_script_exec_jit(toad_script_ctx_t *ctx) {
   if (!ctx) return -1;
-  ctx->error_code = TURBO_SCRIPT_ERROR_NONE;
+  ctx->error_code = TOAD_SCRIPT_ERROR_NONE;
   ctx->error_msg[0] = '\0';
   if (!ctx->mir_last_fn) {
-    ctx->error_code = TURBO_SCRIPT_ERROR_STATE;
+    ctx->error_code = TOAD_SCRIPT_ERROR_STATE;
     snprintf(ctx->error_msg, sizeof(ctx->error_msg), "JIT exec error: no compiled module");
     return -1;
   }
@@ -753,16 +753,16 @@ TURBO_SCRIPT_C_API int turbo_script_exec_jit(turbo_script_ctx_t *ctx) {
   return ts_jit_exec_fn(ctx, ctx->mir_last_fn);
 }
 
-TURBO_SCRIPT_C_API int turbo_script_exec_mir_interp_result(turbo_script_ctx_t *ctx,
+TOAD_SCRIPT_C_API int toad_script_exec_mir_interp_result(toad_script_ctx_t *ctx,
                                                            double *result_out) {
   MIR_val_t args[1];
   MIR_val_t result;
 
   if (!ctx) return -1;
-  ctx->error_code = TURBO_SCRIPT_ERROR_NONE;
+  ctx->error_code = TOAD_SCRIPT_ERROR_NONE;
   ctx->error_msg[0] = '\0';
   if (!ctx->mir_interp_ctx || !ctx->mir_interp_last_func) {
-    ctx->error_code = TURBO_SCRIPT_ERROR_STATE;
+    ctx->error_code = TOAD_SCRIPT_ERROR_STATE;
     snprintf(ctx->error_msg, sizeof(ctx->error_msg), "MIR interp exec error: no compiled module");
     return -1;
   }
@@ -775,25 +775,25 @@ TURBO_SCRIPT_C_API int turbo_script_exec_mir_interp_result(turbo_script_ctx_t *c
   return ts_jit_finish_runtime_state(ctx);
 }
 
-TURBO_SCRIPT_C_API int turbo_script_exec_mir_interp(turbo_script_ctx_t *ctx) {
-  return turbo_script_exec_mir_interp_result(ctx, NULL);
+TOAD_SCRIPT_C_API int toad_script_exec_mir_interp(toad_script_ctx_t *ctx) {
+  return toad_script_exec_mir_interp_result(ctx, NULL);
 }
 
-TURBO_SCRIPT_C_API int turbo_script_run_mir_interp(turbo_script_ctx_t *ctx, const char *script) {
+TOAD_SCRIPT_C_API int toad_script_run_mir_interp(toad_script_ctx_t *ctx, const char *script) {
   if (!ctx) return -1;
-  ctx->error_code = TURBO_SCRIPT_ERROR_NONE;
+  ctx->error_code = TOAD_SCRIPT_ERROR_NONE;
   ctx->error_msg[0] = '\0';
   if (!script) {
-    ctx->error_code = TURBO_SCRIPT_ERROR_ARGUMENT;
+    ctx->error_code = TOAD_SCRIPT_ERROR_ARGUMENT;
     snprintf(ctx->error_msg, sizeof(ctx->error_msg), "MIR interp run error: script is NULL");
     return -1;
   }
   if (ctx->expr && ctx->expr_source && strcmp(ctx->expr_source, script) == 0) {
-    if (turbo_script_compile_mir_interp_ast(ctx, ctx->expr, script) != 0) return -1;
-    return turbo_script_exec_mir_interp(ctx);
+    if (toad_script_compile_mir_interp_ast(ctx, ctx->expr, script) != 0) return -1;
+    return toad_script_exec_mir_interp(ctx);
   }
-  if (turbo_script_compile_mir_interp(ctx, script) != 0) return -1;
-  return turbo_script_exec_mir_interp(ctx);
+  if (toad_script_compile_mir_interp(ctx, script) != 0) return -1;
+  return toad_script_exec_mir_interp(ctx);
 }
 
 /* =========================================================================
@@ -811,20 +811,20 @@ static uint64_t ts_hash_script(const char *s) {
   return h;
 }
 
-TURBO_SCRIPT_C_API int turbo_script_run_jit(turbo_script_ctx_t *ctx, const char *script) {
+TOAD_SCRIPT_C_API int toad_script_run_jit(toad_script_ctx_t *ctx, const char *script) {
   uint64_t exec_start_time = 0;
 
   if (!ctx) return -1;
   if (ctx->memory_exhausted) {
-    ctx->error_code = TURBO_SCRIPT_ERROR_STATE;
+    ctx->error_code = TOAD_SCRIPT_ERROR_STATE;
     snprintf(ctx->error_msg, sizeof(ctx->error_msg),
              "memory policy: context is exhausted and must be recreated");
     return -1;
   }
-  ctx->error_code = TURBO_SCRIPT_ERROR_NONE;
+  ctx->error_code = TOAD_SCRIPT_ERROR_NONE;
   ctx->error_msg[0] = '\0';
   if (!script) {
-    ctx->error_code = TURBO_SCRIPT_ERROR_ARGUMENT;
+    ctx->error_code = TOAD_SCRIPT_ERROR_ARGUMENT;
     snprintf(ctx->error_msg, sizeof(ctx->error_msg), "JIT run error: script is NULL");
     return -1;
   }
@@ -860,7 +860,7 @@ TURBO_SCRIPT_C_API int turbo_script_run_jit(turbo_script_ctx_t *ctx, const char 
 
   /* Cache miss — full compile. Unsupported scripts must fail instead of
    * silently running through the interpreter. */
-  if (turbo_script_compile_mir(ctx, script) != 0) return -1;
+  if (toad_script_compile_mir(ctx, script) != 0) return -1;
 
   /* Store in cache. A failed script copy leaves the slot empty so a later
    * lookup cannot match a partial (script == NULL) entry. */
@@ -882,7 +882,7 @@ TURBO_SCRIPT_C_API int turbo_script_run_jit(turbo_script_ctx_t *ctx, const char 
     exec_start_time = ts_get_time_us();
   }
 
-  int result = turbo_script_exec_jit(ctx);
+  int result = toad_script_exec_jit(ctx);
 
   // 记录执行时间
   if (ctx->jit_stats_enabled) {

@@ -17,7 +17,7 @@
 /* Fisher Transform                                                          */
 /* ========================================================================= */
 
-size_t tbs_ta_fisher(const double *hi, const double *lo, size_t n, size_t period,
+size_t toad_ta_fisher(const double *hi, const double *lo, size_t n, size_t period,
                          double *fisher, double *trigger, mem_pool_t *arena) {
     (void)arena;
     if (period < 2 || n < period) return 0;
@@ -63,7 +63,7 @@ size_t tbs_ta_fisher(const double *hi, const double *lo, size_t n, size_t period
 /* Squeeze Momentum (Bollinger + Keltner)                                    */
 /* ========================================================================= */
 
-size_t tbs_ta_squeeze(const double *hi, const double *lo, const double *cl, size_t n,
+size_t toad_ta_squeeze(const double *hi, const double *lo, const double *cl, size_t n,
                           size_t bb_p, double bb_m, size_t kc_p, double kc_m,
                           double *squeeze, double *momentum, double *on_off,
                           mem_pool_t *arena) {
@@ -79,8 +79,8 @@ size_t tbs_ta_squeeze(const double *hi, const double *lo, const double *cl, size
     if (!bb_upper || !bb_lower || !bb_mid || !kc_upper || !kc_lower || !kc_mid)
         return 0;
 
-    tbs_ta_bbands(cl, n, bb_p, bb_m, bb_upper, bb_mid, bb_lower);
-    tbs_ta_keltner(hi, lo, cl, n, kc_p, kc_p, kc_m, kc_upper, kc_mid, kc_lower, arena);
+    toad_ta_bbands(cl, n, bb_p, bb_m, bb_upper, bb_mid, bb_lower);
+    toad_ta_keltner(hi, lo, cl, n, kc_p, kc_p, kc_m, kc_upper, kc_mid, kc_lower, arena);
 
     /* Linear regression of (close - midline) for momentum */
     size_t lr_period = bb_p;
@@ -120,13 +120,13 @@ size_t tbs_ta_squeeze(const double *hi, const double *lo, const double *cl, size
 /* Choppiness Index                                                          */
 /* ========================================================================= */
 
-size_t tbs_ta_chop(const double *hi, const double *lo, const double *cl, size_t n,
+size_t toad_ta_chop(const double *hi, const double *lo, const double *cl, size_t n,
                        size_t period, double *out, mem_pool_t *arena) {
     if (period < 2 || n < period + 1) return 0;
 
     double *atr_arr = MEM_ALLOC_ARRAY(arena, double, n);
     if (!atr_arr) return 0;
-    tbs_ta_atr(hi, lo, cl, n, 1, atr_arr, arena);
+    toad_ta_atr(hi, lo, cl, n, 1, atr_arr, arena);
 
     for (size_t i = 0; i < period; i++)
         out[i] = 0;
@@ -157,7 +157,7 @@ size_t tbs_ta_chop(const double *hi, const double *lo, const double *cl, size_t 
 /* Ehlers Cyber Cycle                                                        */
 /* ========================================================================= */
 
-size_t tbs_ta_ehlers_cyber_cycle(const double *in, size_t n, double alpha, double *out) {
+size_t toad_ta_ehlers_cyber_cycle(const double *in, size_t n, double alpha, double *out) {
     if (n < 7) return 0;
     memset(out, 0, n * sizeof(double));
 
@@ -182,7 +182,7 @@ size_t tbs_ta_ehlers_cyber_cycle(const double *in, size_t n, double alpha, doubl
 /* Ehlers Instantaneous Trendline                                            */
 /* ========================================================================= */
 
-size_t tbs_ta_ehlers_itrend(const double *in, size_t n, double alpha, double *out) {
+size_t toad_ta_ehlers_itrend(const double *in, size_t n, double alpha, double *out) {
     if (n < 7) return 0;
     memset(out, 0, n * sizeof(double));
 
@@ -204,7 +204,7 @@ size_t tbs_ta_ehlers_itrend(const double *in, size_t n, double alpha, double *ou
 /* Ehlers MESA Adaptive Moving Average (MAMA/FAMA)                           */
 /* ========================================================================= */
 
-size_t tbs_ta_ehlers_mama(const double *in, size_t n, double fast_limit, double slow_limit,
+size_t toad_ta_ehlers_mama(const double *in, size_t n, double fast_limit, double slow_limit,
                               double *mama, double *fama) {
     if (n < 32) return 0;
     memset(mama, 0, n * sizeof(double));

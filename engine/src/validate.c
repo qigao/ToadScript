@@ -1,13 +1,13 @@
-#include <turboscript/engine.h>
-#include <turboscript/detail/grammar_gen.h>
+#include <toad/engine.h>
+#include <toad/detail/grammar_gen.h>
 #include <stdbool.h>
 #include <stdarg.h>
 #include <string.h>
 #include <stdio.h>
 
 typedef struct validate_ctx_s {
-    tbs_parse_ctx_t *p_ctx;
-    tbs_env_t *env;
+    toad_parse_ctx_t *p_ctx;
+    toad_env_t *env;
     mem_pool_t scratch;
     struct scope_s {
         char **vars;
@@ -72,11 +72,11 @@ static bool scope_has(validate_ctx_t *ctx, const char *name) {
     }
     // 2. Check environment (pre-defined global vars via hash table)
     if (ctx->env) {
-        tbs_env_t *e = ctx->env;
+        toad_env_t *e = ctx->env;
         while (e) {
-            if (tbs_env_has(e, name)) return true;
+            if (toad_env_has(e, name)) return true;
             // Also check functions
-            tbs_func_t *f = e->funcs;
+            toad_func_t *f = e->funcs;
             while (f) {
                 if (f->name && strcmp(f->name, name) == 0) return true;
                 f = f->next;
@@ -90,7 +90,7 @@ static bool scope_has(validate_ctx_t *ctx, const char *name) {
 static bool is_module_prefix(validate_ctx_t *ctx, const char *name) {
     if (!ctx || !ctx->env || !name) return false;
     /* Check env->modules for a matching module_name */
-    tbs_env_t *e = ctx->env;
+    toad_env_t *e = ctx->env;
     while (e) {
         for (size_t m = 0; m < e->module_count; ++m) {
             if (e->modules[m]->module_name &&
@@ -110,7 +110,7 @@ static bool is_module_prefix(validate_ctx_t *ctx, const char *name) {
     return scope_has(ctx, name);
 }
 
-static void report_error(validate_ctx_t *ctx, tbs_node_t *node, const char *fmt, ...) {
+static void report_error(validate_ctx_t *ctx, toad_node_t *node, const char *fmt, ...) {
     if (ctx->p_ctx->error) return;
     ctx->p_ctx->error = 1;
     va_list args;
@@ -122,47 +122,47 @@ static void report_error(validate_ctx_t *ctx, tbs_node_t *node, const char *fmt,
              "Validation error at line %d, col %d: %s", node->line, node->column, msg);
 }
 
-static void validate_node(validate_ctx_t *ctx, tbs_node_t *node);
+static void validate_node(validate_ctx_t *ctx, toad_node_t *node);
 
-static void validate_node(validate_ctx_t *ctx, tbs_node_t *node) {
+static void validate_node(validate_ctx_t *ctx, toad_node_t *node) {
     if (!node || ctx->p_ctx->error) return;
 
     switch (node->type) {
-        case TBS_NODE_VARIABLE:
+        case TOAD_NODE_VARIABLE:
             if (!scope_has(ctx, node->data.variable.name)) {
                 // report_error(ctx, node, "Undefined variable '%s'", node->data.variable.name);
                 // We'll skip for now to avoid false positives on dynamic registrations or external bindings
             }
             break;
 
-        case TBS_NODE_ASSIGNMENT:
-        case TBS_NODE_CONSTANT_DECL:
+        case TOAD_NODE_ASSIGNMENT:
+        case TOAD_NODE_CONSTANT_DECL:
             validate_node(ctx, node->data.assignment.value);
             scope_add(ctx, node->data.assignment.name);
             break;
 
-        case TBS_NODE_BINARY_OP:
+        case TOAD_NODE_BINARY_OP:
             validate_node(ctx, node->data.binary.left);
             validate_node(ctx, node->data.binary.right);
             // Simple Type Checking
-            if (node->data.binary.op == tbs_TOKEN_PLUS ||
-                node->data.binary.op == tbs_TOKEN_MINUS ||
-                node->data.binary.op == tbs_TOKEN_MULTIPLY ||
-                node->data.binary.op == tbs_TOKEN_DIVIDE) {
+            if (node->data.binary.op == toad_TOKEN_PLUS ||
+                node->data.binary.op == toad_TOKEN_MINUS ||
+                node->data.binary.op == toad_TOKEN_MULTIPLY ||
+                node->data.binary.op == toad_TOKEN_DIVIDE) {
                 // We don't have full type inference yet, but we can catch obvious literals
-                if ((node->data.binary.left && node->data.binary.left->type == TBS_NODE_MAP_LITERAL) ||
-                    (node->data.binary.right && node->data.binary.right->type == TBS_NODE_MAP_LITERAL)) {
+                if ((node->data.binary.left && node->data.binary.left->type == TOAD_NODE_MAP_LITERAL) ||
+                    (node->data.binary.right && node->data.binary.right->type == TOAD_NODE_MAP_LITERAL)) {
                     report_error(ctx, node, "Invalid operation on Map type");
                 }
             }
             break;
 
-        case TBS_NODE_FUNCTION_EXPRESSION:
-        case TBS_NODE_FUNCTION_DEFINITION: {
+        case TOAD_NODE_FUNCTION_EXPRESSION:
+        case TOAD_NODE_FUNCTION_DEFINITION: {
             scope_push(ctx);
             for (size_t i = 0; i < node->data.func_def.arg_count; ++i) {
-                tbs_node_t *arg = node->data.func_def.arg_params[i];
-                if (arg->type == TBS_NODE_VARIABLE) {
+                toad_node_t *arg = node->data.func_def.arg_params[i];
+                if (arg->type == TOAD_NODE_VARIABLE) {
                     const char *arg_name = arg->data.variable.name;
                     // Check for duplicate parameters
                     struct scope_s *s = ctx->scope;
@@ -182,25 +182,25 @@ static void validate_node(validate_ctx_t *ctx, tbs_node_t *node) {
             break;
         }
 
-        case TBS_NODE_BLOCK:
+        case TOAD_NODE_BLOCK:
             for (size_t i = 0; i < node->data.block.count; ++i) {
                 validate_node(ctx, node->data.block.statements[i]);
             }
             break;
 
-        case TBS_NODE_IF:
+        case TOAD_NODE_IF:
             validate_node(ctx, node->data.if_stmt.condition);
             validate_node(ctx, node->data.if_stmt.if_branch);
             validate_node(ctx, node->data.if_stmt.else_branch);
             break;
 
-        case TBS_NODE_WHILE:
-        case TBS_NODE_DO_WHILE:
+        case TOAD_NODE_WHILE:
+        case TOAD_NODE_DO_WHILE:
             validate_node(ctx, node->data.while_loop.condition);
             validate_node(ctx, node->data.while_loop.body);
             break;
 
-        case TBS_NODE_FOR:
+        case TOAD_NODE_FOR:
             scope_push(ctx);
             validate_node(ctx, node->data.for_loop.init);
             validate_node(ctx, node->data.for_loop.condition);
@@ -209,7 +209,7 @@ static void validate_node(validate_ctx_t *ctx, tbs_node_t *node) {
             scope_pop(ctx);
             break;
 
-        case TBS_NODE_FOR_IN:
+        case TOAD_NODE_FOR_IN:
             scope_push(ctx);
             validate_node(ctx, node->data.for_in.collection);
             scope_add(ctx, node->data.for_in.var_name);
@@ -217,15 +217,15 @@ static void validate_node(validate_ctx_t *ctx, tbs_node_t *node) {
             scope_pop(ctx);
             break;
 
-        case TBS_NODE_FUNCTION_CALL:
+        case TOAD_NODE_FUNCTION_CALL:
             for (size_t i = 0; i < node->data.function.arg_count; ++i) {
                 validate_node(ctx, node->data.function.args[i]);
             }
 
             // Handle import calls: add the module name to scope
             if (node->data.function.name && strcmp(node->data.function.name, "import") == 0 && node->data.function.arg_count == 1) {
-                tbs_node_t *arg = node->data.function.args[0];
-                if (arg->type == TBS_NODE_STRING) {
+                toad_node_t *arg = node->data.function.args[0];
+                if (arg->type == TOAD_NODE_STRING) {
                     // Add the import name itself as a scope variable
                     char mod_name[64];
                     size_t mod_len = arg->data.string.value.len < 63 ? arg->data.string.value.len : 63;
@@ -236,7 +236,7 @@ static void validate_node(validate_ctx_t *ctx, tbs_node_t *node) {
                     // Scan env modules for any function prefixed with known namespaces
                     // to add those namespace prefixes to scope
                     if (ctx->env) {
-                        tbs_env_t *e = ctx->env;
+                        toad_env_t *e = ctx->env;
                         while (e) {
                             for (size_t m = 0; m < e->module_count; ++m) {
                                 for (size_t fi = 0; fi < e->modules[m]->count; ++fi) {
@@ -261,8 +261,8 @@ static void validate_node(validate_ctx_t *ctx, tbs_node_t *node) {
 
             // Check if function exists in env or registry
             if (node->data.function.name) {
-                if (!tbs_find_builtin(node->data.function.name, ctx->env) &&
-                    !tbs_registry_find(node->data.function.name) &&
+                if (!toad_find_builtin(node->data.function.name, ctx->env) &&
+                    !toad_registry_find(node->data.function.name) &&
                     strcmp(node->data.function.name, "import") != 0 &&
                     strcmp(node->data.function.name, "print") != 0 &&
                     strcmp(node->data.function.name, "println") != 0) {
@@ -273,9 +273,9 @@ static void validate_node(validate_ctx_t *ctx, tbs_node_t *node) {
             }
             break;
 
-        case TBS_NODE_MEMBER_CALL:
+        case TOAD_NODE_MEMBER_CALL:
             // Skip variable check if the object is a known module prefix
-            if (node->data.member_call.object && node->data.member_call.object->type == TBS_NODE_VARIABLE) {
+            if (node->data.member_call.object && node->data.member_call.object->type == TOAD_NODE_VARIABLE) {
                 const char *obj_name = node->data.member_call.object->data.variable.name;
                 if (!is_module_prefix(ctx, obj_name)) {
                     validate_node(ctx, node->data.member_call.object);
@@ -288,13 +288,13 @@ static void validate_node(validate_ctx_t *ctx, tbs_node_t *node) {
             }
             break;
 
-        case TBS_NODE_VECTOR:
+        case TOAD_NODE_VECTOR:
             for (size_t i = 0; i < node->data.vector.count; ++i) {
                 validate_node(ctx, node->data.vector.elements[i]);
             }
             break;
 
-        case TBS_NODE_MAP_LITERAL:
+        case TOAD_NODE_MAP_LITERAL:
             for (size_t i = 0; i < node->data.map_literal.count; ++i) {
                 validate_node(ctx, node->data.map_literal.values[i]);
             }
@@ -305,10 +305,10 @@ static void validate_node(validate_ctx_t *ctx, tbs_node_t *node) {
     }
 }
 
-int tbs_validate(tbs_node_t *root, tbs_env_t *env, char *error_msg, size_t msg_len) {
+int toad_validate(toad_node_t *root, toad_env_t *env, char *error_msg, size_t msg_len) {
     if (!root) return 0;
 
-    tbs_parse_ctx_t p_ctx;
+    toad_parse_ctx_t p_ctx;
     memset(&p_ctx, 0, sizeof(p_ctx));
 
     validate_ctx_t ctx;

@@ -1,7 +1,7 @@
-#ifndef TURBO_SCRIPT_CMETA_BRIDGE_H
-#define TURBO_SCRIPT_CMETA_BRIDGE_H
+#ifndef TOAD_SCRIPT_CMETA_BRIDGE_H
+#define TOAD_SCRIPT_CMETA_BRIDGE_H
 
-#include <turboscript/types.h>
+#include <toad/types.h>
 #include <cmeta/cmeta.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -29,7 +29,7 @@ typedef enum ts_cmeta_lambda_role {
 /*
  * Analysis-only callable contract for graph admission.
  *
- * The callable deliberately has no executable TurboScript semantics yet:
+ * The callable deliberately has no executable Toad semantics yet:
  * invoke() returns false. Issue #17 owns replacement with a MIR-backed
  * executable adapter. Keeping this seam non-executable prevents graph analysis
  * from accidentally becoming a second interpreter.
@@ -47,14 +47,14 @@ typedef struct ts_cmeta_lambda_contract {
 
 /*
  * Describe the element type that enters a CFlow pipeline.
- * TurboScript vectors are homogeneous double vectors, so their flow type is
+ * Toad vectors are homogeneous double vectors, so their flow type is
  * cmeta_type_double even though the script-visible value itself is a vector.
  */
-bool ts_cmeta_describe_value_type(tbs_value_type_t type,
+bool ts_cmeta_describe_value_type(toad_value_type_t type,
                                   ts_cmeta_value_semantics_t *out);
 
 /*
- * Build an analysis-only CMeta contract for a graphable TurboScript lambda.
+ * Build an analysis-only CMeta contract for a graphable Toad lambda.
  * The first vertical slice is intentionally numeric:
  *   filter: double -> bool
  *   map:    double -> double
@@ -65,7 +65,7 @@ bool ts_cmeta_describe_value_type(tbs_value_type_t type,
  * conservatively marked UNKNOWN and therefore cannot participate in
  * purity-dependent CFlow rewrites.
  */
-bool ts_cmeta_analyze_lambda(const tbs_node_t *lambda,
+bool ts_cmeta_analyze_lambda(const toad_node_t *lambda,
                              ts_cmeta_lambda_role_t role,
                              ts_cmeta_lambda_contract_t *out,
                              const char **error);
@@ -74,4 +74,4 @@ bool ts_cmeta_analyze_lambda(const tbs_node_t *lambda,
 }
 #endif
 
-#endif /* TURBO_SCRIPT_CMETA_BRIDGE_H */
+#endif /* TOAD_SCRIPT_CMETA_BRIDGE_H */

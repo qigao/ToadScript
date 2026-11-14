@@ -11,15 +11,15 @@
  * - mir_cache.c: JIT cache management
  */
 
-#ifndef TURBO_SCRIPT_MIR_INTERNAL_H
-#define TURBO_SCRIPT_MIR_INTERNAL_H
+#ifndef TOAD_SCRIPT_MIR_INTERNAL_H
+#define TOAD_SCRIPT_MIR_INTERNAL_H
 
 #include "../closure_analysis.h"
 #include "../internal.h"
-#include <turboscript/engine.h>
-#include <turboscript/class.h>
-#include <turboscript/module.h>
-#include <turboscript/script.h>
+#include <toad/engine.h>
+#include <toad/class.h>
+#include <toad/module.h>
+#include <toad/script.h>
 #include <mir-gen.h>
 #include <mir.h>
 #include <stddef.h>
@@ -40,8 +40,8 @@ typedef struct ts_mir_compile_frame_s ts_mir_compile_frame_t;
 typedef struct ts_mir_artifact_s ts_mir_artifact_t;
 typedef struct ts_mir_owned_string_block_s ts_mir_owned_string_block_t;
 
-typedef int (*ts_mir_host_export_fn)(turbo_script_ctx_t *runtime_ctx, const tbs_value_t *args,
-                                     size_t arg_count, tbs_value_t *out_value);
+typedef int (*ts_mir_host_export_fn)(toad_script_ctx_t *runtime_ctx, const toad_value_t *args,
+                                     size_t arg_count, toad_value_t *out_value);
 typedef struct ts_host_export_table_s ts_host_export_table_t;
 
 typedef enum ts_mir_host_slot_policy_e {
@@ -51,7 +51,7 @@ typedef enum ts_mir_host_slot_policy_e {
 
 typedef struct ts_mir_lowering_policy_s {
   ts_mir_host_slot_policy_t host_slots;
-  turbo_script_ctx_t *registry_owner_ctx;
+  toad_script_ctx_t *registry_owner_ctx;
 } ts_mir_lowering_policy_t;
 
 /* =========================================================================
@@ -176,7 +176,7 @@ struct ts_mir_var_entry_s {
   MIR_reg_t reg;     // MIR register
   int dirty;         // Dirty flag: 1 = needs sync to environment
   int dynamic_value; // 1 = holds dynamic value (not numeric)
-  int stream_value;  // 1 = compile-time known TurboScript Stream value
+  int stream_value;  // 1 = compile-time known Toad Stream value
 };
 
 /* =========================================================================
@@ -224,7 +224,7 @@ typedef struct {
  * ========================================================================= */
 
 typedef struct {
-  tbs_instance_t *instance;
+  toad_instance_t *instance;
   size_t index;
 } ts_mir_oop_slot_cache_t;
 
@@ -253,7 +253,7 @@ struct ts_mir_owned_string_block_s {
 
 typedef struct {
   char *name;
-  tbs_function_reflection_t reflection;
+  toad_function_reflection_t reflection;
 } ts_mir_builtin_admission_t;
 
 /* =========================================================================
@@ -290,10 +290,10 @@ struct ts_mir_compiler_s {
   MIR_context_t ctx;
   MIR_item_t func;
   MIR_module_t module;
-  turbo_script_ctx_t *ts_ctx;
+  toad_script_ctx_t *ts_ctx;
   ts_mir_lowering_policy_t lowering_policy;
-  tbs_node_t *ast_root;
-  const tbs_node_t *const *metadata_nodes;
+  toad_node_t *ast_root;
+  const toad_node_t *const *metadata_nodes;
   size_t metadata_node_count;
   char item_prefix[64];
   char item_name_buffer[192];
@@ -363,31 +363,31 @@ struct ts_mir_compiler_s {
   ts_mir_owned_string_block_t *owned_string_block;
 };
 
-int ts_mir_artifact_compile(turbo_script_ctx_t *compile_ctx, tbs_node_t *ast,
+int ts_mir_artifact_compile(toad_script_ctx_t *compile_ctx, toad_node_t *ast,
                             const ts_host_export_table_t *exports,
                             ts_mir_artifact_t **out_artifact);
 void ts_mir_artifact_destroy(ts_mir_artifact_t *artifact);
-int ts_mir_artifact_execute_numeric(ts_mir_artifact_t *artifact, turbo_script_ctx_t *runtime_ctx,
+int ts_mir_artifact_execute_numeric(ts_mir_artifact_t *artifact, toad_script_ctx_t *runtime_ctx,
                                     size_t export_index, int use_jit, const double *args,
                                     size_t arg_count, double *out_result);
-int ts_mir_artifact_call_interp(ts_mir_artifact_t *artifact, turbo_script_ctx_t *runtime_ctx,
-                                size_t export_index, const tbs_value_t *args, size_t arg_count,
-                                tbs_value_t *out_value);
-int ts_mir_artifact_call_jit(ts_mir_artifact_t *artifact, turbo_script_ctx_t *runtime_ctx,
-                             size_t export_index, const tbs_value_t *args, size_t arg_count,
-                             tbs_value_t *out_value);
+int ts_mir_artifact_call_interp(ts_mir_artifact_t *artifact, toad_script_ctx_t *runtime_ctx,
+                                size_t export_index, const toad_value_t *args, size_t arg_count,
+                                toad_value_t *out_value);
+int ts_mir_artifact_call_jit(ts_mir_artifact_t *artifact, toad_script_ctx_t *runtime_ctx,
+                             size_t export_index, const toad_value_t *args, size_t arg_count,
+                             toad_value_t *out_value);
 int ts_mir_artifact_export_is_native_numeric(const ts_mir_artifact_t *artifact,
                                              size_t export_index);
 int ts_mir_artifact_execute_initializer(ts_mir_artifact_t *artifact,
-                                        turbo_script_ctx_t *runtime_ctx, int use_jit);
+                                        toad_script_ctx_t *runtime_ctx, int use_jit);
 
 /* =========================================================================
  * Module: mir_compiler.c - Compiler framework
  * ========================================================================= */
 
 // Initialization and cleanup
-void ts_mir_compiler_init(ts_mir_compiler_t *c, turbo_script_ctx_t *ts_ctx,
-                          tbs_node_t *ast_root);
+void ts_mir_compiler_init(ts_mir_compiler_t *c, toad_script_ctx_t *ts_ctx,
+                          toad_node_t *ast_root);
 void ts_mir_compiler_free(ts_mir_compiler_t *c);
 
 // Register allocation
@@ -418,7 +418,7 @@ const char *ts_mir_new_hidden_receiver_name(ts_mir_compiler_t *c);
 const char *ts_mir_find_var_class(ts_mir_compiler_t *c, const char *var_name);
 int ts_mir_is_known_class_name(ts_mir_compiler_t *c, const char *name);
 
-const tbs_function_reflection_t *ts_mir_admit_builtin(
+const toad_function_reflection_t *ts_mir_admit_builtin(
     ts_mir_compiler_t *c, const char *name);
 
 // Frame management
@@ -435,9 +435,9 @@ void ts_emit_map_prologue(ts_mir_compiler_t *c);
 
 // Error reporting
 void ts_mir_fail(ts_mir_compiler_t *c, const char *fmt, ...);
-double ts_mir_numeric_value(tbs_value_t val);
-void ts_mir_promote_env_error(turbo_script_ctx_t *ctx);
-int ts_mir_runtime_define_func_in_env(tbs_env_t *env, tbs_node_t *node);
+double ts_mir_numeric_value(toad_value_t val);
+void ts_mir_promote_env_error(toad_script_ctx_t *ctx);
+int ts_mir_runtime_define_func_in_env(toad_env_t *env, toad_node_t *node);
 
 /* =========================================================================
  * Main AST lowering helpers still implemented in mir.c
@@ -445,41 +445,41 @@ int ts_mir_runtime_define_func_in_env(tbs_env_t *env, tbs_node_t *node);
 
 MIR_reg_t ts_emit_packed_args(ts_mir_compiler_t *c, size_t argc, const MIR_reg_t *arg_regs);
 MIR_reg_t ts_emit_zero_reg(ts_mir_compiler_t *c);
-MIR_reg_t ts_compile_expr(ts_mir_compiler_t *c, tbs_node_t *node);
+MIR_reg_t ts_compile_expr(ts_mir_compiler_t *c, toad_node_t *node);
 
-int ts_is_non_numeric_node(tbs_node_t *node);
-int ts_expr_contains_value_call(ts_mir_compiler_t *c, tbs_node_t *node);
-int ts_vector_literal_needs_value_eval(ts_mir_compiler_t *c, tbs_node_t *node);
-int ts_map_literal_needs_value_eval(ts_mir_compiler_t *c, tbs_node_t *node);
-int ts_index_assignment_needs_value_eval(ts_mir_compiler_t *c, tbs_node_t *node);
+int ts_is_non_numeric_node(toad_node_t *node);
+int ts_expr_contains_value_call(ts_mir_compiler_t *c, toad_node_t *node);
+int ts_vector_literal_needs_value_eval(ts_mir_compiler_t *c, toad_node_t *node);
+int ts_map_literal_needs_value_eval(ts_mir_compiler_t *c, toad_node_t *node);
+int ts_index_assignment_needs_value_eval(ts_mir_compiler_t *c, toad_node_t *node);
 MIR_reg_t ts_emit_vector_literal_assign(ts_mir_compiler_t *c, const char *target_name,
-                                        tbs_node_t *node);
+                                        toad_node_t *node);
 MIR_reg_t ts_emit_map_literal_assign(ts_mir_compiler_t *c, const char *target_name,
-                                     tbs_node_t *node);
+                                     toad_node_t *node);
 MIR_reg_t ts_emit_map_value_literal_assign(ts_mir_compiler_t *c, const char *target_name,
-                                           tbs_node_t *node);
+                                           toad_node_t *node);
 MIR_reg_t ts_emit_string_literal_assign(ts_mir_compiler_t *c, const char *target_name,
-                                        tbs_node_t *node);
+                                        toad_node_t *node);
 MIR_reg_t ts_emit_template_string_assign(ts_mir_compiler_t *c, const char *target_name,
-                                         tbs_node_t *node);
+                                         toad_node_t *node);
 
 void ts_mir_clear_dirty_flags(ts_mir_compiler_t *c);
 void ts_mir_mark_all_vars_dirty(ts_mir_compiler_t *c);
 void ts_emit_sync_var_to_env(ts_mir_compiler_t *c, const char *name);
 void ts_emit_sync_to_env(ts_mir_compiler_t *c);
 void ts_emit_reload_from_env(ts_mir_compiler_t *c);
-MIR_reg_t ts_emit_unsupported_node(ts_mir_compiler_t *c, tbs_node_t *node);
-MIR_reg_t ts_emit_runtime_value_node(ts_mir_compiler_t *c, tbs_node_t *node);
+MIR_reg_t ts_emit_unsupported_node(ts_mir_compiler_t *c, toad_node_t *node);
+MIR_reg_t ts_emit_runtime_value_node(ts_mir_compiler_t *c, toad_node_t *node);
 
 int ts_find_math_dispatch(ts_mir_compiler_t *c, const char *name, size_t argc, MIR_item_t *proto,
                           MIR_item_t *import);
-int ts_call_args_need_ast_eval(ts_mir_compiler_t *c, size_t argc, tbs_node_t **args);
+int ts_call_args_need_ast_eval(ts_mir_compiler_t *c, size_t argc, toad_node_t **args);
 int ts_runtime_call_needs_value_eval(ts_mir_compiler_t *c, const char *name, size_t argc);
-int ts_expr_list_contains_value_call(ts_mir_compiler_t *c, size_t count, tbs_node_t **nodes);
-int ts_env_has_func(tbs_env_t *env, const char *name);
+int ts_expr_list_contains_value_call(ts_mir_compiler_t *c, size_t count, toad_node_t **nodes);
+int ts_env_has_func(toad_env_t *env, const char *name);
 int ts_resolves_core_compat_func(const char *name);
-int ts_binary_is_null_eq_compare(tbs_node_t *node);
-int ts_try_fold_constant(tbs_node_t *node, double *out);
+int ts_binary_is_null_eq_compare(toad_node_t *node);
+int ts_try_fold_constant(toad_node_t *node, double *out);
 int ts_emit_direct_math_call(ts_mir_compiler_t *c, const char *name, size_t argc,
                              const MIR_reg_t *arg_regs, MIR_reg_t res);
 int ts_emit_direct_resolved_call(ts_mir_compiler_t *c, const char *name, size_t argc,
@@ -487,55 +487,55 @@ int ts_emit_direct_resolved_call(ts_mir_compiler_t *c, const char *name, size_t 
 void ts_emit_runtime_call(ts_mir_compiler_t *c, const char *name, size_t argc,
                           const MIR_reg_t *arg_regs, MIR_reg_t res);
 MIR_reg_t ts_emit_runtime_call_assign(ts_mir_compiler_t *c, const char *target_name,
-                                      const char *name, size_t argc, tbs_node_t **arg_nodes);
+                                      const char *name, size_t argc, toad_node_t **arg_nodes);
 
 MIR_reg_t ts_mir_get_or_add_vec_ptr(ts_mir_compiler_t *c, const char *name);
-MIR_reg_t ts_emit_index_access(ts_mir_compiler_t *c, const char *name, tbs_node_t *index_node);
+MIR_reg_t ts_emit_index_access(ts_mir_compiler_t *c, const char *name, toad_node_t *index_node);
 
 MIR_reg_t ts_mir_get_or_add_map_ptr(ts_mir_compiler_t *c, const char *obj_name,
                                     const char *key_name);
 MIR_reg_t ts_try_emit_oop_member_get_slot(ts_mir_compiler_t *c, const char *object_name,
-                                          const char *member_name, tbs_node_t *object_node);
+                                          const char *member_name, toad_node_t *object_node);
 MIR_reg_t ts_emit_member_access(ts_mir_compiler_t *c, const char *obj_name, const char *member,
-                                tbs_node_t *object_node);
+                                toad_node_t *object_node);
 MIR_reg_t ts_emit_member_access_assign(ts_mir_compiler_t *c, const char *target_name,
                                        const char *obj_name, const char *member,
-                                       tbs_node_t *object_node);
+                                       toad_node_t *object_node);
 
-int ts_oop_arg_needs_value_bridge(ts_mir_compiler_t *c, tbs_node_t *arg);
-int ts_oop_call_args_need_value_bridge(ts_mir_compiler_t *c, size_t argc, tbs_node_t **args);
-void ts_emit_oop_define_class(ts_mir_compiler_t *c, tbs_node_t *node);
+int ts_oop_arg_needs_value_bridge(ts_mir_compiler_t *c, toad_node_t *arg);
+int ts_oop_call_args_need_value_bridge(ts_mir_compiler_t *c, size_t argc, toad_node_t **args);
+void ts_emit_oop_define_class(ts_mir_compiler_t *c, toad_node_t *node);
 MIR_reg_t ts_emit_oop_class_alias(ts_mir_compiler_t *c, const char *target_name,
                                   const char *source_name);
 MIR_reg_t ts_emit_oop_new_assign(ts_mir_compiler_t *c, const char *target_name,
-                                 tbs_node_t *new_node);
+                                 toad_node_t *new_node);
 MIR_reg_t ts_emit_oop_class_call_assign(ts_mir_compiler_t *c, const char *target_name,
-                                        tbs_node_t *call_node);
-const char *ts_emit_oop_receiver_to_temp(ts_mir_compiler_t *c, tbs_node_t *object_node);
-MIR_reg_t ts_emit_oop_predicate(ts_mir_compiler_t *c, int kind, tbs_node_t *arg);
-int ts_try_emit_typeof_oop_compare(ts_mir_compiler_t *c, tbs_node_t *left, tbs_node_t *right,
+                                        toad_node_t *call_node);
+const char *ts_emit_oop_receiver_to_temp(ts_mir_compiler_t *c, toad_node_t *object_node);
+MIR_reg_t ts_emit_oop_predicate(ts_mir_compiler_t *c, int kind, toad_node_t *arg);
+int ts_try_emit_typeof_oop_compare(ts_mir_compiler_t *c, toad_node_t *left, toad_node_t *right,
                                    int op, MIR_reg_t *out);
 MIR_reg_t ts_emit_oop_member_call_value(ts_mir_compiler_t *c, const char *object_name,
-                                        const char *method_name, tbs_node_t *object_node,
-                                        tbs_node_t *call_node);
+                                        const char *method_name, toad_node_t *object_node,
+                                        toad_node_t *call_node);
 MIR_reg_t ts_emit_oop_member_call_mono_value(ts_mir_compiler_t *c, const char *object_name,
                                              const char *expected_class_name,
-                                             const char *method_name, tbs_node_t *object_node,
-                                             tbs_node_t *call_node);
+                                             const char *method_name, toad_node_t *object_node,
+                                             toad_node_t *call_node);
 MIR_reg_t ts_emit_oop_member_call_cached(ts_mir_compiler_t *c, const char *object_name,
-                                         const char *method_name, tbs_node_t *object_node,
+                                         const char *method_name, toad_node_t *object_node,
                                          size_t argc, const MIR_reg_t *arg_regs, int reload_after);
 MIR_reg_t ts_emit_oop_member_call_assign(ts_mir_compiler_t *c, const char *target_name,
                                          const char *object_name, const char *method_name,
-                                         tbs_node_t *object_node, size_t argc,
+                                         toad_node_t *object_node, size_t argc,
                                          const MIR_reg_t *arg_regs);
 MIR_reg_t ts_emit_oop_member_call_assign_value(ts_mir_compiler_t *c, const char *target_name,
                                                const char *object_name, const char *method_name,
-                                               tbs_node_t *object_node,
-                                               tbs_node_t *call_node);
+                                               toad_node_t *object_node,
+                                               toad_node_t *call_node);
 MIR_reg_t ts_emit_oop_member_set(ts_mir_compiler_t *c, const char *object_name,
-                                 const char *member_name, tbs_node_t *object_node,
-                                 tbs_node_t *value_node);
+                                 const char *member_name, toad_node_t *object_node,
+                                 toad_node_t *value_node);
 MIR_reg_t ts_try_emit_oop_inline_method_call(ts_mir_compiler_t *c, const char *object_name,
                                              const char *class_name, const char *method_name,
                                              size_t argc, const MIR_reg_t *arg_regs);
@@ -550,7 +550,7 @@ MIR_reg_t ts_mir_get_or_add_oop_ptr(ts_mir_compiler_t *c, const char *obj_name,
  * Module: mir_closure.c - Closure compilation
  * ========================================================================= */
 
-int ts_mir_compile_closure(ts_mir_compiler_t *c, tbs_node_t *func_node);
+int ts_mir_compile_closure(ts_mir_compiler_t *c, toad_node_t *func_node);
 
 /* =========================================================================
  * Module: mir_runtime.c - Runtime helper bridges
@@ -574,8 +574,8 @@ double ts_mir_call_assign(void *ctx_ptr, const char *target, const char *name, i
                           double *args);
 double ts_mir_call_value_assign(void *ctx_ptr, const char *target, const char *name,
                                 void *call_node);
-int64_t ts_mir_host_export_call(void *ctx_ptr, size_t export_index, const tbs_value_t *args,
-                                size_t arg_count, tbs_value_t *out_value);
+int64_t ts_mir_host_export_call(void *ctx_ptr, size_t export_index, const toad_value_t *args,
+                                size_t arg_count, toad_value_t *out_value);
 double ts_mir_value_expr(void *ctx_ptr, void *node);
 double ts_mir_value_expr_assign(void *ctx_ptr, const char *target, void *node);
 double ts_mir_await_value(void *ctx_ptr, void *arg_node);
@@ -639,35 +639,35 @@ double ts_mir_oop_predicate(void *ctx_ptr, int64_t kind, const char *name, const
  * Function compilation helpers
  * ========================================================================= */
 
-size_t ts_compile_call_args(ts_mir_compiler_t *c, size_t argc, tbs_node_t **args,
+size_t ts_compile_call_args(ts_mir_compiler_t *c, size_t argc, toad_node_t **args,
                             MIR_reg_t out_regs[16]);
-void ts_compile_stmt(ts_mir_compiler_t *c, tbs_node_t *node);
+void ts_compile_stmt(ts_mir_compiler_t *c, toad_node_t *node);
 MIR_reg_t ts_emit_compiled_func_call(ts_mir_compiler_t *c, ts_compiled_func_t *cf, size_t argc,
                                      const MIR_reg_t *arg_regs);
-MIR_reg_t ts_try_emit_hof_specialized_call(ts_mir_compiler_t *c, tbs_node_t *call_node);
+MIR_reg_t ts_try_emit_hof_specialized_call(ts_mir_compiler_t *c, toad_node_t *call_node);
 ts_compiled_func_t *ts_find_compiled_func(ts_mir_compiler_t *c, const char *name);
 const char *ts_find_func_alias(ts_mir_compiler_t *c, const char *name);
 int ts_mir_reserve_compiled_func(ts_mir_compiler_t *c);
 int ts_function_call_is_known_class(ts_mir_compiler_t *c, const char *name);
-void ts_compile_script_func(ts_mir_compiler_t *c, const char *name, tbs_node_t **arg_params,
-                            size_t arg_count, tbs_node_t *body);
-int ts_mir_function_is_native_numeric_export(tbs_node_t *function_node);
-void ts_prescan_variables(ts_mir_compiler_t *c, tbs_node_t *node);
-void ts_prescan_class_names(ts_mir_compiler_t *c, tbs_node_t *node);
-void ts_prescan_functions(ts_mir_compiler_t *c, tbs_node_t *node);
-void ts_prescan_hof_specializations(ts_mir_compiler_t *c, tbs_node_t *node);
+void ts_compile_script_func(ts_mir_compiler_t *c, const char *name, toad_node_t **arg_params,
+                            size_t arg_count, toad_node_t *body);
+int ts_mir_function_is_native_numeric_export(toad_node_t *function_node);
+void ts_prescan_variables(ts_mir_compiler_t *c, toad_node_t *node);
+void ts_prescan_class_names(ts_mir_compiler_t *c, toad_node_t *node);
+void ts_prescan_functions(ts_mir_compiler_t *c, toad_node_t *node);
+void ts_prescan_hof_specializations(ts_mir_compiler_t *c, toad_node_t *node);
 int ts_call_assignment_needs_value_bridge(ts_mir_compiler_t *c, const char *name, size_t argc);
 MIR_reg_t ts_emit_call_value_assign(ts_mir_compiler_t *c, const char *target_name, const char *name,
-                                    tbs_node_t *call_node);
+                                    toad_node_t *call_node);
 MIR_reg_t ts_emit_value_expr_assign(ts_mir_compiler_t *c, const char *target_name,
-                                    tbs_node_t *expr_node);
-MIR_reg_t ts_emit_await_value(ts_mir_compiler_t *c, tbs_node_t *arg_node);
+                                    toad_node_t *expr_node);
+MIR_reg_t ts_emit_await_value(ts_mir_compiler_t *c, toad_node_t *arg_node);
 MIR_reg_t ts_emit_await_assign(ts_mir_compiler_t *c, const char *target_name,
-                               tbs_node_t *arg_node);
+                               toad_node_t *arg_node);
 MIR_reg_t ts_emit_function_expr_assign(ts_mir_compiler_t *c, const char *target_name,
-                                       tbs_node_t *node);
+                                       toad_node_t *node);
 MIR_reg_t ts_emit_try_catch_assign(ts_mir_compiler_t *c, const char *target_name,
-                                   tbs_node_t *node);
+                                   toad_node_t *node);
 MIR_reg_t ts_emit_dynamic_var_assign(ts_mir_compiler_t *c, const char *target_name,
                                      const char *source_name);
 
@@ -679,12 +679,12 @@ MIR_reg_t ts_emit_dynamic_var_assign(ts_mir_compiler_t *c, const char *target_na
 uint64_t ts_mir_compute_hash(const char *script);
 
 // Cache operations
-void *ts_mir_cache_lookup(turbo_script_ctx_t *ctx, const char *script);
-void ts_mir_cache_insert(turbo_script_ctx_t *ctx, const char *script, void *fn_ptr);
+void *ts_mir_cache_lookup(toad_script_ctx_t *ctx, const char *script);
+void ts_mir_cache_insert(toad_script_ctx_t *ctx, const char *script, void *fn_ptr);
 
 // Cache management (optional/future use)
-int ts_mir_cache_find_lru_slot(turbo_script_ctx_t *ctx);
-void ts_mir_cache_clear(turbo_script_ctx_t *ctx);
+int ts_mir_cache_find_lru_slot(toad_script_ctx_t *ctx);
+void ts_mir_cache_clear(toad_script_ctx_t *ctx);
 
 /* =========================================================================
  * Module: mir_oop.c - OOP helpers and runtime bridges
@@ -692,23 +692,23 @@ void ts_mir_cache_clear(turbo_script_ctx_t *ctx);
 
 // Pure utility functions (no dependencies)
 int ts_oop_predicate_kind(const char *name);
-int ts_oop_predicate_can_preserve_value(int kind, tbs_node_t *arg);
-int ts_typeof_oop_kind(tbs_node_t *node);
-int ts_typeof_arg(tbs_node_t *node, tbs_node_t **out_arg);
+int ts_oop_predicate_can_preserve_value(int kind, toad_node_t *arg);
+int ts_typeof_oop_kind(toad_node_t *node);
+int ts_typeof_arg(toad_node_t *node, toad_node_t **out_arg);
 int ts_oop_member_call_can_skip_reload(ts_mir_compiler_t *c, const char *class_name,
                                        const char *method_name, size_t argc);
-tbs_node_t *ts_find_top_level_class_def(ts_mir_compiler_t *c, const char *class_name);
+toad_node_t *ts_find_top_level_class_def(ts_mir_compiler_t *c, const char *class_name);
 int ts_top_level_class_name_is_assigned(ts_mir_compiler_t *c, const char *class_name);
-int ts_inline_param_index(tbs_node_t **params, size_t param_count, const char *name,
+int ts_inline_param_index(toad_node_t **params, size_t param_count, const char *name,
                           size_t *out_index);
 const char *ts_direct_parent_class_name(ts_mir_compiler_t *c, const char *class_name);
 int ts_oop_member_can_use_num_slot(ts_mir_compiler_t *c, const char *object_name,
                                    const char *member_name);
-tbs_node_t *ts_find_inlineable_instance_method(ts_mir_compiler_t *c, const char *class_name,
+toad_node_t *ts_find_inlineable_instance_method(ts_mir_compiler_t *c, const char *class_name,
                                                   const char *method_name, size_t argc);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // TURBO_SCRIPT_MIR_INTERNAL_H
+#endif // TOAD_SCRIPT_MIR_INTERNAL_H

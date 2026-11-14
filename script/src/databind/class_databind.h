@@ -1,7 +1,7 @@
-#ifndef TURBO_SCRIPT_CLASS_DATABIND_H
-#define TURBO_SCRIPT_CLASS_DATABIND_H
+#ifndef TOAD_SCRIPT_CLASS_DATABIND_H
+#define TOAD_SCRIPT_CLASS_DATABIND_H
 
-#include <turboscript/class.h>
+#include <toad/class.h>
 
 #include <data_bind.h>
 #include <data_bind_message_plan.h>
@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
 /*
- * Compile one typed TurboScript class into the canonical provider-backed
+ * Compile one typed Toad class into the canonical provider-backed
  * DataBind object plan used by mapper/db and other typed consumers.
  *
  * On success, caller owns both out_codec and out_plan. The plan borrows only
@@ -25,8 +25,8 @@ extern "C" {
  *  -1  class contains a field outside the currently supported typed DataBind
  *      domain; caller may choose a non-typed compatibility path.
  */
-int turbo_script_class_databind_compile(
-    tbs_class_t *klass,
+int toad_script_class_databind_compile(
+    toad_class_t *klass,
     DataBind **out_codec,
     DataBindMessagePlan **out_plan,
     char *error,
@@ -36,4 +36,4 @@ int turbo_script_class_databind_compile(
 }
 #endif
 
-#endif /* TURBO_SCRIPT_CLASS_DATABIND_H */
+#endif /* TOAD_SCRIPT_CLASS_DATABIND_H */

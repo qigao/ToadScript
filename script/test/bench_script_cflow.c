@@ -2,7 +2,7 @@
 #include "../src/graph/cflow_lower.h"
 #include "../src/graph/cflow_runtime.h"
 
-#include <turboscript/engine.h>
+#include <toad/engine.h>
 #include "file/fs.h"
 
 #include <cflow/plan.h>
@@ -24,7 +24,7 @@ static double ts_bench_now_us(void) {
   return ((double)clock() * 1000000.0) / (double)CLOCKS_PER_SEC;
 }
 
-static void ts_bench_begin_eval(turbo_script_ctx_t *ctx) {
+static void ts_bench_begin_eval(toad_script_ctx_t *ctx) {
   if (!ctx) return;
   ctx->env.aborted = 0;
   ctx->env.curr_nodes = 0;
@@ -33,21 +33,21 @@ static void ts_bench_begin_eval(turbo_script_ctx_t *ctx) {
 }
 
 
-static tbs_node_t *ts_bench_single_expr(
-    turbo_script_ctx_t *ctx,
+static toad_node_t *ts_bench_single_expr(
+    toad_script_ctx_t *ctx,
     const char *source,
-    tbs_node_t **root_out) {
-  tbs_node_t *root = turbo_script_parse_with_error(ctx, source);
+    toad_node_t **root_out) {
+  toad_node_t *root = toad_script_parse_with_error(ctx, source);
   if (root_out) *root_out = root;
   if (!root) return NULL;
-  if (root->type == TBS_NODE_BLOCK && root->data.block.count == 1u)
+  if (root->type == TOAD_NODE_BLOCK && root->data.block.count == 1u)
     return root->data.block.statements[0];
   return root;
 }
 
-static const tbs_node_t *ts_bench_count_pipeline(
-    const tbs_node_t *expr) {
-  if (!expr || expr->type != TBS_NODE_MEMBER_CALL ||
+static const toad_node_t *ts_bench_count_pipeline(
+    const toad_node_t *expr) {
+  if (!expr || expr->type != TOAD_NODE_MEMBER_CALL ||
       !expr->data.member_call.method ||
       strcmp(expr->data.member_call.method, "count") != 0 ||
       expr->data.member_call.arg_count != 0u)
@@ -56,52 +56,52 @@ static const tbs_node_t *ts_bench_count_pipeline(
 }
 
 static int ts_bench_number_equals(
-    const tbs_value_t *value,
+    const toad_value_t *value,
     double expected) {
   if (!value) return 0;
-  if (value->type == TBS_VAL_NUMBER)
+  if (value->type == TOAD_VAL_NUMBER)
     return fabs(value->data.number - expected) <= 1e-9;
-  if (value->type == TBS_VAL_INTEGER)
+  if (value->type == TOAD_VAL_INTEGER)
     return fabs((double)value->data.integer - expected) <= 1e-9;
   return 0;
 }
 
 static double ts_bench_legacy(
-    turbo_script_ctx_t *ctx,
-    const tbs_node_t *expr,
+    toad_script_ctx_t *ctx,
+    const toad_node_t *expr,
     size_t expected_count,
     size_t iterations) {
   const double start = ts_bench_now_us();
   for (size_t i = 0u; i < iterations; ++i) {
     ts_bench_begin_eval(ctx);
-    tbs_value_t value = tbs_eval(expr, &ctx->env);
+    toad_value_t value = toad_eval(expr, &ctx->env);
     if (!ts_bench_number_equals(&value, (double)expected_count)) {
       double observed = NAN;
-      if (value.type == TBS_VAL_NUMBER)
+      if (value.type == TOAD_VAL_NUMBER)
         observed = value.data.number;
-      else if (value.type == TBS_VAL_INTEGER)
+      else if (value.type == TOAD_VAL_INTEGER)
         observed = (double)value.data.integer;
       fprintf(stderr,
               "legacy benchmark failed: iteration=%zu expected=%zu "
               "type=%d observed=%.17g\n",
               i, expected_count, (int)value.type, observed);
-      tbs_value_destroy(&value);
+      toad_value_destroy(&value);
       return -1.0;
     }
-    tbs_value_destroy(&value);
+    toad_value_destroy(&value);
   }
   return (ts_bench_now_us() - start) / (double)iterations;
 }
 
 static double ts_bench_runtime(
-    turbo_script_ctx_t *ctx,
-    const tbs_node_t *expr,
+    toad_script_ctx_t *ctx,
+    const toad_node_t *expr,
     size_t expected_count,
     size_t iterations) {
   const double start = ts_bench_now_us();
   for (size_t i = 0u; i < iterations; ++i) {
     ts_bench_begin_eval(ctx);
-    tbs_value_t value = tbs_val_num(-1.0);
+    toad_value_t value = toad_val_num(-1.0);
     char error[256] = {0};
     const ts_cflow_runtime_status_t status =
         ts_cflow_runtime_try_scalar_terminal(
@@ -111,10 +111,10 @@ static double ts_bench_runtime(
       fprintf(stderr,
               "runtime benchmark failed: status=%d error=%s\n",
               (int)status, error);
-      tbs_value_destroy(&value);
+      toad_value_destroy(&value);
       return -1.0;
     }
-    tbs_value_destroy(&value);
+    toad_value_destroy(&value);
   }
   return (ts_bench_now_us() - start) / (double)iterations;
 }
@@ -150,11 +150,11 @@ static int ts_bench_count_case(ts_cflow_bench_case cfg) {
       ".filter(x => x > 0)"
       ".map(x => x * 2)"
       ".count();";
-  turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_BARE);
+  toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
   double *input = NULL;
-  tbs_node_t *root = NULL;
-  tbs_node_t *expr;
-  const tbs_node_t *pipeline;
+  toad_node_t *root = NULL;
+  toad_node_t *expr;
+  const toad_node_t *pipeline;
   ts_cflow_lowered_pipeline_t lowered = {0};
   cflow_plan plan = {0};
   cflow_plan_compile_stats compile_stats = {0};
@@ -172,9 +172,9 @@ static int ts_bench_count_case(ts_cflow_bench_case cfg) {
   for (size_t i = 0u; i < cfg.elements; ++i)
     input[i] = (double)((int)(i % 4u) - 1);
 
-  tbs_env_set(
+  toad_env_set(
       &ctx->env, "values",
-      tbs_val_vec(input, cfg.elements));
+      toad_val_vec(input, cfg.elements));
   expr = ts_bench_single_expr(ctx, script, &root);
   if (!expr) goto fail;
   pipeline = ts_bench_count_pipeline(expr);
@@ -237,17 +237,17 @@ static int ts_bench_count_case(ts_cflow_bench_case cfg) {
 
   cflow_plan_destroy(&plan);
   ts_cflow_lowered_pipeline_destroy(&lowered);
-  tbs_free(root);
+  toad_free(root);
   free(input);
-  turbo_script_free(ctx);
+  toad_script_free(ctx);
   return 0;
 
 fail:
   cflow_plan_destroy(&plan);
   ts_cflow_lowered_pipeline_destroy(&lowered);
-  if (root) tbs_free(root);
+  if (root) toad_free(root);
   free(input);
-  turbo_script_free(ctx);
+  toad_script_free(ctx);
   return 1;
 }
 
@@ -260,10 +260,10 @@ static int ts_bench_reduce_case(void) {
   const size_t legacy_iterations = 20u;
   const size_t runtime_iterations = 6u;
   const size_t cached_iterations = 120u;
-  turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_BARE);
+  toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
   double *input = NULL;
-  tbs_node_t *root = NULL;
-  tbs_node_t *expr;
+  toad_node_t *root = NULL;
+  toad_node_t *expr;
   ts_cflow_lowered_pipeline_t lowered = {0};
   cflow_plan plan = {0};
   cflow_plan_compile_stats compile_stats = {0};
@@ -280,7 +280,7 @@ static int ts_bench_reduce_case(void) {
   if (!input) goto fail;
   for (size_t i = 0u; i < elements; ++i)
     input[i] = (double)i;
-  tbs_env_set(&ctx->env, "values", tbs_val_vec(input, elements));
+  toad_env_set(&ctx->env, "values", toad_val_vec(input, elements));
 
   expr = ts_bench_single_expr(ctx, script, &root);
   if (!expr) goto fail;
@@ -298,12 +298,12 @@ static int ts_bench_reduce_case(void) {
   start = ts_bench_now_us();
   for (size_t i = 0u; i < legacy_iterations; ++i) {
     ts_bench_begin_eval(ctx);
-    tbs_value_t value = tbs_eval(expr, &ctx->env);
+    toad_value_t value = toad_eval(expr, &ctx->env);
     if (!ts_bench_number_equals(&value, expected)) {
-      tbs_value_destroy(&value);
+      toad_value_destroy(&value);
       goto fail;
     }
-    tbs_value_destroy(&value);
+    toad_value_destroy(&value);
   }
   legacy_us =
       (ts_bench_now_us() - start) / (double)legacy_iterations;
@@ -312,16 +312,16 @@ static int ts_bench_reduce_case(void) {
   start = ts_bench_now_us();
   for (size_t i = 0u; i < runtime_iterations; ++i) {
     ts_bench_begin_eval(ctx);
-    tbs_value_t value = tbs_val_num(-1.0);
+    toad_value_t value = toad_val_num(-1.0);
     char runtime_error[256] = {0};
     if (ts_cflow_runtime_try_scalar_terminal(
             ctx, expr, &value, runtime_error,
             sizeof(runtime_error)) != TS_CFLOW_RUNTIME_HANDLED ||
         !ts_bench_number_equals(&value, expected)) {
-      tbs_value_destroy(&value);
+      toad_value_destroy(&value);
       goto fail;
     }
-    tbs_value_destroy(&value);
+    toad_value_destroy(&value);
   }
   runtime_us =
       (ts_bench_now_us() - start) / (double)runtime_iterations;
@@ -368,26 +368,26 @@ static int ts_bench_reduce_case(void) {
 
   cflow_plan_destroy(&plan);
   ts_cflow_lowered_pipeline_destroy(&lowered);
-  tbs_free(root);
+  toad_free(root);
   free(input);
-  turbo_script_free(ctx);
+  toad_script_free(ctx);
   return 0;
 
 fail:
   cflow_plan_destroy(&plan);
   ts_cflow_lowered_pipeline_destroy(&lowered);
-  if (root) tbs_free(root);
+  if (root) toad_free(root);
   free(input);
-  turbo_script_free(ctx);
+  toad_script_free(ctx);
   return 1;
 }
 
 static int ts_bench_file_text_case(void) {
   static const char *path =
-      "turboscript_cflow_qualification_bench.txt";
+      "toad_cflow_qualification_bench.txt";
   static const char *script =
       "stream.text(io.read_file("
-      "\"turboscript_cflow_qualification_bench.txt\"))"
+      "\"toad_cflow_qualification_bench.txt\"))"
       ".lines().count();";
   const size_t source_lines = 4096u;
   const size_t expected_count = source_lines + 1u;
@@ -396,11 +396,11 @@ static int ts_bench_file_text_case(void) {
   const char line[] = "value\n";
   const size_t line_len = sizeof(line) - 1u;
   const size_t bytes = source_lines * line_len;
-  turbo_script_ctx_t *ctx =
-      turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+  toad_script_ctx_t *ctx =
+      toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
   char *text = NULL;
-  tbs_node_t *root = NULL;
-  tbs_node_t *expr;
+  toad_node_t *root = NULL;
+  toad_node_t *expr;
   fs_buf_t file_buf;
   double legacy_us;
   double runtime_us;
@@ -445,17 +445,17 @@ static int ts_bench_file_text_case(void) {
       source_lines, runtime_us, runtime_iterations,
       runtime_us / legacy_us);
 
-  tbs_free(root);
+  toad_free(root);
   fs_unlink(path);
   free(text);
-  turbo_script_free(ctx);
+  toad_script_free(ctx);
   return 0;
 
 fail:
-  if (root) tbs_free(root);
+  if (root) toad_free(root);
   (void)fs_unlink(path);
   free(text);
-  turbo_script_free(ctx);
+  toad_script_free(ctx);
   return 1;
 }
 
@@ -466,7 +466,7 @@ int main(void) {
       {8192u, 16u, 4u, 120u},
   };
 
-  printf("TurboScript CFlow qualification telemetry\n");
+  printf("Toad CFlow qualification telemetry\n");
   printf("Timing uses process CPU clock; values are machine-specific and non-gating.\n");
 
   for (size_t i = 0u; i < sizeof(cases) / sizeof(cases[0]); ++i) {

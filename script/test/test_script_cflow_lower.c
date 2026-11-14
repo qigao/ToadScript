@@ -1,5 +1,5 @@
 #include "tinytest.h"
-#include <turboscript/engine.h>
+#include <toad/engine.h>
 #include "../src/graph/cflow_lower.h"
 #include "../src/graph/cflow_runtime.h"
 #include "../src/graph/cflow_text.h"
@@ -9,20 +9,20 @@
 #include <cflow/plan.h>
 #include <cmeta/cmeta.h>
 
-static tbs_node_t *ts_test_single_expr(const char *source,
-                                          tbs_node_t **root_out) {
-  tbs_node_t *root = tbs_parse(source, 0);
+static toad_node_t *ts_test_single_expr(const char *source,
+                                          toad_node_t **root_out) {
+  toad_node_t *root = toad_parse(source, 0);
   if (root_out) *root_out = root;
-  if (!root || root->type != TBS_NODE_BLOCK ||
+  if (!root || root->type != TOAD_NODE_BLOCK ||
       root->data.block.count != 1u)
     return NULL;
   return root->data.block.statements[0];
 }
 
-spec("TurboScript CFlow pipeline lowering") {
+spec("Toad CFlow pipeline lowering") {
   it("lowers filter map reduce pipe syntax into a typed CFlow graph") {
-    tbs_node_t *root = NULL;
-    tbs_node_t *expr = ts_test_single_expr(
+    toad_node_t *root = NULL;
+    toad_node_t *expr = ts_test_single_expr(
         "[1, -2, 3, 0] "
         "|> filter(x => x > 0) "
         "|> map(x => x * 10) "
@@ -65,12 +65,12 @@ spec("TurboScript CFlow pipeline lowering") {
                                 &cmeta_type_double));
 
     ts_cflow_lowered_pipeline_destroy(&lowered);
-    tbs_free(root);
+    toad_free(root);
   }
 
   it("lowers vector stream method chains into the same CFlow topology") {
-    tbs_node_t *root = NULL;
-    tbs_node_t *expr = ts_test_single_expr(
+    toad_node_t *root = NULL;
+    toad_node_t *expr = ts_test_single_expr(
         "[1, -2, 3, 0].stream()"
         ".filter(x => x > 0)"
         ".map(x => x * 10)"
@@ -94,12 +94,12 @@ spec("TurboScript CFlow pipeline lowering") {
     check((sg->nodes[3].op) == (CFLOW_OP_REDUCE));
 
     ts_cflow_lowered_pipeline_destroy(&lowered);
-    tbs_free(root);
+    toad_free(root);
   }
 
   it("lowers stream.of numeric vectors as CFlow sources") {
-    tbs_node_t *root = NULL;
-    tbs_node_t *expr = ts_test_single_expr(
+    toad_node_t *root = NULL;
+    toad_node_t *expr = ts_test_single_expr(
         "stream.of([1, 2, 3]).map(x => x * 2)", &root);
     ts_cflow_lowered_pipeline_t lowered;
     const cflow_subgraph *sg;
@@ -116,13 +116,13 @@ spec("TurboScript CFlow pipeline lowering") {
     check((sg->nodes[1].op) == (CFLOW_OP_MAP));
 
     ts_cflow_lowered_pipeline_destroy(&lowered);
-    tbs_free(root);
+    toad_free(root);
   }
 
   it("binds map filter lambdas to MIR kernels for executable lowering") {
-    turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_BARE);
-    tbs_node_t *root = NULL;
-    tbs_node_t *expr = ts_test_single_expr(
+    toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
+    toad_node_t *root = NULL;
+    toad_node_t *expr = ts_test_single_expr(
         "[-2, 0, 3].stream()"
         ".filter(x => x > 0)"
         ".map(x => x * 2)",
@@ -164,8 +164,8 @@ spec("TurboScript CFlow pipeline lowering") {
     cflow_result_destroy(&result);
     cflow_plan_destroy(&plan);
     ts_cflow_lowered_pipeline_destroy(&lowered);
-    tbs_free(root);
-    turbo_script_free(ctx);
+    toad_free(root);
+    toad_script_free(ctx);
   }
 
   it("builds an inspectable typed text-line CFlow plan") {
@@ -291,8 +291,8 @@ spec("TurboScript CFlow pipeline lowering") {
   }
 
   it("executes typed LineSlice length MAP through MIR and CFlow") {
-    tbs_node_t *lambda_root = NULL;
-    tbs_node_t *lambda =
+    toad_node_t *lambda_root = NULL;
+    toad_node_t *lambda =
         ts_test_single_expr("line => line.length()", &lambda_root);
     ts_cflow_text_kernel_binding_t binding = {0};
     ts_cflow_text_function_reflection_t reflection = {0};
@@ -369,15 +369,15 @@ spec("TurboScript CFlow pipeline lowering") {
     cflow_graph_destroy(&graph);
     ts_cflow_text_lines_source_destroy(&source);
     ts_cflow_text_kernel_binding_destroy(&binding);
-    tbs_free(lambda_root);
+    toad_free(lambda_root);
   }
 
   it("rejects text MAP shapes outside the first typed ABI slice") {
-    tbs_node_t *trim_root = NULL;
-    tbs_node_t *capture_root = NULL;
-    tbs_node_t *trim_lambda =
+    toad_node_t *trim_root = NULL;
+    toad_node_t *capture_root = NULL;
+    toad_node_t *trim_lambda =
         ts_test_single_expr("line => line.trim()", &trim_root);
-    tbs_node_t *capture_lambda =
+    toad_node_t *capture_lambda =
         ts_test_single_expr("line => line.length() + extra", &capture_root);
     ts_cflow_text_kernel_binding_t binding = {0};
     const char *error = NULL;
@@ -395,13 +395,13 @@ spec("TurboScript CFlow pipeline lowering") {
     check_not_null(error);
     check_null(binding.owner);
 
-    tbs_free(capture_root);
-    tbs_free(trim_root);
+    toad_free(capture_root);
+    toad_free(trim_root);
   }
 
   it("executes typed LineSlice nonempty FILTER through MIR and CFlow") {
-    tbs_node_t *lambda_root = NULL;
-    tbs_node_t *lambda =
+    toad_node_t *lambda_root = NULL;
+    toad_node_t *lambda =
         ts_test_single_expr("line => line.length() > 0", &lambda_root);
     ts_cflow_text_kernel_binding_t binding = {0};
     ts_cflow_text_function_reflection_t reflection = {0};
@@ -479,15 +479,15 @@ spec("TurboScript CFlow pipeline lowering") {
     cflow_graph_destroy(&graph);
     ts_cflow_text_lines_source_destroy(&source);
     ts_cflow_text_kernel_binding_destroy(&binding);
-    tbs_free(lambda_root);
+    toad_free(lambda_root);
   }
 
   it("rejects text FILTER shapes outside the first typed ABI slice") {
-    tbs_node_t *ge_root = NULL;
-    tbs_node_t *trim_root = NULL;
-    tbs_node_t *ge_lambda =
+    toad_node_t *ge_root = NULL;
+    toad_node_t *trim_root = NULL;
+    toad_node_t *ge_lambda =
         ts_test_single_expr("line => line.length() >= 0", &ge_root);
-    tbs_node_t *trim_lambda =
+    toad_node_t *trim_lambda =
         ts_test_single_expr(
             "line => line.trim().length() > 0", &trim_root);
     ts_cflow_text_kernel_binding_t binding = {0};
@@ -507,22 +507,22 @@ spec("TurboScript CFlow pipeline lowering") {
     check_not_null(error);
     check_null(binding.owner);
 
-    tbs_free(trim_root);
-    tbs_free(ge_root);
+    toad_free(trim_root);
+    toad_free(ge_root);
   }
 
   it("sanitizes the runtime CFlow terminal seam") {
-    turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_BARE);
-    tbs_node_t *count_root = NULL;
-    tbs_node_t *vector_root = NULL;
-    tbs_node_t *count_expr = ts_test_single_expr(
+    toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
+    toad_node_t *count_root = NULL;
+    toad_node_t *vector_root = NULL;
+    toad_node_t *count_expr = ts_test_single_expr(
         "stream.of([-2, 0, 3]).filter(x => x > 0).map(x => x * 2).count()",
         &count_root);
-    tbs_node_t *vector_expr = ts_test_single_expr(
+    toad_node_t *vector_expr = ts_test_single_expr(
         "stream.of([1, 2, 3]).filter(x => x > 1).toVector()",
         &vector_root);
-    tbs_value_t count_result = tbs_val_num(-1.0);
-    tbs_value_t vector_result = tbs_val_num(-1.0);
+    toad_value_t count_result = toad_val_num(-1.0);
+    toad_value_t vector_result = toad_val_num(-1.0);
     char runtime_error[256] = {0};
 
     check_not_null(ctx);
@@ -533,7 +533,7 @@ spec("TurboScript CFlow pipeline lowering") {
                     ctx, count_expr, &count_result,
                     runtime_error, sizeof(runtime_error)),
                 TS_CFLOW_RUNTIME_HANDLED);
-    check_equal(count_result.type, TBS_VAL_NUMBER);
+    check_equal(count_result.type, TOAD_VAL_NUMBER);
     check((((double)count_result.data.number)) == (1.0));
     check_equal(runtime_error[0], '\0');
 
@@ -541,18 +541,18 @@ spec("TurboScript CFlow pipeline lowering") {
                     ctx, vector_expr, &vector_result,
                     runtime_error, sizeof(runtime_error)),
                 TS_CFLOW_RUNTIME_HANDLED);
-    check_equal(vector_result.type, TBS_VAL_VECTOR);
+    check_equal(vector_result.type, TOAD_VAL_VECTOR);
     check_equal(vector_result.data.vector.size, (size_t)2u);
     check((((double)vector_result.data.vector.data[0])) == (2.0));
     check((((double)vector_result.data.vector.data[1])) == (3.0));
     check_equal(runtime_error[0], '\0');
 
     {
-      tbs_node_t *bound_root = NULL;
-      tbs_node_t *bound_expr;
-      tbs_value_t bound_result = tbs_val_num(-1.0);
+      toad_node_t *bound_root = NULL;
+      toad_node_t *bound_expr;
+      toad_value_t bound_result = toad_val_num(-1.0);
 
-      check_equal(turbo_script_run(
+      check_equal(toad_script_run(
                       ctx, "bound_values = [-2, 0, 3];"),
                   0);
       bound_expr = ts_test_single_expr(
@@ -563,18 +563,18 @@ spec("TurboScript CFlow pipeline lowering") {
                       ctx, bound_expr, &bound_result,
                       runtime_error, sizeof(runtime_error)),
                   TS_CFLOW_RUNTIME_HANDLED);
-      check_equal(bound_result.type, TBS_VAL_NUMBER);
+      check_equal(bound_result.type, TOAD_VAL_NUMBER);
       check((((double)bound_result.data.number)) == (1.0));
-      tbs_value_destroy(&bound_result);
-      tbs_free(bound_root);
+      toad_value_destroy(&bound_result);
+      toad_free(bound_root);
     }
 
     {
-      tbs_node_t *list_root = NULL;
-      tbs_node_t *list_expr;
-      tbs_value_t list_result = tbs_val_num(-1.0);
+      toad_node_t *list_root = NULL;
+      toad_node_t *list_expr;
+      toad_value_t list_result = toad_val_num(-1.0);
 
-      check_equal(turbo_script_run(
+      check_equal(toad_script_run(
                       ctx, "bound_list = list(-2, 0, 3);"),
                   0);
       list_expr = ts_test_single_expr(
@@ -585,96 +585,96 @@ spec("TurboScript CFlow pipeline lowering") {
                       ctx, list_expr, &list_result,
                       runtime_error, sizeof(runtime_error)),
                   TS_CFLOW_RUNTIME_HANDLED);
-      check_equal(list_result.type, TBS_VAL_NUMBER);
+      check_equal(list_result.type, TOAD_VAL_NUMBER);
       check((((double)list_result.data.number)) == (1.0));
-      tbs_value_destroy(&list_result);
-      tbs_free(list_root);
+      toad_value_destroy(&list_result);
+      toad_free(list_root);
     }
 
     {
-      tbs_node_t *text_root = NULL;
-      tbs_node_t *text_expr = ts_test_single_expr(
+      toad_node_t *text_root = NULL;
+      toad_node_t *text_expr = ts_test_single_expr(
           "stream.text(\"a\\r\\nb\\n\").lines().toList()",
           &text_root);
-      tbs_value_t text_result = tbs_val_num(-1.0);
+      toad_value_t text_result = toad_val_num(-1.0);
 
       check_not_null(text_expr);
       check_equal(ts_cflow_runtime_try_scalar_terminal(
                       ctx, text_expr, &text_result,
                       runtime_error, sizeof(runtime_error)),
                   TS_CFLOW_RUNTIME_HANDLED);
-      check_equal(text_result.type, TBS_VAL_LIST);
+      check_equal(text_result.type, TOAD_VAL_LIST);
       check_equal(text_result.data.list.count, (size_t)3u);
-      check_equal(text_result.data.list.items[0].type, TBS_VAL_STRING);
+      check_equal(text_result.data.list.items[0].type, TOAD_VAL_STRING);
       check_equal(text_result.data.list.items[0].data.string.len, (size_t)1u);
       check(memcmp(text_result.data.list.items[0].data.string.data, "a", 1u) == 0);
       check_equal(text_result.data.list.items[2].data.string.len, (size_t)0u);
 
-      tbs_value_destroy(&text_result);
-      tbs_free(text_root);
+      toad_value_destroy(&text_result);
+      toad_free(text_root);
     }
 
     {
-      tbs_node_t *split_root = NULL;
-      tbs_node_t *split_expr = ts_test_single_expr(
+      toad_node_t *split_root = NULL;
+      toad_node_t *split_expr = ts_test_single_expr(
           "stream.text(\"a,,b,\").split(\",\").toList()",
           &split_root);
-      tbs_value_t split_result = tbs_val_num(-1.0);
+      toad_value_t split_result = toad_val_num(-1.0);
 
       check_not_null(split_expr);
       check_equal(ts_cflow_runtime_try_scalar_terminal(
                       ctx, split_expr, &split_result,
                       runtime_error, sizeof(runtime_error)),
                   TS_CFLOW_RUNTIME_HANDLED);
-      check_equal(split_result.type, TBS_VAL_LIST);
+      check_equal(split_result.type, TOAD_VAL_LIST);
       check_equal(split_result.data.list.count, (size_t)4u);
       check_equal(split_result.data.list.items[1].data.string.len, (size_t)0u);
       check(memcmp(split_result.data.list.items[2].data.string.data, "b", 1u) == 0);
       check_equal(split_result.data.list.items[3].data.string.len, (size_t)0u);
 
-      tbs_value_destroy(&split_result);
-      tbs_free(split_root);
+      toad_value_destroy(&split_result);
+      toad_free(split_root);
     }
 
     {
-      tbs_node_t *length_root = NULL;
-      tbs_node_t *length_expr = ts_test_single_expr(
+      toad_node_t *length_root = NULL;
+      toad_node_t *length_expr = ts_test_single_expr(
           "stream.text(\"a\\nbb\\n\").lines()"
           ".map(line => line.length()).toVector()",
           &length_root);
-      tbs_value_t length_result = tbs_val_num(-1.0);
+      toad_value_t length_result = toad_val_num(-1.0);
 
       check_not_null(length_expr);
       check_equal(ts_cflow_runtime_try_scalar_terminal(
                       ctx, length_expr, &length_result,
                       runtime_error, sizeof(runtime_error)),
                   TS_CFLOW_RUNTIME_HANDLED);
-      check_equal(length_result.type, TBS_VAL_VECTOR);
+      check_equal(length_result.type, TOAD_VAL_VECTOR);
       check_equal(length_result.data.vector.size, (size_t)3u);
       check(fabs(length_result.data.vector.data[0] - 1.0) <= 1e-9);
       check(fabs(length_result.data.vector.data[1] - 2.0) <= 1e-9);
       check(fabs(length_result.data.vector.data[2] - 0.0) <= 1e-9);
 
-      tbs_value_destroy(&length_result);
-      tbs_free(length_root);
+      toad_value_destroy(&length_result);
+      toad_free(length_root);
     }
 
     {
-      tbs_node_t *filter_root = NULL;
-      tbs_node_t *filter_expr = ts_test_single_expr(
+      toad_node_t *filter_root = NULL;
+      toad_node_t *filter_expr = ts_test_single_expr(
           "stream.text(\"a\\n\\nbb\\n\").lines()"
           ".filter(line => line.length() > 0).toList()",
           &filter_root);
-      tbs_value_t filter_result = tbs_val_num(-1.0);
+      toad_value_t filter_result = toad_val_num(-1.0);
 
       check_not_null(filter_expr);
       check_equal(ts_cflow_runtime_try_scalar_terminal(
                       ctx, filter_expr, &filter_result,
                       runtime_error, sizeof(runtime_error)),
                   TS_CFLOW_RUNTIME_HANDLED);
-      check_equal(filter_result.type, TBS_VAL_LIST);
+      check_equal(filter_result.type, TOAD_VAL_LIST);
       check_equal(filter_result.data.list.count, (size_t)2u);
-      check_equal(filter_result.data.list.items[0].type, TBS_VAL_STRING);
+      check_equal(filter_result.data.list.items[0].type, TOAD_VAL_STRING);
       check_equal(filter_result.data.list.items[0].data.string.len, (size_t)1u);
       check_equal(filter_result.data.list.items[1].data.string.len, (size_t)2u);
       check(memcmp(
@@ -682,21 +682,21 @@ spec("TurboScript CFlow pipeline lowering") {
       check(memcmp(
           filter_result.data.list.items[1].data.string.data, "bb", 2u) == 0);
 
-      tbs_value_destroy(&filter_result);
-      tbs_free(filter_root);
+      toad_value_destroy(&filter_result);
+      toad_free(filter_root);
     }
 
-    tbs_value_destroy(&vector_result);
-    tbs_value_destroy(&count_result);
-    tbs_free(vector_root);
-    tbs_free(count_root);
-    turbo_script_free(ctx);
+    toad_value_destroy(&vector_result);
+    toad_value_destroy(&count_result);
+    toad_free(vector_root);
+    toad_free(count_root);
+    toad_script_free(ctx);
   }
 
   it("executes seeded reduce through a MIR kernel and CFlow plan") {
-    turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_BARE);
-    tbs_node_t *root = NULL;
-    tbs_node_t *expr = ts_test_single_expr(
+    toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
+    toad_node_t *root = NULL;
+    toad_node_t *expr = ts_test_single_expr(
         "[1, 2, 3] |> map(x => x * 2) "
         "|> reduce(10, (acc, x) => acc + x)",
         &root);
@@ -740,14 +740,14 @@ spec("TurboScript CFlow pipeline lowering") {
     cflow_result_destroy(&result);
     cflow_plan_destroy(&plan);
     ts_cflow_lowered_pipeline_destroy(&lowered);
-    tbs_free(root);
-    turbo_script_free(ctx);
+    toad_free(root);
+    toad_script_free(ctx);
   }
 
   it("returns the owned seed for an empty executable reduce input") {
-    turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_BARE);
-    tbs_node_t *root = NULL;
-    tbs_node_t *expr = ts_test_single_expr(
+    toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
+    toad_node_t *root = NULL;
+    toad_node_t *expr = ts_test_single_expr(
         "[1] |> reduce(-7, (acc, x) => acc + x)", &root);
     ts_cflow_lowered_pipeline_t lowered;
     cflow_plan plan = {0};
@@ -768,14 +768,14 @@ spec("TurboScript CFlow pipeline lowering") {
     cflow_result_destroy(&result);
     cflow_plan_destroy(&plan);
     ts_cflow_lowered_pipeline_destroy(&lowered);
-    tbs_free(root);
-    turbo_script_free(ctx);
+    toad_free(root);
+    toad_script_free(ctx);
   }
 
   it("rejects dynamic reduce seeds without legacy fallback") {
-    turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_BARE);
-    tbs_node_t *root = NULL;
-    tbs_node_t *expr = ts_test_single_expr(
+    toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
+    toad_node_t *root = NULL;
+    toad_node_t *expr = ts_test_single_expr(
         "[1, 2, 3] |> reduce(seed, (acc, x) => acc + x)", &root);
     ts_cflow_lowered_pipeline_t lowered;
     const char *error = NULL;
@@ -791,13 +791,13 @@ spec("TurboScript CFlow pipeline lowering") {
     check((lowered.graph.root) == (CMETA_INVALID_ID));
 
     ts_cflow_lowered_pipeline_destroy(&lowered);
-    tbs_free(root);
-    turbo_script_free(ctx);
+    toad_free(root);
+    toad_script_free(ctx);
   }
 
-  it("retains the TurboScript reduce seed AST for analysis lowering") {
-    tbs_node_t *root = NULL;
-    tbs_node_t *expr = ts_test_single_expr(
+  it("retains the Toad reduce seed AST for analysis lowering") {
+    toad_node_t *root = NULL;
+    toad_node_t *expr = ts_test_single_expr(
         "[1, 2, 3] |> reduce(100, (acc, x) => acc + x)", &root);
     ts_cflow_lowered_pipeline_t lowered;
     const char *error = NULL;
@@ -805,16 +805,16 @@ spec("TurboScript CFlow pipeline lowering") {
     check_true(ts_cflow_lower_pipeline(expr, &lowered, &error));
     check_true(lowered.has_reduce_seed);
     check_not_null(lowered.reduce_seed_expr);
-    check((lowered.reduce_seed_expr->type) == (TBS_NODE_INTEGER));
+    check((lowered.reduce_seed_expr->type) == (TOAD_NODE_INTEGER));
     check((lowered.reduce_seed_expr->data.integer) == (100));
 
     ts_cflow_lowered_pipeline_destroy(&lowered);
-    tbs_free(root);
+    toad_free(root);
   }
 
   it("rejects captured callables from the first pure graph slice") {
-    tbs_node_t *root = NULL;
-    tbs_node_t *expr = ts_test_single_expr(
+    toad_node_t *root = NULL;
+    toad_node_t *expr = ts_test_single_expr(
         "[1, 2, 3] |> map(x => x * factor)", &root);
     ts_cflow_lowered_pipeline_t lowered;
     const char *error = NULL;
@@ -822,19 +822,19 @@ spec("TurboScript CFlow pipeline lowering") {
     check_false(ts_cflow_lower_pipeline(expr, &lowered, &error));
     check_not_null(error);
 
-    tbs_free(root);
+    toad_free(root);
   }
 
 
   it("rejects non-pipeline expressions") {
-    tbs_node_t *root = NULL;
-    tbs_node_t *expr = ts_test_single_expr("1 + 2", &root);
+    toad_node_t *root = NULL;
+    toad_node_t *expr = ts_test_single_expr("1 + 2", &root);
     ts_cflow_lowered_pipeline_t lowered;
     const char *error = NULL;
 
     check_false(ts_cflow_lower_pipeline(expr, &lowered, &error));
     check_not_null(error);
 
-    tbs_free(root);
+    toad_free(root);
   }
 }

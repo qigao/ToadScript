@@ -9,8 +9,8 @@
  */
 
 #include "fin.h"
-#include <turboscript/engine.h>
-#include <turboscript/types.h>
+#include <toad/engine.h>
+#include <toad/types.h>
 #include <float.h>
 #include <string.h>
 #include <math.h>
@@ -91,19 +91,19 @@ static int bellman_ford_impl(const double *edges, size_t n_vertices, size_t n_ed
 /**
  * @brief engine wrapper for Bellman-Ford algorithm.
  */
-tbs_value_t tbs_graph_bellman_ford(size_t argc, tbs_value_t *args,
-                                          tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_graph_bellman_ford(size_t argc, toad_value_t *args,
+                                          toad_env_t *env, mem_pool_t *arena) {
     (void)env;
 
     if (argc != 6) {
-        return tbs_val_num(NAN);
+        return toad_val_num(NAN);
     }
 
     /* Parse arguments */
-    if (args[0].type != TBS_VAL_VECTOR || args[1].type != TBS_VAL_NUMBER ||
-        args[2].type != TBS_VAL_NUMBER || args[3].type != TBS_VAL_NUMBER ||
-        args[4].type != TBS_VAL_VECTOR || args[5].type != TBS_VAL_VECTOR) {
-        return tbs_val_num(NAN);
+    if (args[0].type != TOAD_VAL_VECTOR || args[1].type != TOAD_VAL_NUMBER ||
+        args[2].type != TOAD_VAL_NUMBER || args[3].type != TOAD_VAL_NUMBER ||
+        args[4].type != TOAD_VAL_VECTOR || args[5].type != TOAD_VAL_VECTOR) {
+        return toad_val_num(NAN);
     }
 
     const double *edges = args[0].data.vector.data;
@@ -118,30 +118,30 @@ tbs_value_t tbs_graph_bellman_ford(size_t argc, tbs_value_t *args,
 
     /* Validate */
     if (edges_len < n_edges * 3 || dist_len < n_vertices || prev_len < n_vertices) {
-        return tbs_val_num(NAN);
+        return toad_val_num(NAN);
     }
 
     /* Run algorithm */
     int result = bellman_ford_impl(edges, n_vertices, n_edges, source, dist, prev, arena);
 
-    return tbs_val_num((double)result);
+    return toad_val_num((double)result);
 }
 
 /* =========================================================================
  * Negative Cycle Detection
  * ========================================================================= */
 
-tbs_value_t tbs_graph_has_negative_cycle(size_t argc, tbs_value_t *args,
-                                                tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_graph_has_negative_cycle(size_t argc, toad_value_t *args,
+                                                toad_env_t *env, mem_pool_t *arena) {
     (void)env;
 
     if (argc != 3) {
-        return tbs_val_num(NAN);
+        return toad_val_num(NAN);
     }
 
-    if (args[0].type != TBS_VAL_VECTOR || args[1].type != TBS_VAL_NUMBER ||
-        args[2].type != TBS_VAL_NUMBER) {
-        return tbs_val_num(NAN);
+    if (args[0].type != TOAD_VAL_VECTOR || args[1].type != TOAD_VAL_NUMBER ||
+        args[2].type != TOAD_VAL_NUMBER) {
+        return toad_val_num(NAN);
     }
 
     const double *edges = args[0].data.vector.data;
@@ -152,31 +152,31 @@ tbs_value_t tbs_graph_has_negative_cycle(size_t argc, tbs_value_t *args,
     double *dist = MEM_ALLOC_ARRAY(arena, double, n_vertices);
     double *prev = MEM_ALLOC_ARRAY(arena, double, n_vertices);
     if (!dist || !prev) {
-        return tbs_val_num(NAN);
+        return toad_val_num(NAN);
     }
 
     /* Run Bellman-Ford from vertex 0 */
     int result = bellman_ford_impl(edges, n_vertices, n_edges, 0, dist, prev, arena);
 
-    return tbs_val_num(result == -1 ? 1.0 : 0.0);
+    return toad_val_num(result == -1 ? 1.0 : 0.0);
 }
 
 /* =========================================================================
  * Path Extraction
  * ========================================================================= */
 
-tbs_value_t tbs_graph_extract_path(size_t argc, tbs_value_t *args,
-                                          tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_graph_extract_path(size_t argc, toad_value_t *args,
+                                          toad_env_t *env, mem_pool_t *arena) {
     (void)env;
     (void)arena;
 
     if (argc != 4) {
-        return tbs_val_num(NAN);
+        return toad_val_num(NAN);
     }
 
-    if (args[0].type != TBS_VAL_VECTOR || args[1].type != TBS_VAL_NUMBER ||
-        args[2].type != TBS_VAL_NUMBER || args[3].type != TBS_VAL_VECTOR) {
-        return tbs_val_num(NAN);
+    if (args[0].type != TOAD_VAL_VECTOR || args[1].type != TOAD_VAL_NUMBER ||
+        args[2].type != TOAD_VAL_NUMBER || args[3].type != TOAD_VAL_VECTOR) {
+        return toad_val_num(NAN);
     }
 
     const double *prev = args[0].data.vector.data;
@@ -187,12 +187,12 @@ tbs_value_t tbs_graph_extract_path(size_t argc, tbs_value_t *args,
     size_t path_capacity = args[3].data.vector.size;
 
     if (source >= prev_len || target >= prev_len) {
-        return tbs_val_num(-1.0);
+        return toad_val_num(-1.0);
     }
 
     /* Check if path exists */
     if (prev[target] < 0 && target != source) {
-        return tbs_val_num(-1.0);  /* No path */
+        return toad_val_num(-1.0);  /* No path */
     }
 
     /* Build path backwards */
@@ -202,13 +202,13 @@ tbs_value_t tbs_graph_extract_path(size_t argc, tbs_value_t *args,
     while (current != source && path_len < path_capacity) {
         path[path_len++] = (double)current;
         if (prev[current] < 0) {
-            return tbs_val_num(-1.0);  /* Broken path */
+            return toad_val_num(-1.0);  /* Broken path */
         }
         current = (size_t)prev[current];
 
         /* Cycle detection */
         if (path_len > prev_len) {
-            return tbs_val_num(-1.0);
+            return toad_val_num(-1.0);
         }
     }
 
@@ -223,23 +223,23 @@ tbs_value_t tbs_graph_extract_path(size_t argc, tbs_value_t *args,
         path[path_len - 1 - i] = temp;
     }
 
-    return tbs_val_num((double)path_len);
+    return toad_val_num((double)path_len);
 }
 
 /* =========================================================================
  * Currency Arbitrage Detection
  * ========================================================================= */
 
-tbs_value_t tbs_graph_detect_arbitrage(size_t argc, tbs_value_t *args,
-                                              tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_graph_detect_arbitrage(size_t argc, toad_value_t *args,
+                                              toad_env_t *env, mem_pool_t *arena) {
     (void)env;
 
     if (argc != 2) {
-        return tbs_val_num(NAN);
+        return toad_val_num(NAN);
     }
 
-    if (args[0].type != TBS_VAL_VECTOR || args[1].type != TBS_VAL_NUMBER) {
-        return tbs_val_num(NAN);
+    if (args[0].type != TOAD_VAL_VECTOR || args[1].type != TOAD_VAL_NUMBER) {
+        return toad_val_num(NAN);
     }
 
     const double *rates = args[0].data.vector.data;
@@ -247,14 +247,14 @@ tbs_value_t tbs_graph_detect_arbitrage(size_t argc, tbs_value_t *args,
     size_t n = (size_t)args[1].data.number;
 
     if (rates_len < n * n) {
-        return tbs_val_num(NAN);
+        return toad_val_num(NAN);
     }
 
     /* Build edge list with -log(rate) weights */
     size_t n_edges = n * (n - 1);  /* Complete graph minus self-loops */
     double *edges = MEM_ALLOC_ARRAY(arena, double, n_edges * 3);
     if (!edges) {
-        return tbs_val_num(NAN);
+        return toad_val_num(NAN);
     }
 
     size_t edge_idx = 0;
@@ -275,11 +275,11 @@ tbs_value_t tbs_graph_detect_arbitrage(size_t argc, tbs_value_t *args,
     double *dist = MEM_ALLOC_ARRAY(arena, double, n);
     double *prev = MEM_ALLOC_ARRAY(arena, double, n);
     if (!dist || !prev) {
-        return tbs_val_num(NAN);
+        return toad_val_num(NAN);
     }
 
     /* Check for negative cycle */
     int result = bellman_ford_impl(edges, n, edge_idx, 0, dist, prev, arena);
 
-    return tbs_val_num(result == -1 ? 1.0 : 0.0);
+    return toad_val_num(result == -1 ? 1.0 : 0.0);
 }

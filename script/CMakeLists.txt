@@ -1,6 +1,6 @@
-project(turbo_script)
+project(toad_script)
 
-set(TARGET_NAME turbo_script)
+set(TARGET_NAME toad_script)
 set(TARGET_NAME_LIB ${TARGET_NAME}_lib)
 set(TARGET_NAME_PLUGIN_LOADER ${TARGET_NAME}_plugin_loader)
 
@@ -9,65 +9,65 @@ set(TARGET_NAME_PLUGIN_LOADER ${TARGET_NAME}_plugin_loader)
 add_library(
   ${TARGET_NAME_PLUGIN_LOADER}
   STATIC
-  src/host/ts_plugin_loader.c
-  src/host/ts_plugin_databind.c
-  src/host/ts_plugin_databind.h)
-cmake_config_target(${TARGET_NAME_PLUGIN_LOADER} FOLDER turbo_script)
+  src/host/plugin_loader.c
+  src/host/plugin_databind.c
+  src/host/plugin_databind.h)
+cmake_config_target(${TARGET_NAME_PLUGIN_LOADER} FOLDER script)
 target_include_directories(
   ${TARGET_NAME_PLUGIN_LOADER}
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  PRIVATE ${CMAKE_SOURCE_DIR}/exprtk/include
-          ${CMAKE_SOURCE_DIR}/exprtk/src)
+  PRIVATE ${CMAKE_SOURCE_DIR}/engine/include
+          ${CMAKE_SOURCE_DIR}/engine/src)
 target_link_libraries(
   ${TARGET_NAME_PLUGIN_LOADER}
   PUBLIC CMeta::Plugin
-  PRIVATE exprtk Salts::DataBind)
+  PRIVATE toad_engine Salts::DataBind)
 
 # Source files listed explicitly to avoid CMake globbing configuration issues
 set(SOURCE_FILES
-  src/graph/turbo_script_cflow_lower.c
-  src/graph/turbo_script_cflow_lower.h
-  src/graph/turbo_script_cflow_mir_kernel.c
-  src/graph/turbo_script_cflow_mir_kernel.h
-  src/graph/turbo_script_cflow_runtime.c
-  src/graph/turbo_script_cflow_runtime.h
-  src/graph/turbo_script_cflow_text.c
-  src/graph/turbo_script_cflow_text.h
-  src/graph/turbo_script_cflow_text_kernel.c
-  src/graph/turbo_script_cflow_text_kernel.h
-  src/graph/turbo_script_cmeta_bridge.c
-  src/graph/turbo_script_cmeta_bridge.h
-  src/host/turbo_script_host_instance.c
-  src/host/turbo_script_host_limits.c
-  src/host/turbo_script_host_module.c
-  src/host/turbo_script_host_registry.c
-  src/host/turbo_script_host_result.c
+  src/graph/cflow_lower.c
+  src/graph/cflow_lower.h
+  src/graph/cflow_mir_kernel.c
+  src/graph/cflow_mir_kernel.h
+  src/graph/cflow_runtime.c
+  src/graph/cflow_runtime.h
+  src/graph/cflow_text.c
+  src/graph/cflow_text.h
+  src/graph/cflow_text_kernel.c
+  src/graph/cflow_text_kernel.h
+  src/graph/cmeta_bridge.c
+  src/graph/cmeta_bridge.h
+  src/host/instance.c
+  src/host/limits.c
+  src/host/module.c
+  src/host/registry.c
+  src/host/result.c
   src/mir_mod.c
-  src/turbo_script.c
-  src/turbo_script_closure_analysis.c
-  src/turbo_script_closure_analysis.h
-  src/turbo_script_internal.h
-  src/turbo_script_registry.c
-  src/turbo_script_task.c
-  src/turbo_script_task.h
-  src/turbo_script_timer.c
-  src/turbo_script_timer.h
+  src/script.c
+  src/closure_analysis.c
+  src/closure_analysis.h
+  src/internal.h
+  src/registry.c
+  src/task.c
+  src/task.h
+  src/timer.c
+  src/timer.h
 )
 
-# MIR backend modules. turbo_script_mir.c still owns the main AST lowering path
+# MIR backend modules. mir.c still owns the main AST lowering path
 # while cohesive subsystems are moved into src/mir/*.c modules.
 set(MIR_BACKEND_FILES
-  src/turbo_script_mir.c
-  src/mir/turbo_script_mir_api.c
-  src/mir/turbo_script_mir_cache.c
-  src/mir/turbo_script_mir_compiler.c
-  src/mir/turbo_script_mir_constant.c
-  src/mir/turbo_script_mir_data.c
-  src/mir/turbo_script_mir_functions.c
-  src/mir/turbo_script_mir_oop.c
-  src/mir/turbo_script_mir_runtime.c
-  src/mir/turbo_script_mir_value_emit.c
-  src/mir/turbo_script_mir_value_runtime.c
+  src/mir.c
+  src/mir/api.c
+  src/mir/cache.c
+  src/mir/compiler.c
+  src/mir/constant.c
+  src/mir/data.c
+  src/mir/functions.c
+  src/mir/oop.c
+  src/mir/runtime.c
+  src/mir/value_emit.c
+  src/mir/value_runtime.c
 )
 
 # Combine all sources
@@ -75,20 +75,20 @@ set(ALL_SOURCE_FILES ${SOURCE_FILES} ${MIR_BACKEND_FILES})
 
 # ── STATIC lib for testing ────────────────────────────────────────
 add_library(${TARGET_NAME_LIB} STATIC ${ALL_SOURCE_FILES})
-cmake_config_target(${TARGET_NAME_LIB} FOLDER turbo_script)
+cmake_config_target(${TARGET_NAME_LIB} FOLDER script)
 
 target_include_directories(
   ${TARGET_NAME_LIB}
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
          $<INSTALL_INTERFACE:include>
-  PRIVATE ${CMAKE_SOURCE_DIR}/exprtk/src
+  PRIVATE ${CMAKE_SOURCE_DIR}/engine/src
           ${CMAKE_CURRENT_SOURCE_DIR}/src/graph
           ${CMAKE_CURRENT_SOURCE_DIR}/src/host
           ${CMAKE_CURRENT_SOURCE_DIR}/src/mir)  # MIR backend internal headers
 
 target_link_libraries(
   ${TARGET_NAME_LIB}
-  PRIVATE exprtk MIR::MIR CMeta::CSTL CMeta::CMeta CMeta::CFlow ${TARGET_NAME_PLUGIN_LOADER}
+  PRIVATE toad_engine MIR::MIR CMeta::CSTL CMeta::CMeta CMeta::CFlow ${TARGET_NAME_PLUGIN_LOADER}
   PUBLIC Salts::Core Salts::DataBind
   PRIVATE Salts::Cron Salts::Coroutine)
 
@@ -105,61 +105,61 @@ add_library(${TARGET_NAME} SHARED ${ALL_SOURCE_FILES})
 cmake_config_target(
   ${TARGET_NAME}
   ALIAS
-  TurboScript::TurboScript
+  Toad::Script
   FOLDER
-  turbo_script
+  script
   EXPORT_NAME
-  TurboScript)
+  Script)
 
 target_include_directories(
   ${TARGET_NAME}
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
          $<INSTALL_INTERFACE:include>
-  PRIVATE ${CMAKE_SOURCE_DIR}/exprtk/src
+  PRIVATE ${CMAKE_SOURCE_DIR}/engine/src
           ${CMAKE_CURRENT_SOURCE_DIR}/src/host
           ${CMAKE_CURRENT_SOURCE_DIR}/src/mir)  # MIR backend internal headers
 
 target_compile_definitions(
   ${TARGET_NAME}
-  PRIVATE TURBO_SCRIPT_BUILD_SHARED
-  INTERFACE TURBO_SCRIPT_USE_SHARED)
+  PRIVATE TOAD_SCRIPT_BUILD_SHARED
+  INTERFACE TOAD_SCRIPT_USE_SHARED)
 
-set(_turboscript_public_symbols_file
+set(_toad_public_symbols_file
     "${CMAKE_CURRENT_SOURCE_DIR}/exports/public-symbols.txt")
-file(STRINGS "${_turboscript_public_symbols_file}" _turboscript_public_symbols
+file(STRINGS "${_toad_public_symbols_file}" _toad_public_symbols
      REGEX "^[A-Za-z_][A-Za-z0-9_]*$")
 
 if(APPLE)
-  set(_turboscript_export_file
-      "${CMAKE_CURRENT_BINARY_DIR}/turboscript-exported-symbols.txt")
-  file(WRITE "${_turboscript_export_file}" "")
-  foreach(_turboscript_symbol IN LISTS _turboscript_public_symbols)
-    file(APPEND "${_turboscript_export_file}" "_${_turboscript_symbol}\n")
+  set(_toad_export_file
+      "${CMAKE_CURRENT_BINARY_DIR}/toad-exported-symbols.txt")
+  file(WRITE "${_toad_export_file}" "")
+  foreach(_toad_symbol IN LISTS _toad_public_symbols)
+    file(APPEND "${_toad_export_file}" "_${_toad_symbol}\n")
   endforeach()
   target_link_options(
     ${TARGET_NAME}
-    PRIVATE "-Wl,-exported_symbols_list,${_turboscript_export_file}")
+    PRIVATE "-Wl,-exported_symbols_list,${_toad_export_file}")
 elseif(UNIX)
-  set(_turboscript_export_file
-      "${CMAKE_CURRENT_BINARY_DIR}/turboscript-version-script.map")
-  file(WRITE "${_turboscript_export_file}" "{\n  global:\n")
-  foreach(_turboscript_symbol IN LISTS _turboscript_public_symbols)
-    file(APPEND "${_turboscript_export_file}" "    ${_turboscript_symbol};\n")
+  set(_toad_export_file
+      "${CMAKE_CURRENT_BINARY_DIR}/toad-version-script.map")
+  file(WRITE "${_toad_export_file}" "{\n  global:\n")
+  foreach(_toad_symbol IN LISTS _toad_public_symbols)
+    file(APPEND "${_toad_export_file}" "    ${_toad_symbol};\n")
   endforeach()
-  file(APPEND "${_turboscript_export_file}" "  local:\n    *;\n};\n")
+  file(APPEND "${_toad_export_file}" "  local:\n    *;\n};\n")
   target_link_options(
     ${TARGET_NAME}
-    PRIVATE "-Wl,--version-script=${_turboscript_export_file}")
+    PRIVATE "-Wl,--version-script=${_toad_export_file}")
 endif()
 
 target_link_libraries(
   ${TARGET_NAME}
-  PRIVATE exprtk MIR::MIR CMeta::CSTL CMeta::CMeta CMeta::CFlow ${TARGET_NAME_PLUGIN_LOADER}
+  PRIVATE toad_engine MIR::MIR CMeta::CSTL CMeta::CMeta CMeta::CFlow ${TARGET_NAME_PLUGIN_LOADER}
   PUBLIC Salts::Core
   PRIVATE Salts::Cron Salts::Coroutine)
 
 cmake_install_headers(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/)
- 
+
 
 if(BUILD_TESTS OR BUILD_BENCHMARK)
   add_subdirectory(test)

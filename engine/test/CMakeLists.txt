@@ -1,50 +1,50 @@
 if(BUILD_TESTS)
-set(EXPRTK_TEST_LIBS exprtk Salts::TinyTest)
-set(EXPRTK_TEST_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/include)
+set(ENGINE_TEST_LIBS toad_engine Salts::TinyTest)
+set(ENGINE_TEST_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 cmake_add_test(
-  TARGET test_exprtk_syntax
-  SOURCES test_exprtk_syntax.c
-  LIBS TurboScript::ExprTkSyntax Salts::TinyTest
-  INCLUDES ${EXPRTK_TEST_INCLUDES}
-  FOLDER exprtk
+  TARGET test_engine_syntax
+  SOURCES test_engine_syntax.c
+  LIBS Toad::Syntax Salts::TinyTest
+  INCLUDES ${ENGINE_TEST_INCLUDES}
+  FOLDER engine
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 cmake_add_test(
-  SOURCES test_exprtk.c
-  LIBS ${EXPRTK_TEST_LIBS}
-  INCLUDES ${EXPRTK_TEST_INCLUDES}
-  FOLDER exprtk
+  SOURCES test_engine.c
+  LIBS ${ENGINE_TEST_LIBS}
+  INCLUDES ${ENGINE_TEST_INCLUDES}
+  FOLDER engine
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 cmake_add_test(
-  SOURCES test_exprtk_checked_registration.c
-  LIBS ${EXPRTK_TEST_LIBS}
-  INCLUDES ${EXPRTK_TEST_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/../src
-  FOLDER exprtk
+  SOURCES test_engine_checked_registration.c
+  LIBS ${ENGINE_TEST_LIBS}
+  INCLUDES ${ENGINE_TEST_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/../src
+  FOLDER engine
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 cmake_add_test(
   SOURCES test_simple_opt.c
-  LIBS exprtk
-  INCLUDES ${EXPRTK_TEST_INCLUDES}
-  FOLDER exprtk
+  LIBS toad_engine
+  INCLUDES ${ENGINE_TEST_INCLUDES}
+  FOLDER engine
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 cmake_add_test(
-  TARGET test_exprtk_optimizations
+  TARGET test_engine_optimizations
   SOURCES test_optimizations.c
-  LIBS exprtk
-  INCLUDES ${EXPRTK_TEST_INCLUDES}
-  FOLDER exprtk
+  LIBS toad_engine
+  INCLUDES ${ENGINE_TEST_INCLUDES}
+  FOLDER engine
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 
 cmake_add_test(
   SOURCES test_mod_math.c
-  LIBS ${EXPRTK_TEST_LIBS}
-  INCLUDES ${EXPRTK_TEST_INCLUDES}
-  FOLDER exprtk
+  LIBS ${ENGINE_TEST_LIBS}
+  INCLUDES ${ENGINE_TEST_INCLUDES}
+  FOLDER engine
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 if(UNIX)
@@ -53,26 +53,26 @@ endif()
 
 cmake_add_test(
   SOURCES test_simd_helpers.c test_mod_io.c test_oop.c test_cmeta_class.c test_cmeta_function.c
-  LIBS ${EXPRTK_TEST_LIBS}
-  INCLUDES ${EXPRTK_TEST_INCLUDES}
-  FOLDER exprtk
+  LIBS ${ENGINE_TEST_LIBS}
+  INCLUDES ${ENGINE_TEST_INCLUDES}
+  FOLDER engine
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 cmake_add_test(
   TARGET test_tiny_regex
   SOURCES test_re.c
-  LIBS ${EXPRTK_TEST_LIBS}
+  LIBS ${ENGINE_TEST_LIBS}
   INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../src
-  FOLDER exprtk
+  FOLDER engine
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 endif()
 
 if(BUILD_BENCHMARK)
 cmake_add_benchmark(
   SOURCES test_simd_perf.c
-  LIBS exprtk
-  INCLUDES ${EXPRTK_TEST_INCLUDES}
-  FOLDER exprtk
+  LIBS toad_engine
+  INCLUDES ${ENGINE_TEST_INCLUDES}
+  FOLDER engine
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 add_test(NAME test_simd_perf COMMAND test_simd_perf)

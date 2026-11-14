@@ -1,18 +1,12 @@
 @echo off
-REM Regenerate lexer and parser from source files
-
-echo Regenerating lexer...
-re2c exprtk_lexer.re -o exprtk_lexer.c
-if %ERRORLEVEL% NEQ 0 (
-    echo Error: re2c failed
-    exit /b 1
+setlocal
+if "%~1"=="" (
+    echo Usage: regenerate.bat ^<configured-user-preset^> 1>&2
+    exit /b 2
 )
-
-echo Regenerating parser...
-lemon exprtk_grammar.y
-if %ERRORLEVEL% NEQ 0 (
-    echo Error: lemon failed
-    exit /b 1
-)
-
-echo Done! Remember to rebuild the project.
+pushd "%~dp0../.."
+if errorlevel 1 exit /b %errorlevel%
+call cmake\WithVs.cmd cmake --build --preset "%~1" --target toad_syntax
+set "regenerate_result=%errorlevel%"
+popd
+exit /b %regenerate_result%

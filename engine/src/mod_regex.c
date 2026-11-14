@@ -2,7 +2,7 @@
  * @file mod_regex.c
  * @brief Core regex builtins backed by the local tiny regex engine.
  */
-#include "exprtk_module.h"
+#include <toad/module.h>
 #include "re.h"
 
 #include <stdlib.h>
@@ -11,37 +11,37 @@
 #include <limits.h>
 #include <stdint.h>
 
-#define EXPRTK_REGEX_MAX_PATTERNS 32
-#define EXPRTK_REGEX_FLAG_IGNORE_CASE 1
-#define EXPRTK_REGEX_MAX_COUNTED_REPEAT 64
+#define TOAD_REGEX_MAX_PATTERNS 32
+#define TOAD_REGEX_FLAG_IGNORE_CASE 1
+#define TOAD_REGEX_MAX_COUNTED_REPEAT 64
 
 typedef struct {
     char *pattern;
     char *compiled_pattern;
     int flags;
-} exprtk_regex_pattern_t;
+} toad_regex_pattern_t;
 
 typedef struct {
-    exprtk_regex_pattern_t *patterns[EXPRTK_REGEX_MAX_PATTERNS];
-} exprtk_regex_ctx_t;
+    toad_regex_pattern_t *patterns[TOAD_REGEX_MAX_PATTERNS];
+} toad_regex_ctx_t;
 
-static exprtk_value_t regex_zero(void) {
-    return exprtk_val_num(0.0);
+static toad_value_t regex_zero(void) {
+    return toad_val_num(0.0);
 }
 
-static exprtk_value_t regex_null(void) {
-    exprtk_value_t value;
+static toad_value_t regex_null(void) {
+    toad_value_t value;
     memset(&value, 0, sizeof(value));
-    value.type = EXPRTK_VAL_NULL;
+    value.type = TOAD_VAL_NULL;
     return value;
 }
 
-static exprtk_env_t *regex_root_env(exprtk_env_t *env) {
+static toad_env_t *regex_root_env(toad_env_t *env) {
     while (env && env->parent) env = env->parent;
     return env;
 }
 
-static void regex_set_error(exprtk_env_t *env, const char *msg) {
+static void regex_set_error(toad_env_t *env, const char *msg) {
     if (!env || !msg) return;
     strncpy(env->error_msg, msg, sizeof(env->error_msg) - 1);
     env->error_msg[sizeof(env->error_msg) - 1] = '\0';
@@ -68,14 +68,14 @@ static int regex_parse_flags(vstr flags) {
     int out = 0;
     for (size_t i = 0; i < flags.len; ++i) {
         if (flags.data[i] == 'i' || flags.data[i] == 'I') {
-            out |= EXPRTK_REGEX_FLAG_IGNORE_CASE;
+            out |= TOAD_REGEX_FLAG_IGNORE_CASE;
         }
     }
     return out;
 }
 
 static char *regex_expand_flags(const char *pattern, int flags) {
-    if (!(flags & EXPRTK_REGEX_FLAG_IGNORE_CASE)) return regex_strdup_len(pattern, strlen(pattern));
+    if (!(flags & TOAD_REGEX_FLAG_IGNORE_CASE)) return regex_strdup_len(pattern, strlen(pattern));
     size_t len = strlen(pattern);
     char *out = (char *)malloc(len * 6 + 1);
     if (!out) return NULL;
@@ -206,7 +206,7 @@ static int regex_parse_exact_repeat(const char *pattern, size_t open, size_t len
     if (i >= len || !isdigit((unsigned char)pattern[i])) return 0;
     while (i < len && isdigit((unsigned char)pattern[i])) {
         int digit = pattern[i] - '0';
-        if (count > (EXPRTK_REGEX_MAX_COUNTED_REPEAT - digit) / 10) return -1;
+        if (count > (TOAD_REGEX_MAX_COUNTED_REPEAT - digit) / 10) return -1;
         count = count * 10 + digit;
         ++i;
     }
@@ -216,7 +216,7 @@ static int regex_parse_exact_repeat(const char *pattern, size_t open, size_t len
     return 1;
 }
 
-static char *regex_expand_counted_repeats(const char *pattern, exprtk_env_t *env) {
+static char *regex_expand_counted_repeats(const char *pattern, toad_env_t *env) {
     size_t len = strlen(pattern);
     char *out = NULL;
     size_t out_len = 0;
@@ -276,7 +276,7 @@ static char *regex_expand_counted_repeats(const char *pattern, exprtk_env_t *env
 }
 
 static char *regex_prepare_pattern(const char *pattern, int flags, int anchored,
-                                   exprtk_env_t *env) {
+                                   toad_env_t *env) {
     if (!pattern) return NULL;
     char *case_expanded = regex_expand_flags(pattern, flags);
     if (!case_expanded) {
@@ -305,7 +305,7 @@ static char *regex_prepare_pattern(const char *pattern, int flags, int anchored,
     return wrapped;
 }
 
-static int regex_validate_prepared(const char *pattern, exprtk_env_t *env) {
+static int regex_validate_prepared(const char *pattern, toad_env_t *env) {
     if (!re_compile(pattern)) {
         regex_set_error(env, "regex: pattern compilation failed");
         return 0;
@@ -313,51 +313,51 @@ static int regex_validate_prepared(const char *pattern, exprtk_env_t *env) {
     return 1;
 }
 
-static exprtk_value_t regex_copy_string(mem_pool_t *arena, const char *data, size_t len) {
+static toad_value_t regex_copy_string(mem_pool_t *arena, const char *data, size_t len) {
     char *out = (char *)mem_alloc(arena, len + 1);
     if (!out) return regex_zero();
     if (len > 0 && data) memcpy(out, data, len);
     out[len] = '\0';
-    return exprtk_val_str(vstr_from_buf(out, len));
+    return toad_val_str(vstr_from_buf(out, len));
 }
 
-static int regex_list_push_string(exprtk_value_t *list, mem_pool_t *arena,
+static int regex_list_push_string(toad_value_t *list, mem_pool_t *arena,
                                   const char *data, size_t len) {
-    exprtk_value_t item = regex_copy_string(arena, data, len);
-    if (item.type != EXPRTK_VAL_STRING) return 0;
-    exprtk_list_push(list, item);
+    toad_value_t item = regex_copy_string(arena, data, len);
+    if (item.type != TOAD_VAL_STRING) return 0;
+    toad_list_push(list, item);
     return 1;
 }
 
-static exprtk_regex_ctx_t *regex_get_ctx(exprtk_env_t *env) {
-    exprtk_env_t *root = regex_root_env(env);
+static toad_regex_ctx_t *regex_get_ctx(toad_env_t *env) {
+    toad_env_t *root = regex_root_env(env);
     if (!root) return NULL;
     if (!root->regex_ctx) {
-        root->regex_ctx = calloc(1, sizeof(exprtk_regex_ctx_t));
+        root->regex_ctx = calloc(1, sizeof(toad_regex_ctx_t));
     }
-    return (exprtk_regex_ctx_t *)root->regex_ctx;
+    return (toad_regex_ctx_t *)root->regex_ctx;
 }
 
-static void regex_free_pattern(exprtk_regex_pattern_t *pattern) {
+static void regex_free_pattern(toad_regex_pattern_t *pattern) {
     if (!pattern) return;
     free(pattern->pattern);
     free(pattern->compiled_pattern);
     free(pattern);
 }
 
-void exprtk_regex_ctx_destroy(void *p) {
-    exprtk_regex_ctx_t *ctx = (exprtk_regex_ctx_t *)p;
+void toad_regex_ctx_destroy(void *p) {
+    toad_regex_ctx_t *ctx = (toad_regex_ctx_t *)p;
     if (!ctx) return;
-    for (int i = 0; i < EXPRTK_REGEX_MAX_PATTERNS; ++i) {
+    for (int i = 0; i < TOAD_REGEX_MAX_PATTERNS; ++i) {
         regex_free_pattern(ctx->patterns[i]);
         ctx->patterns[i] = NULL;
     }
     free(ctx);
 }
 
-static int regex_alloc_handle(exprtk_regex_ctx_t *ctx, exprtk_regex_pattern_t *pattern) {
+static int regex_alloc_handle(toad_regex_ctx_t *ctx, toad_regex_pattern_t *pattern) {
     if (!ctx || !pattern) return -1;
-    for (int i = 0; i < EXPRTK_REGEX_MAX_PATTERNS; ++i) {
+    for (int i = 0; i < TOAD_REGEX_MAX_PATTERNS; ++i) {
         if (!ctx->patterns[i]) {
             ctx->patterns[i] = pattern;
             return i;
@@ -366,28 +366,28 @@ static int regex_alloc_handle(exprtk_regex_ctx_t *ctx, exprtk_regex_pattern_t *p
     return -1;
 }
 
-static int regex_arg_handle(exprtk_value_t value) {
-    if (value.type == EXPRTK_VAL_INTEGER) return (int)value.data.integer;
-    if (value.type == EXPRTK_VAL_NUMBER) return (int)value.data.number;
+static int regex_arg_handle(toad_value_t value) {
+    if (value.type == TOAD_VAL_INTEGER) return (int)value.data.integer;
+    if (value.type == TOAD_VAL_NUMBER) return (int)value.data.number;
     return -1;
 }
 
-static exprtk_regex_pattern_t *regex_get_handle(exprtk_env_t *env, exprtk_value_t value) {
-    exprtk_regex_ctx_t *ctx = regex_get_ctx(env);
+static toad_regex_pattern_t *regex_get_handle(toad_env_t *env, toad_value_t value) {
+    toad_regex_ctx_t *ctx = regex_get_ctx(env);
     int handle = regex_arg_handle(value);
-    if (!ctx || handle < 0 || handle >= EXPRTK_REGEX_MAX_PATTERNS || !ctx->patterns[handle]) {
+    if (!ctx || handle < 0 || handle >= TOAD_REGEX_MAX_PATTERNS || !ctx->patterns[handle]) {
         regex_set_error(env, "regex: invalid pattern handle");
         return NULL;
     }
     return ctx->patterns[handle];
 }
 
-static const char *regex_compile_arg(exprtk_value_t value, int flags, exprtk_env_t *env,
+static const char *regex_compile_arg(toad_value_t value, int flags, toad_env_t *env,
                                      mem_pool_t *arena, int *owned,
-                                     exprtk_regex_pattern_t **stored) {
+                                     toad_regex_pattern_t **stored) {
     *owned = 0;
     *stored = NULL;
-    if (value.type == EXPRTK_VAL_STRING) {
+    if (value.type == TOAD_VAL_STRING) {
         char *pattern = regex_arena_string(arena, value.data.string);
         if (!pattern) {
             regex_set_error(env, "regex: out of memory");
@@ -402,7 +402,7 @@ static const char *regex_compile_arg(exprtk_value_t value, int flags, exprtk_env
         }
         return compiled_pattern;
     }
-    if (value.type == EXPRTK_VAL_INTEGER || value.type == EXPRTK_VAL_NUMBER) {
+    if (value.type == TOAD_VAL_INTEGER || value.type == TOAD_VAL_NUMBER) {
         *stored = regex_get_handle(env, value);
         return *stored ? (*stored)->compiled_pattern : NULL;
     }
@@ -411,7 +411,7 @@ static const char *regex_compile_arg(exprtk_value_t value, int flags, exprtk_env
 }
 
 static int regex_accepts_span(const char *compiled_pattern, const char *data, size_t len,
-                              exprtk_env_t *env) {
+                              toad_env_t *env) {
     if (len > (size_t)INT_MAX) {
         regex_set_error(env, "regex: input is too large");
         return 0;
@@ -435,7 +435,7 @@ static int regex_accepts_span(const char *compiled_pattern, const char *data, si
 
 static int regex_find(const char *compiled_pattern, const char *data, size_t len,
                       size_t start_at, size_t *start_out, size_t *end_out,
-                      exprtk_env_t *env) {
+                      toad_env_t *env) {
     if (start_at >= len || len - start_at > (size_t)INT_MAX) return 0;
     re_t compiled = re_compile(compiled_pattern);
     if (!compiled) {
@@ -456,21 +456,21 @@ static int regex_find(const char *compiled_pattern, const char *data, size_t len
     return 1;
 }
 
-static exprtk_value_t regex_match_map(mem_pool_t *arena, const char *data, size_t len,
+static toad_value_t regex_match_map(mem_pool_t *arena, const char *data, size_t len,
                                       int matched, size_t start, size_t end) {
-    exprtk_value_t map = exprtk_val_map();
-    exprtk_map_set(&map, "matched", exprtk_val_num(matched ? 1.0 : 0.0));
-    exprtk_map_set(&map, "start", exprtk_val_num(matched ? (double)start : -1.0));
-    exprtk_map_set(&map, "end", exprtk_val_num(matched ? (double)end : -1.0));
-    exprtk_map_set(&map, "text", matched ? regex_copy_string(arena, data + start, end - start)
+    toad_value_t map = toad_val_map();
+    toad_map_set(&map, "matched", toad_val_num(matched ? 1.0 : 0.0));
+    toad_map_set(&map, "start", toad_val_num(matched ? (double)start : -1.0));
+    toad_map_set(&map, "end", toad_val_num(matched ? (double)end : -1.0));
+    toad_map_set(&map, "text", matched ? regex_copy_string(arena, data + start, end - start)
                                           : regex_copy_string(arena, "", 0));
     return map;
 }
 
-static int regex_optional_flags(size_t argc, exprtk_value_t *args, size_t index, int *flags, exprtk_env_t *env) {
+static int regex_optional_flags(size_t argc, toad_value_t *args, size_t index, int *flags, toad_env_t *env) {
     *flags = 0;
     if (argc <= index) return 1;
-    if (args[index].type != EXPRTK_VAL_STRING) {
+    if (args[index].type != TOAD_VAL_STRING) {
         regex_set_error(env, "regex: flags must be a string");
         return 0;
     }
@@ -478,65 +478,65 @@ static int regex_optional_flags(size_t argc, exprtk_value_t *args, size_t index,
     return 1;
 }
 
-static exprtk_value_t regex_object_from_handle(int handle, exprtk_regex_pattern_t *pattern,
+static toad_value_t regex_object_from_handle(int handle, toad_regex_pattern_t *pattern,
                                                mem_pool_t *arena) {
-    exprtk_value_t object = exprtk_val_object();
-    const char *flags = (pattern && (pattern->flags & EXPRTK_REGEX_FLAG_IGNORE_CASE)) ? "i" : "";
-    exprtk_map_set(&object, "__ts_method_provider", exprtk_val_str(vstr_from_cstr("RegExp")));
-    exprtk_map_set(&object, "handle", exprtk_val_int(handle));
-    exprtk_map_set(&object, "source",
+    toad_value_t object = toad_val_object();
+    const char *flags = (pattern && (pattern->flags & TOAD_REGEX_FLAG_IGNORE_CASE)) ? "i" : "";
+    toad_map_set(&object, "__ts_method_provider", toad_val_str(vstr_from_cstr("RegExp")));
+    toad_map_set(&object, "handle", toad_val_int(handle));
+    toad_map_set(&object, "source",
                    pattern && pattern->pattern
                        ? regex_copy_string(arena, pattern->pattern, strlen(pattern->pattern))
-                       : exprtk_val_str(vstr_from_cstr("")));
-    exprtk_map_set(&object, "flags", exprtk_val_str(vstr_from_cstr(flags)));
-    exprtk_map_set(&object, "lastIndex", exprtk_val_num(0.0));
+                       : toad_val_str(vstr_from_cstr("")));
+    toad_map_set(&object, "flags", toad_val_str(vstr_from_cstr(flags)));
+    toad_map_set(&object, "lastIndex", toad_val_num(0.0));
     return object;
 }
 
-static int regex_object_handle(exprtk_value_t value, exprtk_env_t *env) {
-    exprtk_value_t provider;
-    exprtk_value_t handle_value;
+static int regex_object_handle(toad_value_t value, toad_env_t *env) {
+    toad_value_t provider;
+    toad_value_t handle_value;
     const char marker[] = "RegExp";
 
-    if (!exprtk_value_is_object_like(&value) ||
-        !exprtk_map_has(&value, "__ts_method_provider") ||
-        !exprtk_map_has(&value, "handle")) {
+    if (!toad_value_is_object_like(&value) ||
+        !toad_map_has(&value, "__ts_method_provider") ||
+        !toad_map_has(&value, "handle")) {
         regex_set_error(env, "RegExp: expected RegExp object");
         return -1;
     }
 
-    provider = exprtk_map_get(&value, "__ts_method_provider");
-    if (provider.type != EXPRTK_VAL_STRING ||
+    provider = toad_map_get(&value, "__ts_method_provider");
+    if (provider.type != TOAD_VAL_STRING ||
         provider.data.string.len != sizeof(marker) - 1 ||
         memcmp(provider.data.string.data, marker, sizeof(marker) - 1) != 0) {
         regex_set_error(env, "RegExp: expected RegExp object");
         return -1;
     }
 
-    handle_value = exprtk_map_get(&value, "handle");
+    handle_value = toad_map_get(&value, "handle");
     return regex_arg_handle(handle_value);
 }
 
-static exprtk_regex_pattern_t *regex_object_pattern(exprtk_value_t value, exprtk_env_t *env) {
-    exprtk_regex_ctx_t *ctx = regex_get_ctx(env);
+static toad_regex_pattern_t *regex_object_pattern(toad_value_t value, toad_env_t *env) {
+    toad_regex_ctx_t *ctx = regex_get_ctx(env);
     int handle = regex_object_handle(value, env);
-    if (!ctx || handle < 0 || handle >= EXPRTK_REGEX_MAX_PATTERNS || !ctx->patterns[handle]) {
+    if (!ctx || handle < 0 || handle >= TOAD_REGEX_MAX_PATTERNS || !ctx->patterns[handle]) {
         regex_set_error(env, "RegExp: invalid pattern handle");
         return NULL;
     }
     return ctx->patterns[handle];
 }
 
-static exprtk_value_t fn_regex_compile(size_t argc, exprtk_value_t *args,
-                                       exprtk_env_t *env, mem_pool_t *arena) {
-    if ((argc != 1 && argc != 2) || args[0].type != EXPRTK_VAL_STRING) {
+static toad_value_t fn_regex_compile(size_t argc, toad_value_t *args,
+                                       toad_env_t *env, mem_pool_t *arena) {
+    if ((argc != 1 && argc != 2) || args[0].type != TOAD_VAL_STRING) {
         regex_set_error(env, "regex.compile: expected string pattern [, flags]");
         return regex_zero();
     }
     int flags = 0;
     if (!regex_optional_flags(argc, args, 1, &flags, env)) return regex_zero();
 
-    exprtk_regex_ctx_t *ctx = regex_get_ctx(env);
+    toad_regex_ctx_t *ctx = regex_get_ctx(env);
     char *pattern = regex_arena_string(arena, args[0].data.string);
     if (!ctx || !pattern) {
         regex_set_error(env, "regex.compile: out of memory");
@@ -550,8 +550,8 @@ static exprtk_value_t fn_regex_compile(size_t argc, exprtk_value_t *args,
         return regex_zero();
     }
 
-    exprtk_regex_pattern_t *compiled =
-        (exprtk_regex_pattern_t *)calloc(1, sizeof(exprtk_regex_pattern_t));
+    toad_regex_pattern_t *compiled =
+        (toad_regex_pattern_t *)calloc(1, sizeof(toad_regex_pattern_t));
     if (!compiled) {
         free(compiled_pattern);
         regex_set_error(env, "regex.compile: out of memory");
@@ -572,19 +572,19 @@ static exprtk_value_t fn_regex_compile(size_t argc, exprtk_value_t *args,
         regex_set_error(env, "regex.compile: too many compiled patterns");
         return regex_zero();
     }
-    return exprtk_val_int(handle);
+    return toad_val_int(handle);
 }
 
-static exprtk_value_t fn_regexp_ctor(size_t argc, exprtk_value_t *args,
-                                     exprtk_env_t *env, mem_pool_t *arena) {
-    if ((argc != 1 && argc != 2) || args[0].type != EXPRTK_VAL_STRING) {
+static toad_value_t fn_regexp_ctor(size_t argc, toad_value_t *args,
+                                     toad_env_t *env, mem_pool_t *arena) {
+    if ((argc != 1 && argc != 2) || args[0].type != TOAD_VAL_STRING) {
         regex_set_error(env, "RegExp: expected string pattern [, flags]");
         return regex_null();
     }
     int flags = 0;
     if (!regex_optional_flags(argc, args, 1, &flags, env)) return regex_null();
 
-    exprtk_regex_ctx_t *ctx = regex_get_ctx(env);
+    toad_regex_ctx_t *ctx = regex_get_ctx(env);
     char *pattern = regex_arena_string(arena, args[0].data.string);
     if (!ctx || !pattern) {
         regex_set_error(env, "RegExp: out of memory");
@@ -598,8 +598,8 @@ static exprtk_value_t fn_regexp_ctor(size_t argc, exprtk_value_t *args,
         return regex_null();
     }
 
-    exprtk_regex_pattern_t *compiled =
-        (exprtk_regex_pattern_t *)calloc(1, sizeof(exprtk_regex_pattern_t));
+    toad_regex_pattern_t *compiled =
+        (toad_regex_pattern_t *)calloc(1, sizeof(toad_regex_pattern_t));
     if (!compiled) {
         free(compiled_pattern);
         regex_set_error(env, "RegExp: out of memory");
@@ -623,28 +623,28 @@ static exprtk_value_t fn_regexp_ctor(size_t argc, exprtk_value_t *args,
     return regex_object_from_handle(handle, compiled, arena);
 }
 
-static exprtk_value_t fn_regex_free(size_t argc, exprtk_value_t *args,
-                                    exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_regex_free(size_t argc, toad_value_t *args,
+                                    toad_env_t *env, mem_pool_t *arena) {
     (void)arena;
     if (argc != 1) return regex_zero();
-    exprtk_regex_ctx_t *ctx = regex_get_ctx(env);
+    toad_regex_ctx_t *ctx = regex_get_ctx(env);
     int handle = regex_arg_handle(args[0]);
-    if (!ctx || handle < 0 || handle >= EXPRTK_REGEX_MAX_PATTERNS) return regex_zero();
+    if (!ctx || handle < 0 || handle >= TOAD_REGEX_MAX_PATTERNS) return regex_zero();
     regex_free_pattern(ctx->patterns[handle]);
     ctx->patterns[handle] = NULL;
-    return exprtk_val_num(1.0);
+    return toad_val_num(1.0);
 }
 
-static exprtk_value_t fn_regex_match(size_t argc, exprtk_value_t *args,
-                                     exprtk_env_t *env, mem_pool_t *arena) {
-    if ((argc != 2 && argc != 3) || args[1].type != EXPRTK_VAL_STRING) {
+static toad_value_t fn_regex_match(size_t argc, toad_value_t *args,
+                                     toad_env_t *env, mem_pool_t *arena) {
+    if ((argc != 2 && argc != 3) || args[1].type != TOAD_VAL_STRING) {
         regex_set_error(env, "regex.match: expected (pattern_or_handle, string [, flags])");
         return regex_zero();
     }
     int flags = 0;
     if (!regex_optional_flags(argc, args, 2, &flags, env)) return regex_zero();
     int owned = 0;
-    exprtk_regex_pattern_t *stored = NULL;
+    toad_regex_pattern_t *stored = NULL;
     const char *compiled_pattern = regex_compile_arg(args[0], flags, env, arena, &owned, &stored);
     (void)stored;
     if (!compiled_pattern) return regex_zero();
@@ -652,19 +652,19 @@ static exprtk_value_t fn_regex_match(size_t argc, exprtk_value_t *args,
     vstr text = args[1].data.string;
     int ok = regex_accepts_span(compiled_pattern, text.data, text.len, env);
     if (owned) free((char *)compiled_pattern);
-    return exprtk_val_num(ok ? 1.0 : 0.0);
+    return toad_val_num(ok ? 1.0 : 0.0);
 }
 
-static exprtk_value_t fn_regex_search(size_t argc, exprtk_value_t *args,
-                                      exprtk_env_t *env, mem_pool_t *arena) {
-    if ((argc != 2 && argc != 3) || args[1].type != EXPRTK_VAL_STRING) {
+static toad_value_t fn_regex_search(size_t argc, toad_value_t *args,
+                                      toad_env_t *env, mem_pool_t *arena) {
+    if ((argc != 2 && argc != 3) || args[1].type != TOAD_VAL_STRING) {
         regex_set_error(env, "regex.search: expected (pattern_or_handle, string [, flags])");
         return regex_zero();
     }
     int flags = 0;
     if (!regex_optional_flags(argc, args, 2, &flags, env)) return regex_zero();
     int owned = 0;
-    exprtk_regex_pattern_t *stored = NULL;
+    toad_regex_pattern_t *stored = NULL;
     const char *compiled_pattern = regex_compile_arg(args[0], flags, env, arena, &owned, &stored);
     (void)stored;
     if (!compiled_pattern) return regex_zero();
@@ -673,25 +673,25 @@ static exprtk_value_t fn_regex_search(size_t argc, exprtk_value_t *args,
     size_t start = 0, end = 0;
     int found = regex_find(compiled_pattern, text.data, text.len, 0, &start, &end, env);
     if (owned) free((char *)compiled_pattern);
-    return exprtk_val_num(found ? (double)start : -1.0);
+    return toad_val_num(found ? (double)start : -1.0);
 }
 
-static exprtk_value_t fn_regex_find_all(size_t argc, exprtk_value_t *args,
-                                        exprtk_env_t *env, mem_pool_t *arena) {
-    if ((argc != 2 && argc != 3) || args[1].type != EXPRTK_VAL_STRING) {
+static toad_value_t fn_regex_find_all(size_t argc, toad_value_t *args,
+                                        toad_env_t *env, mem_pool_t *arena) {
+    if ((argc != 2 && argc != 3) || args[1].type != TOAD_VAL_STRING) {
         regex_set_error(env, "regex.find_all: expected (pattern_or_handle, string [, flags])");
         return regex_zero();
     }
     int flags = 0;
     if (!regex_optional_flags(argc, args, 2, &flags, env)) return regex_zero();
     int owned = 0;
-    exprtk_regex_pattern_t *stored = NULL;
+    toad_regex_pattern_t *stored = NULL;
     const char *compiled_pattern = regex_compile_arg(args[0], flags, env, arena, &owned, &stored);
     (void)stored;
     if (!compiled_pattern) return regex_zero();
 
     vstr text = args[1].data.string;
-    exprtk_value_t list = exprtk_val_list_empty();
+    toad_value_t list = toad_val_list_empty();
     size_t cursor = 0;
     while (cursor <= text.len) {
         size_t start = 0, end = 0;
@@ -706,26 +706,26 @@ static exprtk_value_t fn_regex_find_all(size_t argc, exprtk_value_t *args,
     return list;
 }
 
-static exprtk_value_t fn_regex_split(size_t argc, exprtk_value_t *args,
-                                     exprtk_env_t *env, mem_pool_t *arena) {
-    if ((argc < 2 || argc > 4) || args[1].type != EXPRTK_VAL_STRING) {
+static toad_value_t fn_regex_split(size_t argc, toad_value_t *args,
+                                     toad_env_t *env, mem_pool_t *arena) {
+    if ((argc < 2 || argc > 4) || args[1].type != TOAD_VAL_STRING) {
         regex_set_error(env, "regex.split: expected (pattern_or_handle, string [, limit] [, flags])");
         return regex_zero();
     }
     int limit = 0;
-    if (argc >= 3 && args[2].type != EXPRTK_VAL_STRING) {
-        if (args[2].type == EXPRTK_VAL_INTEGER) limit = (int)args[2].data.integer;
-        else if (args[2].type == EXPRTK_VAL_NUMBER) limit = (int)args[2].data.number;
+    if (argc >= 3 && args[2].type != TOAD_VAL_STRING) {
+        if (args[2].type == TOAD_VAL_INTEGER) limit = (int)args[2].data.integer;
+        else if (args[2].type == TOAD_VAL_NUMBER) limit = (int)args[2].data.number;
         else {
             regex_set_error(env, "regex.split: limit must be numeric");
             return regex_zero();
         }
     }
     int flags = 0;
-    if (argc >= 3 && args[2].type == EXPRTK_VAL_STRING) {
+    if (argc >= 3 && args[2].type == TOAD_VAL_STRING) {
         flags = regex_parse_flags(args[2].data.string);
     } else if (argc == 4) {
-        if (args[3].type != EXPRTK_VAL_STRING) {
+        if (args[3].type != TOAD_VAL_STRING) {
             regex_set_error(env, "regex.split: flags must be a string");
             return regex_zero();
         }
@@ -733,13 +733,13 @@ static exprtk_value_t fn_regex_split(size_t argc, exprtk_value_t *args,
     }
 
     int owned = 0;
-    exprtk_regex_pattern_t *stored = NULL;
+    toad_regex_pattern_t *stored = NULL;
     const char *compiled_pattern = regex_compile_arg(args[0], flags, env, arena, &owned, &stored);
     (void)stored;
     if (!compiled_pattern) return regex_zero();
 
     vstr text = args[1].data.string;
-    exprtk_value_t list = exprtk_val_list_empty();
+    toad_value_t list = toad_val_list_empty();
     size_t cursor = 0;
     int splits = 0;
     while (cursor <= text.len && (limit <= 0 || splits < limit)) {
@@ -760,27 +760,27 @@ static exprtk_value_t fn_regex_split(size_t argc, exprtk_value_t *args,
     return list;
 }
 
-static exprtk_value_t fn_regex_replace(size_t argc, exprtk_value_t *args,
-                                       exprtk_env_t *env, mem_pool_t *arena) {
-    if ((argc < 3 || argc > 5) || args[1].type != EXPRTK_VAL_STRING ||
-        args[2].type != EXPRTK_VAL_STRING) {
+static toad_value_t fn_regex_replace(size_t argc, toad_value_t *args,
+                                       toad_env_t *env, mem_pool_t *arena) {
+    if ((argc < 3 || argc > 5) || args[1].type != TOAD_VAL_STRING ||
+        args[2].type != TOAD_VAL_STRING) {
         regex_set_error(env, "regex.replace: expected (pattern_or_handle, string, replacement [, limit] [, flags])");
         return regex_zero();
     }
     int limit = 0;
-    if (argc >= 4 && args[3].type != EXPRTK_VAL_STRING) {
-        if (args[3].type == EXPRTK_VAL_INTEGER) limit = (int)args[3].data.integer;
-        else if (args[3].type == EXPRTK_VAL_NUMBER) limit = (int)args[3].data.number;
+    if (argc >= 4 && args[3].type != TOAD_VAL_STRING) {
+        if (args[3].type == TOAD_VAL_INTEGER) limit = (int)args[3].data.integer;
+        else if (args[3].type == TOAD_VAL_NUMBER) limit = (int)args[3].data.number;
         else {
             regex_set_error(env, "regex.replace: limit must be numeric");
             return regex_zero();
         }
     }
     int flags = 0;
-    if (argc >= 4 && args[3].type == EXPRTK_VAL_STRING) {
+    if (argc >= 4 && args[3].type == TOAD_VAL_STRING) {
         flags = regex_parse_flags(args[3].data.string);
     } else if (argc == 5) {
-        if (args[4].type != EXPRTK_VAL_STRING) {
+        if (args[4].type != TOAD_VAL_STRING) {
             regex_set_error(env, "regex.replace: flags must be a string");
             return regex_zero();
         }
@@ -788,7 +788,7 @@ static exprtk_value_t fn_regex_replace(size_t argc, exprtk_value_t *args,
     }
 
     int owned = 0;
-    exprtk_regex_pattern_t *stored = NULL;
+    toad_regex_pattern_t *stored = NULL;
     const char *compiled_pattern = regex_compile_arg(args[0], flags, env, arena, &owned, &stored);
     (void)stored;
     if (!compiled_pattern) return regex_zero();
@@ -849,19 +849,19 @@ static exprtk_value_t fn_regex_replace(size_t argc, exprtk_value_t *args,
     }
     buf[pos] = '\0';
     if (owned) free((char *)compiled_pattern);
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_regex_match_info(size_t argc, exprtk_value_t *args,
-                                          exprtk_env_t *env, mem_pool_t *arena) {
-    if ((argc != 2 && argc != 3) || args[1].type != EXPRTK_VAL_STRING) {
+static toad_value_t fn_regex_match_info(size_t argc, toad_value_t *args,
+                                          toad_env_t *env, mem_pool_t *arena) {
+    if ((argc != 2 && argc != 3) || args[1].type != TOAD_VAL_STRING) {
         regex_set_error(env, "regex.match_info: expected (pattern_or_handle, string [, flags])");
         return regex_zero();
     }
     int flags = 0;
     if (!regex_optional_flags(argc, args, 2, &flags, env)) return regex_zero();
     int owned = 0;
-    exprtk_regex_pattern_t *stored = NULL;
+    toad_regex_pattern_t *stored = NULL;
     const char *compiled_pattern = regex_compile_arg(args[0], flags, env, arena, &owned, &stored);
     (void)stored;
     if (!compiled_pattern) return regex_zero();
@@ -872,83 +872,83 @@ static exprtk_value_t fn_regex_match_info(size_t argc, exprtk_value_t *args,
     return regex_match_map(arena, text.data, text.len, found, start, end);
 }
 
-static exprtk_value_t fn_regex_find_iter(size_t argc, exprtk_value_t *args,
-                                         exprtk_env_t *env, mem_pool_t *arena) {
-    if ((argc != 2 && argc != 3) || args[1].type != EXPRTK_VAL_STRING) {
+static toad_value_t fn_regex_find_iter(size_t argc, toad_value_t *args,
+                                         toad_env_t *env, mem_pool_t *arena) {
+    if ((argc != 2 && argc != 3) || args[1].type != TOAD_VAL_STRING) {
         regex_set_error(env, "regex.find_iter: expected (pattern_or_handle, string [, flags])");
         return regex_zero();
     }
     int flags = 0;
     if (!regex_optional_flags(argc, args, 2, &flags, env)) return regex_zero();
     int owned = 0;
-    exprtk_regex_pattern_t *stored = NULL;
+    toad_regex_pattern_t *stored = NULL;
     const char *compiled_pattern = regex_compile_arg(args[0], flags, env, arena, &owned, &stored);
     (void)stored;
     if (!compiled_pattern) return regex_zero();
     vstr text = args[1].data.string;
-    exprtk_value_t list = exprtk_val_list_empty();
+    toad_value_t list = toad_val_list_empty();
     size_t cursor = 0;
     while (cursor <= text.len) {
         size_t start = 0, end = 0;
         if (!regex_find(compiled_pattern, text.data, text.len, cursor, &start, &end, env)) break;
-        exprtk_list_push(&list, regex_match_map(arena, text.data, text.len, 1, start, end));
+        toad_list_push(&list, regex_match_map(arena, text.data, text.len, 1, start, end));
         cursor = end > start ? end : start + 1;
     }
     if (owned) free((char *)compiled_pattern);
     return list;
 }
 
-static exprtk_value_t fn_regexp_test(size_t argc, exprtk_value_t *args,
-                                     exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_regexp_test(size_t argc, toad_value_t *args,
+                                     toad_env_t *env, mem_pool_t *arena) {
     (void)arena;
-    if (argc != 2 || args[1].type != EXPRTK_VAL_STRING) {
+    if (argc != 2 || args[1].type != TOAD_VAL_STRING) {
         regex_set_error(env, "RegExp.test: expected (this, string)");
         return regex_zero();
     }
-    exprtk_regex_pattern_t *pattern = regex_object_pattern(args[0], env);
+    toad_regex_pattern_t *pattern = regex_object_pattern(args[0], env);
     if (!pattern) return regex_zero();
 
     vstr text = args[1].data.string;
     size_t start = 0, end = 0;
     int found = regex_find(pattern->compiled_pattern, text.data, text.len, 0, &start, &end, env);
-    return exprtk_val_num(found ? 1.0 : 0.0);
+    return toad_val_num(found ? 1.0 : 0.0);
 }
 
-static exprtk_value_t fn_regexp_match(size_t argc, exprtk_value_t *args,
-                                      exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_regexp_match(size_t argc, toad_value_t *args,
+                                      toad_env_t *env, mem_pool_t *arena) {
     (void)arena;
-    if (argc != 2 || args[1].type != EXPRTK_VAL_STRING) {
+    if (argc != 2 || args[1].type != TOAD_VAL_STRING) {
         regex_set_error(env, "RegExp.match: expected (this, string)");
         return regex_zero();
     }
-    exprtk_regex_pattern_t *pattern = regex_object_pattern(args[0], env);
+    toad_regex_pattern_t *pattern = regex_object_pattern(args[0], env);
     if (!pattern) return regex_zero();
     vstr text = args[1].data.string;
-    return exprtk_val_num(regex_accepts_span(pattern->compiled_pattern, text.data, text.len, env) ? 1.0 : 0.0);
+    return toad_val_num(regex_accepts_span(pattern->compiled_pattern, text.data, text.len, env) ? 1.0 : 0.0);
 }
 
-static exprtk_value_t fn_regexp_search(size_t argc, exprtk_value_t *args,
-                                       exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_regexp_search(size_t argc, toad_value_t *args,
+                                       toad_env_t *env, mem_pool_t *arena) {
     (void)arena;
-    if (argc != 2 || args[1].type != EXPRTK_VAL_STRING) {
+    if (argc != 2 || args[1].type != TOAD_VAL_STRING) {
         regex_set_error(env, "RegExp.search: expected (this, string)");
         return regex_zero();
     }
-    exprtk_regex_pattern_t *pattern = regex_object_pattern(args[0], env);
+    toad_regex_pattern_t *pattern = regex_object_pattern(args[0], env);
     if (!pattern) return regex_zero();
     vstr text = args[1].data.string;
     size_t start = 0, end = 0;
     int found = regex_find(pattern->compiled_pattern, text.data, text.len, 0, &start, &end, env);
-    return exprtk_val_num(found ? (double)start : -1.0);
+    return toad_val_num(found ? (double)start : -1.0);
 }
 
-static exprtk_value_t fn_regexp_exec(size_t argc, exprtk_value_t *args,
-                                     exprtk_env_t *env, mem_pool_t *arena) {
-    if (argc != 2 || args[1].type != EXPRTK_VAL_STRING) {
+static toad_value_t fn_regexp_exec(size_t argc, toad_value_t *args,
+                                     toad_env_t *env, mem_pool_t *arena) {
+    if (argc != 2 || args[1].type != TOAD_VAL_STRING) {
         regex_set_error(env, "RegExp.exec: expected (this, string)");
         return regex_null();
     }
-    exprtk_regex_pattern_t *pattern = regex_object_pattern(args[0], env);
+    toad_regex_pattern_t *pattern = regex_object_pattern(args[0], env);
     if (!pattern) return regex_null();
     vstr text = args[1].data.string;
     size_t start = 0, end = 0;
@@ -957,16 +957,16 @@ static exprtk_value_t fn_regexp_exec(size_t argc, exprtk_value_t *args,
     return regex_match_map(arena, text.data, text.len, 1, start, end);
 }
 
-static exprtk_value_t fn_regexp_find_all(size_t argc, exprtk_value_t *args,
-                                         exprtk_env_t *env, mem_pool_t *arena) {
-    if (argc != 2 || args[1].type != EXPRTK_VAL_STRING) {
+static toad_value_t fn_regexp_find_all(size_t argc, toad_value_t *args,
+                                         toad_env_t *env, mem_pool_t *arena) {
+    if (argc != 2 || args[1].type != TOAD_VAL_STRING) {
         regex_set_error(env, "RegExp.find_all: expected (this, string)");
         return regex_zero();
     }
-    exprtk_regex_pattern_t *pattern = regex_object_pattern(args[0], env);
+    toad_regex_pattern_t *pattern = regex_object_pattern(args[0], env);
     if (!pattern) return regex_zero();
     vstr text = args[1].data.string;
-    exprtk_value_t list = exprtk_val_list_empty();
+    toad_value_t list = toad_val_list_empty();
     size_t cursor = 0;
     while (cursor <= text.len) {
         size_t start = 0, end = 0;
@@ -979,31 +979,31 @@ static exprtk_value_t fn_regexp_find_all(size_t argc, exprtk_value_t *args,
     return list;
 }
 
-static exprtk_value_t fn_regexp_free(size_t argc, exprtk_value_t *args,
-                                     exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_regexp_free(size_t argc, toad_value_t *args,
+                                     toad_env_t *env, mem_pool_t *arena) {
     (void)arena;
     if (argc != 1) return regex_zero();
-    exprtk_regex_ctx_t *ctx = regex_get_ctx(env);
+    toad_regex_ctx_t *ctx = regex_get_ctx(env);
     int handle = regex_object_handle(args[0], env);
-    if (!ctx || handle < 0 || handle >= EXPRTK_REGEX_MAX_PATTERNS) return regex_zero();
+    if (!ctx || handle < 0 || handle >= TOAD_REGEX_MAX_PATTERNS) return regex_zero();
     regex_free_pattern(ctx->patterns[handle]);
     ctx->patterns[handle] = NULL;
-    return exprtk_val_num(1.0);
+    return toad_val_num(1.0);
 }
 
-static exprtk_value_t fn_regexp_to_string(size_t argc, exprtk_value_t *args,
-                                          exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_regexp_to_string(size_t argc, toad_value_t *args,
+                                          toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || !exprtk_value_is_object_like(&args[0]) ||
-        !exprtk_map_has(&args[0], "source")) {
+    if (argc != 1 || !toad_value_is_object_like(&args[0]) ||
+        !toad_map_has(&args[0], "source")) {
         return regex_copy_string(arena, "", 0);
     }
-    exprtk_value_t source = exprtk_map_get(&args[0], "source");
-    if (source.type != EXPRTK_VAL_STRING) return regex_copy_string(arena, "", 0);
+    toad_value_t source = toad_map_get(&args[0], "source");
+    if (source.type != TOAD_VAL_STRING) return regex_copy_string(arena, "", 0);
     return regex_copy_string(arena, source.data.string.data, source.data.string.len);
 }
 
-static const exprtk_func_entry_t regex_entries[] = {
+static const toad_func_entry_t regex_entries[] = {
     { "RegExp",         fn_regexp_ctor },
     { "RegExp.exec",    fn_regexp_exec },
     { "RegExp.find_all", fn_regexp_find_all },
@@ -1033,8 +1033,8 @@ static const exprtk_func_entry_t regex_entries[] = {
     { "regex_split",    fn_regex_split },
 };
 
-static const exprtk_module_t regex_module = {
+static const toad_module_t regex_module = {
     "regex", regex_entries, sizeof(regex_entries) / sizeof(regex_entries[0])
 };
 
-const exprtk_module_t *exprtk_module_regex(void) { return &regex_module; }
+const toad_module_t *toad_module_regex(void) { return &regex_module; }

@@ -1,5 +1,5 @@
 #include "closure_analysis.h"
-#include <turboscript/engine.h>
+#include <toad/engine.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -63,10 +63,10 @@ static void ts_var_set_add(ts_var_set_t *set, const char *name) {
  * ========================================================================= */
 
 /* 前向声明 */
-static void ts_analyze_node(tbs_node_t *node, ts_analysis_ctx_t *ctx, int in_assignment_lhs);
+static void ts_analyze_node(toad_node_t *node, ts_analysis_ctx_t *ctx, int in_assignment_lhs);
 
 /* 分析变量引用 */
-static void ts_analyze_variable(tbs_node_t *node, ts_analysis_ctx_t *ctx, int in_assignment_lhs) {
+static void ts_analyze_variable(toad_node_t *node, ts_analysis_ctx_t *ctx, int in_assignment_lhs) {
   const char *name = node->data.variable.name;
 
   if (in_assignment_lhs) {
@@ -82,7 +82,7 @@ static void ts_analyze_variable(tbs_node_t *node, ts_analysis_ctx_t *ctx, int in
 }
 
 /* 分析赋值 */
-static void ts_analyze_assignment(tbs_node_t *node, ts_analysis_ctx_t *ctx) {
+static void ts_analyze_assignment(toad_node_t *node, ts_analysis_ctx_t *ctx) {
   // 赋值值记为使用
   if (node->data.assignment.value) {
     ts_analyze_node(node->data.assignment.value, ctx, 0);
@@ -94,20 +94,20 @@ static void ts_analyze_assignment(tbs_node_t *node, ts_analysis_ctx_t *ctx) {
 
 /* Only direct module-scope bindings are definite before an exported function
  * executes.  Do not descend into function/control-flow bodies: assignments in
- * those scopes do not prove that tbs_env_set() will find an outer binding. */
-static int ts_outer_scope_defines_name(const tbs_node_t *outer_scope,
+ * those scopes do not prove that toad_env_set() will find an outer binding. */
+static int ts_outer_scope_defines_name(const toad_node_t *outer_scope,
                                        const char *name) {
   if (!outer_scope || !name) return 0;
-  if (outer_scope->type == TBS_NODE_ASSIGNMENT ||
-      outer_scope->type == TBS_NODE_CONSTANT_DECL)
+  if (outer_scope->type == TOAD_NODE_ASSIGNMENT ||
+      outer_scope->type == TOAD_NODE_CONSTANT_DECL)
     return outer_scope->data.assignment.name &&
            strcmp(outer_scope->data.assignment.name, name) == 0;
-  if (outer_scope->type != TBS_NODE_BLOCK) return 0;
+  if (outer_scope->type != TOAD_NODE_BLOCK) return 0;
   for (size_t i = 0; i < outer_scope->data.block.count; ++i) {
-    const tbs_node_t *statement = outer_scope->data.block.statements[i];
+    const toad_node_t *statement = outer_scope->data.block.statements[i];
     if (statement &&
-        (statement->type == TBS_NODE_ASSIGNMENT ||
-         statement->type == TBS_NODE_CONSTANT_DECL) &&
+        (statement->type == TOAD_NODE_ASSIGNMENT ||
+         statement->type == TOAD_NODE_CONSTANT_DECL) &&
         statement->data.assignment.name &&
         strcmp(statement->data.assignment.name, name) == 0)
       return 1;
@@ -116,7 +116,7 @@ static int ts_outer_scope_defines_name(const tbs_node_t *outer_scope,
 }
 
 /* 分析函数定义（嵌套闭包检测） */
-static void ts_analyze_func_def(tbs_node_t *node, ts_analysis_ctx_t *ctx) {
+static void ts_analyze_func_def(toad_node_t *node, ts_analysis_ctx_t *ctx) {
   // 检测到嵌套函数定义
   ctx->has_nested_closure = 1;
 
@@ -124,7 +124,7 @@ static void ts_analyze_func_def(tbs_node_t *node, ts_analysis_ctx_t *ctx) {
 }
 
 /* 分析函数表达式（闭包/匿名函数） */
-static void ts_analyze_func_expr(tbs_node_t *node, ts_analysis_ctx_t *ctx) {
+static void ts_analyze_func_expr(toad_node_t *node, ts_analysis_ctx_t *ctx) {
   // 检测到函数表达式（闭包）
   ctx->has_nested_closure = 1;
 
@@ -132,88 +132,88 @@ static void ts_analyze_func_expr(tbs_node_t *node, ts_analysis_ctx_t *ctx) {
 }
 
 /* 分析节点（递归） */
-static void ts_analyze_node(tbs_node_t *node, ts_analysis_ctx_t *ctx, int in_assignment_lhs) {
+static void ts_analyze_node(toad_node_t *node, ts_analysis_ctx_t *ctx, int in_assignment_lhs) {
   if (!node) return;
 
   switch (node->type) {
-    case TBS_NODE_VARIABLE:
+    case TOAD_NODE_VARIABLE:
       ts_analyze_variable(node, ctx, in_assignment_lhs);
       break;
 
-    case TBS_NODE_ASSIGNMENT:
+    case TOAD_NODE_ASSIGNMENT:
       ts_analyze_assignment(node, ctx);
       break;
 
-    case TBS_NODE_FUNCTION_DEFINITION:
+    case TOAD_NODE_FUNCTION_DEFINITION:
       ts_analyze_func_def(node, ctx);
       break;
 
-    case TBS_NODE_FUNCTION_EXPRESSION:
+    case TOAD_NODE_FUNCTION_EXPRESSION:
       ts_analyze_func_expr(node, ctx);
       break;
 
-    case TBS_NODE_BINARY_OP:
+    case TOAD_NODE_BINARY_OP:
       ts_analyze_node(node->data.binary.left, ctx, 0);
       ts_analyze_node(node->data.binary.right, ctx, 0);
       break;
 
-    case TBS_NODE_FUNCTION_CALL:
+    case TOAD_NODE_FUNCTION_CALL:
       for (size_t i = 0; i < node->data.function.arg_count; i++) {
         ts_analyze_node(node->data.function.args[i], ctx, 0);
       }
       break;
 
-    case TBS_NODE_IF:
+    case TOAD_NODE_IF:
       ts_analyze_node(node->data.if_stmt.condition, ctx, 0);
       ts_analyze_node(node->data.if_stmt.if_branch, ctx, 0);
       ts_analyze_node(node->data.if_stmt.else_branch, ctx, 0);
       break;
 
-    case TBS_NODE_WHILE:
+    case TOAD_NODE_WHILE:
       ts_analyze_node(node->data.while_loop.condition, ctx, 0);
       ts_analyze_node(node->data.while_loop.body, ctx, 0);
       break;
 
-    case TBS_NODE_FOR:
+    case TOAD_NODE_FOR:
       ts_analyze_node(node->data.for_loop.init, ctx, 0);
       ts_analyze_node(node->data.for_loop.condition, ctx, 0);
       ts_analyze_node(node->data.for_loop.post, ctx, 0);
       ts_analyze_node(node->data.for_loop.body, ctx, 0);
       break;
 
-    case TBS_NODE_BLOCK:
+    case TOAD_NODE_BLOCK:
       for (size_t i = 0; i < node->data.block.count; i++) {
         ts_analyze_node(node->data.block.statements[i], ctx, 0);
       }
       break;
 
-    case TBS_NODE_FLOW:
+    case TOAD_NODE_FLOW:
       ts_analyze_node(node->data.flow.value, ctx, 0);
       break;
 
-    case TBS_NODE_VECTOR:
+    case TOAD_NODE_VECTOR:
       for (size_t i = 0; i < node->data.vector.count; i++) {
         ts_analyze_node(node->data.vector.elements[i], ctx, 0);
       }
       break;
 
-    case TBS_NODE_INDEX:
+    case TOAD_NODE_INDEX:
       ts_analyze_node(node->data.index_access.array, ctx, 0);
       ts_analyze_node(node->data.index_access.index, ctx, 0);
       break;
 
-    case TBS_NODE_MEMBER_CALL:
+    case TOAD_NODE_MEMBER_CALL:
       ts_analyze_node(node->data.member_call.object, ctx, 0);
       for (size_t i = 0; i < node->data.member_call.arg_count; i++) {
         ts_analyze_node(node->data.member_call.args[i], ctx, 0);
       }
       break;
 
-    case TBS_NODE_MEMBER_ACCESS:
+    case TOAD_NODE_MEMBER_ACCESS:
       ts_analyze_node(node->data.member_access.object, ctx, 0);
       break;
 
-    case TBS_NODE_FOR_IN:
+    case TOAD_NODE_FOR_IN:
       // for_in 的变量是局部定义
       ts_var_set_add(&ctx->defined, node->data.for_in.var_name);
       ts_analyze_node(node->data.for_in.collection, ctx, 0);
@@ -230,11 +230,11 @@ static void ts_analyze_node(tbs_node_t *node, ts_analysis_ctx_t *ctx, int in_ass
  *  公开 API
  * ========================================================================= */
 
-ts_closure_analysis_t *ts_analyze_closure(tbs_node_t *func_body,
-                                          tbs_node_t **arg_params,
+ts_closure_analysis_t *ts_analyze_closure(toad_node_t *func_body,
+                                          toad_node_t **arg_params,
                                           size_t arg_count,
-                                          tbs_env_t *closure_env,
-                                          tbs_node_t *outer_scope) {
+                                          toad_env_t *closure_env,
+                                          toad_node_t *outer_scope) {
   // 初始化分析上下文
   ts_analysis_ctx_t ctx;
   ts_var_set_init(&ctx.used);
@@ -246,9 +246,9 @@ ts_closure_analysis_t *ts_analyze_closure(tbs_node_t *func_body,
 
   // 标记函数参数为已定义
   for (size_t i = 0; i < arg_count; i++) {
-    if (arg_params[i]->type == TBS_NODE_VARIABLE) {
+    if (arg_params[i]->type == TOAD_NODE_VARIABLE) {
       ts_var_set_add(&ctx.defined, arg_params[i]->data.variable.name);
-    } else if (arg_params[i]->type == TBS_NODE_ASSIGNMENT) {
+    } else if (arg_params[i]->type == TOAD_NODE_ASSIGNMENT) {
       // 带默认值的参数
       ts_var_set_add(&ctx.defined, arg_params[i]->data.assignment.name);
     }
@@ -266,7 +266,7 @@ ts_closure_analysis_t *ts_analyze_closure(tbs_node_t *func_body,
     const char *name = ctx.used.names[i];
     if (!ts_var_set_contains(&ctx.defined, name)) {
       if (ts_var_set_contains(&ctx.assigned, name) &&
-          !tbs_env_has(closure_env, name) &&
+          !toad_env_has(closure_env, name) &&
           !ts_outer_scope_defines_name(outer_scope, name)) {
         /* A local written before its first read has a stable MIR register.
          * Reading it first (x = x + 1) instead depends on engine's fresh

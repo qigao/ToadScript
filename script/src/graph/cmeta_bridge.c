@@ -23,13 +23,13 @@ static bool ts_cmeta_analysis_only_invoke(const cmeta_callable *self,
   return false;
 }
 
-static bool ts_cmeta_param_name(const tbs_node_t *lambda,
+static bool ts_cmeta_param_name(const toad_node_t *lambda,
                                 const char *name) {
   size_t i;
   if (!lambda || !name) return false;
   for (i = 0; i < lambda->data.func_def.arg_count; ++i) {
-    const tbs_node_t *param = lambda->data.func_def.arg_params[i];
-    if (param && param->type == TBS_NODE_VARIABLE &&
+    const toad_node_t *param = lambda->data.func_def.arg_params[i];
+    if (param && param->type == TOAD_NODE_VARIABLE &&
         param->data.variable.name &&
         strcmp(param->data.variable.name, name) == 0)
       return true;
@@ -44,8 +44,8 @@ static cmeta_effects ts_cmeta_merge_effects(cmeta_effects left,
   return left | right;
 }
 
-static cmeta_effects ts_cmeta_expression_effects(const tbs_node_t *node,
-                                                 const tbs_node_t *lambda,
+static cmeta_effects ts_cmeta_expression_effects(const toad_node_t *node,
+                                                 const toad_node_t *lambda,
                                                  size_t *capture_count) {
   size_t i;
   cmeta_effects effects = CMETA_EFFECT_PURE;
@@ -53,31 +53,31 @@ static cmeta_effects ts_cmeta_expression_effects(const tbs_node_t *node,
   if (!node) return CMETA_EFFECT_UNKNOWN;
 
   switch (node->type) {
-  case TBS_NODE_NUMBER:
-  case TBS_NODE_INTEGER:
-  case TBS_NODE_STRING:
-  case TBS_NODE_NULL:
+  case TOAD_NODE_NUMBER:
+  case TOAD_NODE_INTEGER:
+  case TOAD_NODE_STRING:
+  case TOAD_NODE_NULL:
     return CMETA_EFFECT_PURE;
 
-  case TBS_NODE_VARIABLE:
+  case TOAD_NODE_VARIABLE:
     if (node->data.variable.name &&
         ts_cmeta_param_name(lambda, node->data.variable.name))
       return CMETA_EFFECT_PURE;
     if (capture_count) ++*capture_count;
     return CMETA_EFFECT_UNKNOWN;
 
-  case TBS_NODE_BINARY_OP:
+  case TOAD_NODE_BINARY_OP:
     return ts_cmeta_merge_effects(
         ts_cmeta_expression_effects(node->data.binary.left, lambda,
                                     capture_count),
         ts_cmeta_expression_effects(node->data.binary.right, lambda,
                                     capture_count));
 
-  case TBS_NODE_FLOW:
+  case TOAD_NODE_FLOW:
     return ts_cmeta_expression_effects(node->data.flow.value, lambda,
                                        capture_count);
 
-  case TBS_NODE_BLOCK:
+  case TOAD_NODE_BLOCK:
     for (i = 0; i < node->data.block.count; ++i)
       effects = ts_cmeta_merge_effects(
           effects,
@@ -85,7 +85,7 @@ static cmeta_effects ts_cmeta_expression_effects(const tbs_node_t *node,
                                       capture_count));
     return effects;
 
-  case TBS_NODE_VECTOR:
+  case TOAD_NODE_VECTOR:
     for (i = 0; i < node->data.vector.count; ++i)
       effects = ts_cmeta_merge_effects(
           effects,
@@ -134,21 +134,21 @@ static size_t ts_cmeta_expected_arity(ts_cmeta_lambda_role_t role) {
   }
 }
 
-bool ts_cmeta_describe_value_type(tbs_value_type_t type,
+bool ts_cmeta_describe_value_type(toad_value_type_t type,
                                   ts_cmeta_value_semantics_t *out) {
   if (!out) return false;
   memset(out, 0, sizeof(*out));
 
   switch (type) {
-  case TBS_VAL_NUMBER:
+  case TOAD_VAL_NUMBER:
     out->shape = TS_CMETA_VALUE_SCALAR;
     out->flow_type = &cmeta_type_double;
     return true;
-  case TBS_VAL_BOOL:
+  case TOAD_VAL_BOOL:
     out->shape = TS_CMETA_VALUE_SCALAR;
     out->flow_type = &cmeta_type_bool;
     return true;
-  case TBS_VAL_VECTOR:
+  case TOAD_VAL_VECTOR:
     out->shape = TS_CMETA_VALUE_VECTOR;
     out->flow_type = &cmeta_type_double;
     return true;
@@ -157,7 +157,7 @@ bool ts_cmeta_describe_value_type(tbs_value_type_t type,
   }
 }
 
-bool ts_cmeta_analyze_lambda(const tbs_node_t *lambda,
+bool ts_cmeta_analyze_lambda(const toad_node_t *lambda,
                              ts_cmeta_lambda_role_t role,
                              ts_cmeta_lambda_contract_t *out,
                              const char **error) {
@@ -177,8 +177,8 @@ bool ts_cmeta_analyze_lambda(const tbs_node_t *lambda,
   }
   memset(out, 0, sizeof(*out));
 
-  if (lambda->type != TBS_NODE_FUNCTION_EXPRESSION) {
-    if (error) *error = "graph callable must be a TurboScript function expression";
+  if (lambda->type != TOAD_NODE_FUNCTION_EXPRESSION) {
+    if (error) *error = "graph callable must be a Toad function expression";
     return false;
   }
 
@@ -190,8 +190,8 @@ bool ts_cmeta_analyze_lambda(const tbs_node_t *lambda,
   }
 
   for (i = 0; i < lambda->data.func_def.arg_count; ++i) {
-    const tbs_node_t *param = lambda->data.func_def.arg_params[i];
-    if (!param || param->type != TBS_NODE_VARIABLE ||
+    const toad_node_t *param = lambda->data.func_def.arg_params[i];
+    if (!param || param->type != TOAD_NODE_VARIABLE ||
         !param->data.variable.name) {
       if (error) *error =
           "first CMeta graph bridge supports simple named lambda parameters only";

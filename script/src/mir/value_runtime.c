@@ -3,9 +3,9 @@
  */
 
 #include "../internal.h"
-#include <turboscript/class.h>
-#include <turboscript/grammar.h>
-#include <turboscript/module.h>
+#include <toad/class.h>
+#include <toad/grammar.h>
+#include <toad/module.h>
 #include "internal.h"
 #include "../graph/cflow_runtime.h"
 #include "core/tstr.h"
@@ -17,40 +17,40 @@
 #include <string.h>
 #include <time.h>
 
-tbs_env_t *tbs_env_snapshot(tbs_env_t *env);
-tbs_value_t throw_error(tbs_env_t *env, const tbs_node_t *node, const char *fmt, ...);
-tbs_value_t throw_method_access_error(tbs_env_t *env, const tbs_node_t *node,
-                                         const char *method_name, tbs_func_t *method);
-tbs_value_t throw_field_access_error(tbs_env_t *env, const tbs_node_t *node,
+toad_env_t *toad_env_snapshot(toad_env_t *env);
+toad_value_t throw_error(toad_env_t *env, const toad_node_t *node, const char *fmt, ...);
+toad_value_t throw_method_access_error(toad_env_t *env, const toad_node_t *node,
+                                         const char *method_name, toad_func_t *method);
+toad_value_t throw_field_access_error(toad_env_t *env, const toad_node_t *node,
                                         const char *field_name, int access_level);
 const char *type_name(int type);
-int values_match(tbs_value_t lhs, tbs_value_t rhs);
-int tbs_datetime_member_get(tbs_value_t value, const char *member, tbs_value_t *out);
-int tbs_date_member_get(tbs_value_t value, const char *member, tbs_value_t *out);
-int tbs_time_member_get(tbs_value_t value, const char *member, tbs_value_t *out);
-int tbs_duration_member_get(tbs_value_t value, const char *member, tbs_value_t *out);
-int tbs_decimal_member_get(tbs_value_t value, const char *member, tbs_value_t *out);
-tbs_class_t *eval_current_class(tbs_env_t *env);
-tbs_func_t *eval_find_constructor_typed(tbs_class_t *klass, size_t argc,
-                                           tbs_value_t *args);
-int can_access_method(tbs_env_t *env, tbs_func_t *method, const tbs_node_t *object_node);
-int can_access_declared_field(tbs_env_t *env, tbs_class_t *owner_class, int access_level,
-                              const tbs_node_t *object_node, const char *field_name);
-tbs_value_t eval_script_function(tbs_func_t *func, size_t argc, tbs_value_t *args,
-                                    tbs_env_t *parent_env, tbs_env_t *caller_env);
-tbs_value_t eval_class_def_node(const tbs_node_t *node, tbs_env_t *env);
-tbs_value_t eval_class_instantiation(const char *class_name, tbs_node_t **arg_nodes,
-                                        size_t arg_count, tbs_env_t *env);
-static void ts_mir_value_arg_error(tbs_env_t *env, tbs_node_t *node);
-static int ts_mir_runtime_value_arg(tbs_node_t *node, tbs_env_t *env, tbs_value_t *out);
+int values_match(toad_value_t lhs, toad_value_t rhs);
+int toad_datetime_member_get(toad_value_t value, const char *member, toad_value_t *out);
+int toad_date_member_get(toad_value_t value, const char *member, toad_value_t *out);
+int toad_time_member_get(toad_value_t value, const char *member, toad_value_t *out);
+int toad_duration_member_get(toad_value_t value, const char *member, toad_value_t *out);
+int toad_decimal_member_get(toad_value_t value, const char *member, toad_value_t *out);
+toad_class_t *eval_current_class(toad_env_t *env);
+toad_func_t *eval_find_constructor_typed(toad_class_t *klass, size_t argc,
+                                           toad_value_t *args);
+int can_access_method(toad_env_t *env, toad_func_t *method, const toad_node_t *object_node);
+int can_access_declared_field(toad_env_t *env, toad_class_t *owner_class, int access_level,
+                              const toad_node_t *object_node, const char *field_name);
+toad_value_t eval_script_function(toad_func_t *func, size_t argc, toad_value_t *args,
+                                    toad_env_t *parent_env, toad_env_t *caller_env);
+toad_value_t eval_class_def_node(const toad_node_t *node, toad_env_t *env);
+toad_value_t eval_class_instantiation(const char *class_name, toad_node_t **arg_nodes,
+                                        size_t arg_count, toad_env_t *env);
+static void ts_mir_value_arg_error(toad_env_t *env, toad_node_t *node);
+static int ts_mir_runtime_value_arg(toad_node_t *node, toad_env_t *env, toad_value_t *out);
 
-int64_t ts_mir_host_export_call(void *ctx_ptr, size_t export_index, const tbs_value_t *args,
-                                size_t arg_count, tbs_value_t *out_value) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
-  tbs_func_t *function;
-  tbs_env_t *definition_env;
-  tbs_env_t local_env;
-  tbs_value_t value = {.type = TBS_VAL_NULL};
+int64_t ts_mir_host_export_call(void *ctx_ptr, size_t export_index, const toad_value_t *args,
+                                size_t arg_count, toad_value_t *out_value) {
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
+  toad_func_t *function;
+  toad_env_t *definition_env;
+  toad_env_t local_env;
+  toad_value_t value = {.type = TOAD_VAL_NULL};
   size_t frame_bytes;
   int frame_entered = 0;
   if (out_value) *out_value = value;
@@ -69,7 +69,7 @@ int64_t ts_mir_host_export_call(void *ctx_ptr, size_t export_index, const tbs_va
     ctx->env.last_column = function->data.script.body->column;
   }
   if (ctx->env.safe_point &&
-      ctx->env.safe_point(ctx->env.safe_point_user_data, TBS_SAFE_POINT_FUNCTION_ENTER,
+      ctx->env.safe_point(ctx->env.safe_point_user_data, TOAD_SAFE_POINT_FUNCTION_ENTER,
                           frame_bytes) != 0) {
     ctx->env.aborted = 1;
     return -1;
@@ -84,13 +84,13 @@ int64_t ts_mir_host_export_call(void *ctx_ptr, size_t export_index, const tbs_va
     snprintf(ctx->env.error_msg, sizeof(ctx->env.error_msg), "maximum recursion depth exceeded");
     ctx->env.curr_recursion--;
     if (frame_entered)
-      (void)ctx->env.safe_point(ctx->env.safe_point_user_data, TBS_SAFE_POINT_FUNCTION_LEAVE,
+      (void)ctx->env.safe_point(ctx->env.safe_point_user_data, TOAD_SAFE_POINT_FUNCTION_LEAVE,
                                 frame_bytes);
     return -1;
   }
-  tbs_env_init_child(&local_env, definition_env);
-  local_env.eval_node = turbo_script_mir_eval_node;
-  local_env.exec_script_body = turbo_script_mir_exec_script_body;
+  toad_env_init_child(&local_env, definition_env);
+  local_env.eval_node = toad_script_mir_eval_node;
+  local_env.exec_script_body = toad_script_mir_exec_script_body;
   local_env.safe_point = ctx->env.safe_point;
   local_env.safe_point_user_data = ctx->env.safe_point_user_data;
   local_env.max_recursion = ctx->env.max_recursion;
@@ -100,31 +100,31 @@ int64_t ts_mir_host_export_call(void *ctx_ptr, size_t export_index, const tbs_va
   local_env.max_nodes = ctx->env.max_nodes;
   local_env.curr_nodes = ctx->env.curr_nodes;
   for (size_t i = 0; i < arg_count; ++i) {
-    tbs_node_t *parameter = function->data.script.arg_params[i];
-    if (!parameter || parameter->type != TBS_NODE_VARIABLE || !parameter->data.variable.name) {
+    toad_node_t *parameter = function->data.script.arg_params[i];
+    if (!parameter || parameter->type != TOAD_NODE_VARIABLE || !parameter->data.variable.name) {
       local_env.aborted = 1;
       break;
     }
-    tbs_env_set_local(&local_env, parameter->data.variable.name, args[i]);
+    toad_env_set_local(&local_env, parameter->data.variable.name, args[i]);
     if (local_env.aborted) break;
   }
   if (!local_env.aborted &&
       !ts_mir_runtime_value_arg(function->data.script.body, &local_env, &value))
     local_env.aborted = 1;
 
-  if (!local_env.aborted && local_env.flow == tbs_FLOW_RETURN) value = local_env.return_value;
-  if (!local_env.aborted && local_env.flow != tbs_FLOW_THROW &&
-      tbs_value_copy_to_env(value, &ctx->env, out_value) != 0)
+  if (!local_env.aborted && local_env.flow == toad_FLOW_RETURN) value = local_env.return_value;
+  if (!local_env.aborted && local_env.flow != toad_FLOW_THROW &&
+      toad_value_copy_to_env(value, &ctx->env, out_value) != 0)
     local_env.aborted = 1;
 
   ctx->env.curr_nodes = local_env.curr_nodes;
   ctx->env.curr_loop_iterations = local_env.curr_loop_iterations;
   ctx->env.curr_recursion--;
   if (frame_entered && ctx->env.safe_point(ctx->env.safe_point_user_data,
-                                           TBS_SAFE_POINT_FUNCTION_LEAVE, frame_bytes) != 0)
+                                           TOAD_SAFE_POINT_FUNCTION_LEAVE, frame_bytes) != 0)
     local_env.aborted = 1;
-  if (local_env.aborted || local_env.flow == tbs_FLOW_THROW) {
-    tbs_value_t copied_error = {.type = TBS_VAL_NULL};
+  if (local_env.aborted || local_env.flow == toad_FLOW_THROW) {
+    toad_value_t copied_error = {.type = TOAD_VAL_NULL};
     ctx->env.aborted = local_env.aborted;
     ctx->env.flow = local_env.flow;
     snprintf(ctx->env.error_msg, sizeof(ctx->env.error_msg), "%s", local_env.error_msg);
@@ -132,32 +132,32 @@ int64_t ts_mir_host_export_call(void *ctx_ptr, size_t export_index, const tbs_va
     ctx->env.error_column = local_env.error_column;
     ctx->env.last_line = local_env.last_line;
     ctx->env.last_column = local_env.last_column;
-    if (tbs_value_copy_to_env(local_env.error_value, &ctx->env, &copied_error) == 0) {
-      cmeta_data_value_destroy(tbs_value_cmeta_data(), &ctx->env.error_value);
+    if (toad_value_copy_to_env(local_env.error_value, &ctx->env, &copied_error) == 0) {
+      cmeta_data_value_destroy(toad_value_cmeta_data(), &ctx->env.error_value);
       ctx->env.error_value = copied_error;
     }
-    cmeta_data_value_destroy(tbs_value_cmeta_data(), out_value);
-    tbs_env_free(&local_env);
+    cmeta_data_value_destroy(toad_value_cmeta_data(), out_value);
+    toad_env_free(&local_env);
     return -1;
   }
-  tbs_env_free(&local_env);
+  toad_env_free(&local_env);
   return 0;
 }
 
-static int ts_mir_value_is_numeric(tbs_value_t val) {
-  return val.type == TBS_VAL_INTEGER || val.type == TBS_VAL_NUMBER ||
-         val.type == TBS_VAL_BOOL;
+static int ts_mir_value_is_numeric(toad_value_t val) {
+  return val.type == TOAD_VAL_INTEGER || val.type == TOAD_VAL_NUMBER ||
+         val.type == TOAD_VAL_BOOL;
 }
 
-static int ts_mir_null_compare_value(tbs_value_t lhs, tbs_value_t rhs, int op,
-                                     tbs_value_t *out) {
+static int ts_mir_null_compare_value(toad_value_t lhs, toad_value_t rhs, int op,
+                                     toad_value_t *out) {
   int equal = 0;
 
-  if (op != tbs_TOKEN_EQ && op != tbs_TOKEN_NE) return 0;
-  if (lhs.type != TBS_VAL_NULL && rhs.type != TBS_VAL_NULL) return 0;
+  if (op != toad_TOKEN_EQ && op != toad_TOKEN_NE) return 0;
+  if (lhs.type != TOAD_VAL_NULL && rhs.type != TOAD_VAL_NULL) return 0;
 
-  equal = lhs.type == TBS_VAL_NULL && rhs.type == TBS_VAL_NULL;
-  *out = tbs_val_num(op == tbs_TOKEN_EQ ? (double)equal : (double)!equal);
+  equal = lhs.type == TOAD_VAL_NULL && rhs.type == TOAD_VAL_NULL;
+  *out = toad_val_num(op == toad_TOKEN_EQ ? (double)equal : (double)!equal);
   return 1;
 }
 
@@ -167,80 +167,80 @@ static int ts_mir_null_compare_value(tbs_value_t lhs, tbs_value_t rhs, int op,
 
 double ts_mir_destructure_var(void *ctx_ptr, void *target_node_ptr, const char *value_name,
                               int64_t is_constant) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
-  tbs_node_t *target = (tbs_node_t *)target_node_ptr;
-  tbs_value_t rhs;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
+  toad_node_t *target = (toad_node_t *)target_node_ptr;
+  toad_value_t rhs;
 
   if (!ctx || !target || !value_name) return 0.0;
 
-  rhs = tbs_env_get(&ctx->env, value_name);
+  rhs = toad_env_get(&ctx->env, value_name);
   eval_destructure(target, rhs, &ctx->env, (int)is_constant);
-  if (ctx->env.flow != tbs_FLOW_NORMAL || ctx->env.aborted) ts_mir_promote_env_error(ctx);
+  if (ctx->env.flow != toad_FLOW_NORMAL || ctx->env.aborted) ts_mir_promote_env_error(ctx);
   return ts_mir_numeric_value(rhs);
 }
 
 double ts_mir_destructure_vector(void *ctx_ptr, void *target_node_ptr, int64_t is_constant,
                                  int64_t count, double *values) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
-  tbs_node_t *target = (tbs_node_t *)target_node_ptr;
-  tbs_value_t rhs;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
+  toad_node_t *target = (toad_node_t *)target_node_ptr;
+  toad_value_t rhs;
 
   if (!ctx || !target || count < 0) return 0.0;
 
-  rhs = tbs_val_vec(values, (size_t)count);
+  rhs = toad_val_vec(values, (size_t)count);
   eval_destructure(target, rhs, &ctx->env, (int)is_constant);
-  if (ctx->env.flow != tbs_FLOW_NORMAL || ctx->env.aborted) ts_mir_promote_env_error(ctx);
+  if (ctx->env.flow != toad_FLOW_NORMAL || ctx->env.aborted) ts_mir_promote_env_error(ctx);
   return ts_mir_numeric_value(rhs);
 }
 
 double ts_mir_map_value_assign(void *ctx_ptr, const char *target_name, void *node_ptr) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
-  tbs_node_t *node = (tbs_node_t *)node_ptr;
-  tbs_value_t map;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
+  toad_node_t *node = (toad_node_t *)node_ptr;
+  toad_value_t map;
 
-  if (!ctx || !target_name || !node || node->type != TBS_NODE_MAP_LITERAL) return 0.0;
+  if (!ctx || !target_name || !node || node->type != TOAD_NODE_MAP_LITERAL) return 0.0;
 
-  map = tbs_val_map();
+  map = toad_val_map();
   for (size_t i = 0; i < node->data.map_literal.count; ++i) {
-    tbs_value_t value;
+    toad_value_t value;
     const char *key = node->data.map_literal.keys[i];
-    tbs_node_t *value_node = node->data.map_literal.values[i];
+    toad_node_t *value_node = node->data.map_literal.values[i];
 
     if (!key) continue;
     if (!value_node || !ts_mir_runtime_value_arg(value_node, &ctx->env, &value)) {
       if (!ctx->env.aborted && ctx->env.error_msg[0] == '\0')
         ts_mir_value_arg_error(&ctx->env, value_node);
       ts_mir_promote_env_error(ctx);
-      tbs_map_free(&map);
+      toad_map_free(&map);
       return 0.0;
     }
-    if (tbs_map_set(&map, key, value) != 0) {
-      cmeta_data_value_destroy(tbs_value_cmeta_data(), &value);
-      cmeta_data_value_destroy(tbs_value_cmeta_data(), &map);
+    if (toad_map_set(&map, key, value) != 0) {
+      cmeta_data_value_destroy(toad_value_cmeta_data(), &value);
+      cmeta_data_value_destroy(toad_value_cmeta_data(), &map);
       return 0.0;
     }
-    cmeta_data_value_destroy(tbs_value_cmeta_data(), &value);
+    cmeta_data_value_destroy(toad_value_cmeta_data(), &value);
   }
 
-  tbs_env_set(&ctx->env, target_name, map);
-  tbs_map_free(&map);
+  toad_env_set(&ctx->env, target_name, map);
+  toad_map_free(&map);
   return 0.0;
 }
 
 double ts_mir_template_assign(void *ctx_ptr, const char *target_name, void *node_ptr) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
-  tbs_node_t *node = (tbs_node_t *)node_ptr;
-  tbs_value_t val;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
+  toad_node_t *node = (toad_node_t *)node_ptr;
+  toad_value_t val;
 
-  if (!ctx || !target_name || !node || node->type != TBS_NODE_TEMPLATE_STRING) return 0.0;
+  if (!ctx || !target_name || !node || node->type != TOAD_NODE_TEMPLATE_STRING) return 0.0;
 
   if (!ts_mir_runtime_value_arg(node, &ctx->env, &val)) {
     if (!ctx->env.aborted && ctx->env.error_msg[0] == '\0') ts_mir_value_arg_error(&ctx->env, node);
     ts_mir_promote_env_error(ctx);
     return 0.0;
   }
-  tbs_env_set(&ctx->env, target_name, val);
-  if (ctx->env.flow != tbs_FLOW_NORMAL || ctx->env.aborted) ts_mir_promote_env_error(ctx);
+  toad_env_set(&ctx->env, target_name, val);
+  if (ctx->env.flow != toad_FLOW_NORMAL || ctx->env.aborted) ts_mir_promote_env_error(ctx);
   return ts_mir_numeric_value(val);
 }
 
@@ -248,8 +248,8 @@ double ts_mir_template_assign(void *ctx_ptr, const char *target_name, void *node
  *  Function Call Bridge Functions
  * ========================================================================= */
 
-static int ts_mir_value_array_grow(tbs_value_t **vals, size_t *cap, size_t needed) {
-  tbs_value_t *new_vals = NULL;
+static int ts_mir_value_array_grow(toad_value_t **vals, size_t *cap, size_t needed) {
+  toad_value_t *new_vals = NULL;
   size_t new_cap = 0;
 
   if (!vals || !cap) return 0;
@@ -259,18 +259,18 @@ static int ts_mir_value_array_grow(tbs_value_t **vals, size_t *cap, size_t neede
   while (new_cap < needed)
     new_cap *= 2;
 
-  new_vals = (tbs_value_t *)realloc(*vals, new_cap * sizeof(*new_vals));
+  new_vals = (toad_value_t *)realloc(*vals, new_cap * sizeof(*new_vals));
   if (!new_vals) return 0;
   *vals = new_vals;
   *cap = new_cap;
   return 1;
 }
 
-static void ts_mir_value_arg_error(tbs_env_t *env, tbs_node_t *node) {
+static void ts_mir_value_arg_error(toad_env_t *env, toad_node_t *node) {
   if (!env) return;
   if (env->aborted || env->error_msg[0] != '\0') return;
   env->aborted = 1;
-  if (node && node->type == TBS_NODE_MEMBER_CALL) {
+  if (node && node->type == TOAD_NODE_MEMBER_CALL) {
     snprintf(env->error_msg, sizeof(env->error_msg),
              "MIR runtime error: unsupported runtime member call '%s' on node type %d",
              node->data.member_call.method ? node->data.member_call.method : "<null>",
@@ -282,56 +282,56 @@ static void ts_mir_value_arg_error(tbs_env_t *env, tbs_node_t *node) {
            node ? (int)node->type : -1);
 }
 
-static int ts_mir_runtime_value_arg(tbs_node_t *node, tbs_env_t *env, tbs_value_t *out);
-static tbs_value_t *ts_mir_runtime_call_value_args(tbs_node_t *call_node, tbs_env_t *env,
+static int ts_mir_runtime_value_arg(toad_node_t *node, toad_env_t *env, toad_value_t *out);
+static toad_value_t *ts_mir_runtime_call_value_args(toad_node_t *call_node, toad_env_t *env,
                                                       size_t *out_count);
 
-static void ts_mir_runtime_value_args_free(tbs_value_t *args, size_t count) {
-  tbs_values_destroy(args, count);
+static void ts_mir_runtime_value_args_free(toad_value_t *args, size_t count) {
+  toad_values_destroy(args, count);
   free(args);
 }
 
-static int ts_mir_runtime_value_text(tbs_value_t value, char *buf, size_t buf_size,
+static int ts_mir_runtime_value_text(toad_value_t value, char *buf, size_t buf_size,
                                      const char **out_data, size_t *out_len) {
   if (!out_data || !out_len) return 0;
-  if (value.type == TBS_VAL_STRING) {
+  if (value.type == TOAD_VAL_STRING) {
     *out_data = value.data.string.data;
     *out_len = value.data.string.len;
     return 1;
   }
-  if (value.type == TBS_VAL_INTEGER) {
+  if (value.type == TOAD_VAL_INTEGER) {
     int n = snprintf(buf, buf_size, "%lld", (long long)value.data.integer);
     if (n < 0) return 0;
     *out_data = buf;
     *out_len = (size_t)n;
     return 1;
   }
-  if (value.type == TBS_VAL_BOOL) {
+  if (value.type == TOAD_VAL_BOOL) {
     *out_data = value.data.boolean ? "true" : "false";
     *out_len = value.data.boolean ? 4 : 5;
     return 1;
   }
-  if (value.type == TBS_VAL_BYTES) {
+  if (value.type == TOAD_VAL_BYTES) {
     int n = snprintf(buf, buf_size, "bytes(%zu)", value.data.bytes.len);
     if (n < 0) return 0;
     *out_data = buf;
     *out_len = (size_t)n;
     return 1;
   }
-  if (value.type == TBS_VAL_UUID) {
+  if (value.type == TOAD_VAL_UUID) {
     if (uuid_format(value.data.uuid, buf, buf_size) != SALTS_OK) return 0;
     *out_data = buf;
     *out_len = strlen(buf);
     return 1;
   }
-  if (value.type == TBS_VAL_DATETIME) {
+  if (value.type == TOAD_VAL_DATETIME) {
     time_t ts = datetime_to_time(&value.data.datetime);
     if (ts == (time_t)-1 || datetime_format_rfc822(ts, buf, buf_size) < 0) return 0;
     *out_data = buf;
     *out_len = strlen(buf);
     return 1;
   }
-  if (value.type == TBS_VAL_DATE) {
+  if (value.type == TOAD_VAL_DATE) {
     int n = snprintf(buf, buf_size, "%04d-%02d-%02d", value.data.date.year, value.data.date.month,
                      value.data.date.day);
     if (n < 0) return 0;
@@ -339,7 +339,7 @@ static int ts_mir_runtime_value_text(tbs_value_t value, char *buf, size_t buf_si
     *out_len = (size_t)n;
     return 1;
   }
-  if (value.type == TBS_VAL_TIME) {
+  if (value.type == TOAD_VAL_TIME) {
     int n;
     if (value.data.time.millisecond > 0)
       n = snprintf(buf, buf_size, "%02d:%02d:%02d.%03d", value.data.time.hour,
@@ -352,7 +352,7 @@ static int ts_mir_runtime_value_text(tbs_value_t value, char *buf, size_t buf_si
     *out_len = (size_t)n;
     return 1;
   }
-  if (value.type == TBS_VAL_DURATION) {
+  if (value.type == TOAD_VAL_DURATION) {
     int64_t rem = value.data.duration_ms < 0 ? -value.data.duration_ms : value.data.duration_ms;
     int64_t h = rem / 3600000;
     int64_t m;
@@ -371,8 +371,8 @@ static int ts_mir_runtime_value_text(tbs_value_t value, char *buf, size_t buf_si
     *out_len = (size_t)n;
     return 1;
   }
-  if (value.type == TBS_VAL_DECIMAL) {
-    tbs_decimal_t dec = value.data.decimal;
+  if (value.type == TOAD_VAL_DECIMAL) {
+    toad_decimal_t dec = value.data.decimal;
     char digits[32];
     char *p = digits + sizeof(digits);
     uint64_t mag;
@@ -423,7 +423,7 @@ static int ts_mir_runtime_value_text(tbs_value_t value, char *buf, size_t buf_si
     *out_len = strlen(buf);
     return 1;
   }
-  if (value.type == TBS_VAL_NULL) {
+  if (value.type == TOAD_VAL_NULL) {
     *out_data = "null";
     *out_len = 4;
     return 1;
@@ -437,9 +437,9 @@ static int ts_mir_runtime_value_text(tbs_value_t value, char *buf, size_t buf_si
   }
 }
 
-static int ts_mir_eval_value_binary(tbs_node_t *node, tbs_env_t *env, tbs_value_t *out) {
-  tbs_value_t lhs;
-  tbs_value_t rhs;
+static int ts_mir_eval_value_binary(toad_node_t *node, toad_env_t *env, toad_value_t *out) {
+  toad_value_t lhs;
+  toad_value_t rhs;
   double l = 0.0;
   double r = 0.0;
 
@@ -448,14 +448,14 @@ static int ts_mir_eval_value_binary(tbs_node_t *node, tbs_env_t *env, tbs_value_
     if (!ts_mir_runtime_value_arg(node->data.binary.right, env, &rhs)) return 0;
     r = ts_mir_numeric_value(rhs);
     switch (node->data.binary.op) {
-    case tbs_TOKEN_PLUS:
-      *out = tbs_val_num(r);
+    case toad_TOKEN_PLUS:
+      *out = toad_val_num(r);
       return 1;
-    case tbs_TOKEN_MINUS:
-      *out = tbs_val_num(-r);
+    case toad_TOKEN_MINUS:
+      *out = toad_val_num(-r);
       return 1;
-    case tbs_TOKEN_NOT:
-      *out = tbs_val_num(fabs(r) <= 1e-9 ? 1.0 : 0.0);
+    case toad_TOKEN_NOT:
+      *out = toad_val_num(fabs(r) <= 1e-9 ? 1.0 : 0.0);
       return 1;
     default:
       return 0;
@@ -475,66 +475,66 @@ static int ts_mir_eval_value_binary(tbs_node_t *node, tbs_env_t *env, tbs_value_
     return 1;
   }
 
-  if (lhs.type == TBS_VAL_BOOL && rhs.type == TBS_VAL_BOOL &&
-      (node->data.binary.op == tbs_TOKEN_EQ || node->data.binary.op == tbs_TOKEN_NE)) {
+  if (lhs.type == TOAD_VAL_BOOL && rhs.type == TOAD_VAL_BOOL &&
+      (node->data.binary.op == toad_TOKEN_EQ || node->data.binary.op == toad_TOKEN_NE)) {
     int equal = lhs.data.boolean == rhs.data.boolean;
-    *out = tbs_val_num(node->data.binary.op == tbs_TOKEN_EQ ? (double)equal : (double)!equal);
+    *out = toad_val_num(node->data.binary.op == toad_TOKEN_EQ ? (double)equal : (double)!equal);
     return 1;
   }
 
-  if (lhs.type == TBS_VAL_BYTES && rhs.type == TBS_VAL_BYTES &&
-      (node->data.binary.op == tbs_TOKEN_EQ || node->data.binary.op == tbs_TOKEN_NE)) {
+  if (lhs.type == TOAD_VAL_BYTES && rhs.type == TOAD_VAL_BYTES &&
+      (node->data.binary.op == toad_TOKEN_EQ || node->data.binary.op == toad_TOKEN_NE)) {
     int equal = lhs.data.bytes.len == rhs.data.bytes.len &&
                 (lhs.data.bytes.len == 0 ||
                  memcmp(lhs.data.bytes.data, rhs.data.bytes.data, lhs.data.bytes.len) == 0);
-    *out = tbs_val_num(node->data.binary.op == tbs_TOKEN_EQ ? (double)equal : (double)!equal);
+    *out = toad_val_num(node->data.binary.op == toad_TOKEN_EQ ? (double)equal : (double)!equal);
     return 1;
   }
 
-  if (lhs.type == TBS_VAL_UUID && rhs.type == TBS_VAL_UUID &&
-      (node->data.binary.op == tbs_TOKEN_EQ || node->data.binary.op == tbs_TOKEN_NE)) {
+  if (lhs.type == TOAD_VAL_UUID && rhs.type == TOAD_VAL_UUID &&
+      (node->data.binary.op == toad_TOKEN_EQ || node->data.binary.op == toad_TOKEN_NE)) {
     int equal = memcmp(lhs.data.uuid, rhs.data.uuid, sizeof(lhs.data.uuid)) == 0;
-    *out = tbs_val_num(node->data.binary.op == tbs_TOKEN_EQ ? (double)equal : (double)!equal);
+    *out = toad_val_num(node->data.binary.op == toad_TOKEN_EQ ? (double)equal : (double)!equal);
     return 1;
   }
 
-  if (lhs.type == TBS_VAL_DATETIME && rhs.type == TBS_VAL_DATETIME &&
-      (node->data.binary.op == tbs_TOKEN_EQ || node->data.binary.op == tbs_TOKEN_NE)) {
+  if (lhs.type == TOAD_VAL_DATETIME && rhs.type == TOAD_VAL_DATETIME &&
+      (node->data.binary.op == toad_TOKEN_EQ || node->data.binary.op == toad_TOKEN_NE)) {
     int equal = memcmp(&lhs.data.datetime, &rhs.data.datetime, sizeof(lhs.data.datetime)) == 0;
-    *out = tbs_val_num(node->data.binary.op == tbs_TOKEN_EQ ? (double)equal : (double)!equal);
+    *out = toad_val_num(node->data.binary.op == toad_TOKEN_EQ ? (double)equal : (double)!equal);
     return 1;
   }
 
-  if (lhs.type == TBS_VAL_DATE && rhs.type == TBS_VAL_DATE &&
-      (node->data.binary.op == tbs_TOKEN_EQ || node->data.binary.op == tbs_TOKEN_NE)) {
+  if (lhs.type == TOAD_VAL_DATE && rhs.type == TOAD_VAL_DATE &&
+      (node->data.binary.op == toad_TOKEN_EQ || node->data.binary.op == toad_TOKEN_NE)) {
     int equal = lhs.data.date.year == rhs.data.date.year &&
                 lhs.data.date.month == rhs.data.date.month &&
                 lhs.data.date.day == rhs.data.date.day;
-    *out = tbs_val_num(node->data.binary.op == tbs_TOKEN_EQ ? (double)equal : (double)!equal);
+    *out = toad_val_num(node->data.binary.op == toad_TOKEN_EQ ? (double)equal : (double)!equal);
     return 1;
   }
 
-  if (lhs.type == TBS_VAL_TIME && rhs.type == TBS_VAL_TIME &&
-      (node->data.binary.op == tbs_TOKEN_EQ || node->data.binary.op == tbs_TOKEN_NE)) {
+  if (lhs.type == TOAD_VAL_TIME && rhs.type == TOAD_VAL_TIME &&
+      (node->data.binary.op == toad_TOKEN_EQ || node->data.binary.op == toad_TOKEN_NE)) {
     int equal = lhs.data.time.hour == rhs.data.time.hour &&
                 lhs.data.time.minute == rhs.data.time.minute &&
                 lhs.data.time.second == rhs.data.time.second &&
                 lhs.data.time.millisecond == rhs.data.time.millisecond;
-    *out = tbs_val_num(node->data.binary.op == tbs_TOKEN_EQ ? (double)equal : (double)!equal);
+    *out = toad_val_num(node->data.binary.op == toad_TOKEN_EQ ? (double)equal : (double)!equal);
     return 1;
   }
 
-  if (lhs.type == TBS_VAL_DURATION && rhs.type == TBS_VAL_DURATION &&
-      (node->data.binary.op == tbs_TOKEN_EQ || node->data.binary.op == tbs_TOKEN_NE)) {
+  if (lhs.type == TOAD_VAL_DURATION && rhs.type == TOAD_VAL_DURATION &&
+      (node->data.binary.op == toad_TOKEN_EQ || node->data.binary.op == toad_TOKEN_NE)) {
     int equal = lhs.data.duration_ms == rhs.data.duration_ms;
-    *out = tbs_val_num(node->data.binary.op == tbs_TOKEN_EQ ? (double)equal : (double)!equal);
+    *out = toad_val_num(node->data.binary.op == toad_TOKEN_EQ ? (double)equal : (double)!equal);
     return 1;
   }
 
-  if (lhs.type == TBS_VAL_DECIMAL && rhs.type == TBS_VAL_DECIMAL &&
-      (node->data.binary.op == tbs_TOKEN_EQ || node->data.binary.op == tbs_TOKEN_NE)) {
-    tbs_decimal_t ldec = lhs.data.decimal;
-    tbs_decimal_t rdec = rhs.data.decimal;
+  if (lhs.type == TOAD_VAL_DECIMAL && rhs.type == TOAD_VAL_DECIMAL &&
+      (node->data.binary.op == toad_TOKEN_EQ || node->data.binary.op == toad_TOKEN_NE)) {
+    toad_decimal_t ldec = lhs.data.decimal;
+    toad_decimal_t rdec = rhs.data.decimal;
     int equal;
     while (ldec.scale > 0 && ldec.mantissa % 10 == 0) {
       ldec.mantissa /= 10;
@@ -547,26 +547,26 @@ static int ts_mir_eval_value_binary(tbs_node_t *node, tbs_env_t *env, tbs_value_
     if (ldec.mantissa == 0) ldec.scale = 0;
     if (rdec.mantissa == 0) rdec.scale = 0;
     equal = ldec.mantissa == rdec.mantissa && ldec.scale == rdec.scale;
-    *out = tbs_val_num(node->data.binary.op == tbs_TOKEN_EQ ? (double)equal : (double)!equal);
+    *out = toad_val_num(node->data.binary.op == toad_TOKEN_EQ ? (double)equal : (double)!equal);
     return 1;
   }
 
-  if ((lhs.type == TBS_VAL_STRING || lhs.type == TBS_VAL_NULL) &&
-      (rhs.type == TBS_VAL_STRING || rhs.type == TBS_VAL_NULL) &&
-      (node->data.binary.op == tbs_TOKEN_EQ || node->data.binary.op == tbs_TOKEN_NE)) {
+  if ((lhs.type == TOAD_VAL_STRING || lhs.type == TOAD_VAL_NULL) &&
+      (rhs.type == TOAD_VAL_STRING || rhs.type == TOAD_VAL_NULL) &&
+      (node->data.binary.op == toad_TOKEN_EQ || node->data.binary.op == toad_TOKEN_NE)) {
     int equal = 0;
-    if (lhs.type == TBS_VAL_NULL || rhs.type == TBS_VAL_NULL) {
+    if (lhs.type == TOAD_VAL_NULL || rhs.type == TOAD_VAL_NULL) {
       equal = lhs.type == rhs.type;
     } else {
       equal = lhs.data.string.len == rhs.data.string.len &&
               memcmp(lhs.data.string.data, rhs.data.string.data, lhs.data.string.len) == 0;
     }
-    *out = tbs_val_num(node->data.binary.op == tbs_TOKEN_EQ ? (double)equal : (double)!equal);
+    *out = toad_val_num(node->data.binary.op == toad_TOKEN_EQ ? (double)equal : (double)!equal);
     return 1;
   }
 
-  if (node->data.binary.op == tbs_TOKEN_PLUS &&
-      (lhs.type == TBS_VAL_STRING || rhs.type == TBS_VAL_STRING)) {
+  if (node->data.binary.op == toad_TOKEN_PLUS &&
+      (lhs.type == TOAD_VAL_STRING || rhs.type == TOAD_VAL_STRING)) {
     char l_buf[32];
     char r_buf[32];
     const char *l_data = NULL;
@@ -574,7 +574,7 @@ static int ts_mir_eval_value_binary(tbs_node_t *node, tbs_env_t *env, tbs_value_
     size_t l_len = 0;
     size_t r_len = 0;
     tstr data = NULL;
-    tbs_value_t promoted = {.type = TBS_VAL_NULL};
+    toad_value_t promoted = {.type = TOAD_VAL_NULL};
 
     if (!ts_mir_runtime_value_text(lhs, l_buf, sizeof(l_buf), &l_data, &l_len) ||
         !ts_mir_runtime_value_text(rhs, r_buf, sizeof(r_buf), &r_data, &r_len)) {
@@ -587,14 +587,14 @@ static int ts_mir_eval_value_binary(tbs_node_t *node, tbs_env_t *env, tbs_value_
     if (l_len > 0) memcpy(data, l_data, l_len);
     if (r_len > 0) memcpy(data + l_len, r_data, r_len);
     data[l_len + r_len] = '\0';
-    if (tbs_value_copy_to_env(tbs_val_str(vstr_from_buf(data, l_len + r_len)), env,
+    if (toad_value_copy_to_env(toad_val_str(vstr_from_buf(data, l_len + r_len)), env,
                                  &promoted) != 0) {
       tstr_free(data);
       return 0;
     }
     tstr_free(data);
-    cmeta_data_value_destroy(tbs_value_cmeta_data(), &lhs);
-    cmeta_data_value_destroy(tbs_value_cmeta_data(), &rhs);
+    cmeta_data_value_destroy(toad_value_cmeta_data(), &lhs);
+    cmeta_data_value_destroy(toad_value_cmeta_data(), &rhs);
     *out = promoted;
     return 1;
   }
@@ -612,47 +612,47 @@ static int ts_mir_eval_value_binary(tbs_node_t *node, tbs_env_t *env, tbs_value_
   l = ts_mir_numeric_value(lhs);
   r = ts_mir_numeric_value(rhs);
   switch (node->data.binary.op) {
-  case tbs_TOKEN_PLUS:
-    *out = tbs_val_num(l + r);
+  case toad_TOKEN_PLUS:
+    *out = toad_val_num(l + r);
     return 1;
-  case tbs_TOKEN_MINUS:
-    *out = tbs_val_num(l - r);
+  case toad_TOKEN_MINUS:
+    *out = toad_val_num(l - r);
     return 1;
-  case tbs_TOKEN_MULTIPLY:
-    *out = tbs_val_num(l * r);
+  case toad_TOKEN_MULTIPLY:
+    *out = toad_val_num(l * r);
     return 1;
-  case tbs_TOKEN_DIVIDE:
-    *out = tbs_val_num(r == 0.0 ? 0.0 : l / r);
+  case toad_TOKEN_DIVIDE:
+    *out = toad_val_num(r == 0.0 ? 0.0 : l / r);
     return 1;
-  case tbs_TOKEN_MOD:
-    *out = tbs_val_num(fmod(l, r));
+  case toad_TOKEN_MOD:
+    *out = toad_val_num(fmod(l, r));
     return 1;
-  case tbs_TOKEN_POWER:
-    *out = tbs_val_num(pow(l, r));
+  case toad_TOKEN_POWER:
+    *out = toad_val_num(pow(l, r));
     return 1;
-  case tbs_TOKEN_EQ:
-    *out = tbs_val_num(fabs(l - r) < 1e-9 ? 1.0 : 0.0);
+  case toad_TOKEN_EQ:
+    *out = toad_val_num(fabs(l - r) < 1e-9 ? 1.0 : 0.0);
     return 1;
-  case tbs_TOKEN_NE:
-    *out = tbs_val_num(fabs(l - r) >= 1e-9 ? 1.0 : 0.0);
+  case toad_TOKEN_NE:
+    *out = toad_val_num(fabs(l - r) >= 1e-9 ? 1.0 : 0.0);
     return 1;
-  case tbs_TOKEN_LT:
-    *out = tbs_val_num(l < r ? 1.0 : 0.0);
+  case toad_TOKEN_LT:
+    *out = toad_val_num(l < r ? 1.0 : 0.0);
     return 1;
-  case tbs_TOKEN_LE:
-    *out = tbs_val_num(l <= r ? 1.0 : 0.0);
+  case toad_TOKEN_LE:
+    *out = toad_val_num(l <= r ? 1.0 : 0.0);
     return 1;
-  case tbs_TOKEN_GT:
-    *out = tbs_val_num(l > r ? 1.0 : 0.0);
+  case toad_TOKEN_GT:
+    *out = toad_val_num(l > r ? 1.0 : 0.0);
     return 1;
-  case tbs_TOKEN_GE:
-    *out = tbs_val_num(l >= r ? 1.0 : 0.0);
+  case toad_TOKEN_GE:
+    *out = toad_val_num(l >= r ? 1.0 : 0.0);
     return 1;
-  case tbs_TOKEN_AND:
-    *out = tbs_val_num(fabs(l) > 1e-9 && fabs(r) > 1e-9 ? 1.0 : 0.0);
+  case toad_TOKEN_AND:
+    *out = toad_val_num(fabs(l) > 1e-9 && fabs(r) > 1e-9 ? 1.0 : 0.0);
     return 1;
-  case tbs_TOKEN_OR:
-    *out = tbs_val_num(fabs(l) > 1e-9 || fabs(r) > 1e-9 ? 1.0 : 0.0);
+  case toad_TOKEN_OR:
+    *out = toad_val_num(fabs(l) > 1e-9 || fabs(r) > 1e-9 ? 1.0 : 0.0);
     return 1;
   default:
     if (env) {
@@ -675,67 +675,67 @@ static int ts_mir_template_append(tstr *buf, const char *data, size_t data_len) 
   return 1;
 }
 
-static int ts_mir_template_append_value(tstr *buf, tbs_value_t value) {
+static int ts_mir_template_append_value(tstr *buf, toad_value_t value) {
   char num_buf[64];
   int n;
 
   switch (value.type) {
-  case TBS_VAL_INTEGER:
+  case TOAD_VAL_INTEGER:
     n = snprintf(num_buf, sizeof(num_buf), "%lld", (long long)value.data.integer);
     return n >= 0 && ts_mir_template_append(buf, num_buf, (size_t)n);
-  case TBS_VAL_NUMBER:
+  case TOAD_VAL_NUMBER:
     n = snprintf(num_buf, sizeof(num_buf), "%g", value.data.number);
     return n >= 0 && ts_mir_template_append(buf, num_buf, (size_t)n);
-  case TBS_VAL_BOOL:
+  case TOAD_VAL_BOOL:
     return value.data.boolean ? ts_mir_template_append(buf, "true", 4)
                               : ts_mir_template_append(buf, "false", 5);
-  case TBS_VAL_STRING:
+  case TOAD_VAL_STRING:
     return ts_mir_template_append(buf, value.data.string.data, value.data.string.len);
-  case TBS_VAL_BYTES:
+  case TOAD_VAL_BYTES:
     n = snprintf(num_buf, sizeof(num_buf), "bytes(%zu)", value.data.bytes.len);
     return n >= 0 && ts_mir_template_append(buf, num_buf, (size_t)n);
-  case TBS_VAL_UUID:
+  case TOAD_VAL_UUID:
     if (uuid_format(value.data.uuid, num_buf, sizeof(num_buf)) != SALTS_OK) return 0;
     return ts_mir_template_append(buf, num_buf, strlen(num_buf));
-  case TBS_VAL_DATETIME: {
+  case TOAD_VAL_DATETIME: {
     time_t ts = datetime_to_time(&value.data.datetime);
     if (ts == (time_t)-1 || datetime_format_rfc822(ts, num_buf, sizeof(num_buf)) < 0)
       return 0;
     return ts_mir_template_append(buf, num_buf, strlen(num_buf));
   }
-  case TBS_VAL_DATE:
-  case TBS_VAL_TIME:
-  case TBS_VAL_DURATION:
-  case TBS_VAL_DECIMAL: {
+  case TOAD_VAL_DATE:
+  case TOAD_VAL_TIME:
+  case TOAD_VAL_DURATION:
+  case TOAD_VAL_DECIMAL: {
     const char *text = NULL;
     size_t text_len = 0;
     if (!ts_mir_runtime_value_text(value, num_buf, sizeof(num_buf), &text, &text_len)) return 0;
     return ts_mir_template_append(buf, text, text_len);
   }
-  case TBS_VAL_NULL:
+  case TOAD_VAL_NULL:
     return ts_mir_template_append(buf, "null", 4);
-  case TBS_VAL_VECTOR:
+  case TOAD_VAL_VECTOR:
     return ts_mir_template_append(buf, "[vector]", 8);
-  case TBS_VAL_MAP:
+  case TOAD_VAL_MAP:
     return ts_mir_template_append(buf, "[map]", 5);
-  case TBS_VAL_OBJECT:
+  case TOAD_VAL_OBJECT:
     return ts_mir_template_append(buf, "[object]", 8);
-  case TBS_VAL_LIST:
+  case TOAD_VAL_LIST:
     return ts_mir_template_append(buf, "[list]", 6);
   default:
     return ts_mir_template_append(buf, "", 0);
   }
 }
 
-static int ts_mir_runtime_template_value(tbs_node_t *node, tbs_env_t *env,
-                                         tbs_value_t *out) {
+static int ts_mir_runtime_template_value(toad_node_t *node, toad_env_t *env,
+                                         toad_value_t *out) {
   const char *str;
   size_t len;
   size_t i = 0;
   tstr result = NULL;
-  tbs_value_t promoted = {.type = TBS_VAL_NULL};
+  toad_value_t promoted = {.type = TOAD_VAL_NULL};
 
-  if (!node || !env || !out || node->type != TBS_NODE_TEMPLATE_STRING) return 0;
+  if (!node || !env || !out || node->type != TOAD_NODE_TEMPLATE_STRING) return 0;
   str = node->data.template_string.template_str;
   len = node->data.template_string.len;
   if (!str) return 0;
@@ -760,8 +760,8 @@ static int ts_mir_runtime_template_value(tbs_node_t *node, tbs_env_t *env,
       if (i - 1 > expr_start) {
         size_t expr_len = i - 1 - expr_start;
         char *expr_str = (char *)malloc(expr_len + 1);
-        tbs_node_t *expr_node;
-        tbs_value_t expr_value = {0};
+        toad_node_t *expr_node;
+        toad_value_t expr_value = {0};
         int ok;
         if (!expr_str) {
           tstr_free(result);
@@ -769,7 +769,7 @@ static int ts_mir_runtime_template_value(tbs_node_t *node, tbs_env_t *env,
         }
         memcpy(expr_str, str + expr_start, expr_len);
         expr_str[expr_len] = '\0';
-        expr_node = tbs_parse(expr_str, expr_len);
+        expr_node = toad_parse(expr_str, expr_len);
         free(expr_str);
         if (!expr_node) {
           tstr_free(result);
@@ -777,8 +777,8 @@ static int ts_mir_runtime_template_value(tbs_node_t *node, tbs_env_t *env,
         }
         ok = ts_mir_runtime_value_arg(expr_node, env, &expr_value) &&
              ts_mir_template_append_value(&result, expr_value);
-        cmeta_data_value_destroy(tbs_value_cmeta_data(), &expr_value);
-        tbs_free(expr_node);
+        cmeta_data_value_destroy(toad_value_cmeta_data(), &expr_value);
+        toad_free(expr_node);
         if (!ok) {
           tstr_free(result);
           return 0;
@@ -794,7 +794,7 @@ static int ts_mir_runtime_template_value(tbs_node_t *node, tbs_env_t *env,
     i++;
   }
 
-  if (tbs_value_copy_to_env(tbs_val_str(vstr_from_buf(result, tstr_len(result))), env,
+  if (toad_value_copy_to_env(toad_val_str(vstr_from_buf(result, tstr_len(result))), env,
                                &promoted) != 0) {
     tstr_free(result);
     return 0;
@@ -804,17 +804,17 @@ static int ts_mir_runtime_template_value(tbs_node_t *node, tbs_env_t *env,
   return 1;
 }
 
-static int ts_mir_runtime_try_catch_value(tbs_node_t *node, tbs_env_t *env,
-                                          tbs_value_t *out) {
-  tbs_value_t result;
+static int ts_mir_runtime_try_catch_value(toad_node_t *node, toad_env_t *env,
+                                          toad_value_t *out) {
+  toad_value_t result;
 
-  if (!node || !env || !out || node->type != TBS_NODE_TRY_CATCH) return 0;
+  if (!node || !env || !out || node->type != TOAD_NODE_TRY_CATCH) return 0;
   if (!ts_mir_runtime_value_arg(node->data.try_catch.try_body, env, &result)) return 0;
 
-  if (env->flow == tbs_FLOW_THROW) {
-    tbs_env_t catch_env;
-    env->flow = tbs_FLOW_NORMAL;
-    tbs_env_init_child(&catch_env, env);
+  if (env->flow == toad_FLOW_THROW) {
+    toad_env_t catch_env;
+    env->flow = toad_FLOW_NORMAL;
+    toad_env_init_child(&catch_env, env);
     catch_env.eval_node = env->eval_node;
     catch_env.exec_script_body = env->exec_script_body;
     catch_env.max_recursion = env->max_recursion;
@@ -825,55 +825,55 @@ static int ts_mir_runtime_try_catch_value(tbs_node_t *node, tbs_env_t *env,
     catch_env.curr_nodes = env->curr_nodes;
 
     if (node->data.try_catch.catch_var) {
-      tbs_env_set_local(&catch_env, node->data.try_catch.catch_var, env->error_value);
+      toad_env_set_local(&catch_env, node->data.try_catch.catch_var, env->error_value);
     }
 
     if (!ts_mir_runtime_value_arg(node->data.try_catch.catch_body, &catch_env, &result)) {
-      tbs_env_free(&catch_env);
+      toad_env_free(&catch_env);
       return 0;
     }
-    result = tbs_value_clone_to_env(result, env);
+    result = toad_value_clone_to_env(result, env);
     env->curr_nodes = catch_env.curr_nodes;
     env->curr_loop_iterations = catch_env.curr_loop_iterations;
     env->aborted = catch_env.aborted;
-    if (catch_env.flow != tbs_FLOW_NORMAL) {
+    if (catch_env.flow != toad_FLOW_NORMAL) {
       env->flow = catch_env.flow;
-      env->return_value = tbs_value_clone_to_env(catch_env.return_value, env);
-      env->error_value = tbs_value_clone_to_env(catch_env.error_value, env);
+      env->return_value = toad_value_clone_to_env(catch_env.return_value, env);
+      env->error_value = toad_value_clone_to_env(catch_env.error_value, env);
     }
-    tbs_env_free(&catch_env);
+    toad_env_free(&catch_env);
   }
 
   *out = result;
   return 1;
 }
 
-static tbs_value_t ts_mir_zero_value(void) { return tbs_val_num(0.0); }
+static toad_value_t ts_mir_zero_value(void) { return toad_val_num(0.0); }
 
-static int ts_mir_value_truthy(tbs_value_t value) {
-  if (value.type == TBS_VAL_BOOL) return value.data.boolean != 0;
-  if (value.type == TBS_VAL_INTEGER) return llabs(value.data.integer) > 0;
-  if (value.type == TBS_VAL_NUMBER) return fabs(value.data.number) > 1e-9;
-  if (value.type == TBS_VAL_STRING) return value.data.string.len > 0;
-  if (value.type == TBS_VAL_BYTES) return value.data.bytes.len > 0;
-  if (value.type == TBS_VAL_UUID) return 1;
-  if (value.type == TBS_VAL_DATETIME || value.type == TBS_VAL_DATE ||
-      value.type == TBS_VAL_TIME || value.type == TBS_VAL_DURATION ||
-      value.type == TBS_VAL_DECIMAL)
+static int ts_mir_value_truthy(toad_value_t value) {
+  if (value.type == TOAD_VAL_BOOL) return value.data.boolean != 0;
+  if (value.type == TOAD_VAL_INTEGER) return llabs(value.data.integer) > 0;
+  if (value.type == TOAD_VAL_NUMBER) return fabs(value.data.number) > 1e-9;
+  if (value.type == TOAD_VAL_STRING) return value.data.string.len > 0;
+  if (value.type == TOAD_VAL_BYTES) return value.data.bytes.len > 0;
+  if (value.type == TOAD_VAL_UUID) return 1;
+  if (value.type == TOAD_VAL_DATETIME || value.type == TOAD_VAL_DATE ||
+      value.type == TOAD_VAL_TIME || value.type == TOAD_VAL_DURATION ||
+      value.type == TOAD_VAL_DECIMAL)
     return 1;
-  if (value.type == TBS_VAL_VECTOR) return value.data.vector.size > 0;
-  if (value.type == TBS_VAL_LIST) return value.data.list.count > 0;
-  if (tbs_value_is_object_like(&value)) return tbs_map_count(&value) > 0;
-  if (value.type == TBS_VAL_FUNCTION || value.type == TBS_VAL_CLASS ||
-      value.type == TBS_VAL_INSTANCE || value.type == TBS_VAL_BOUND_METHOD)
+  if (value.type == TOAD_VAL_VECTOR) return value.data.vector.size > 0;
+  if (value.type == TOAD_VAL_LIST) return value.data.list.count > 0;
+  if (toad_value_is_object_like(&value)) return toad_map_count(&value) > 0;
+  if (value.type == TOAD_VAL_FUNCTION || value.type == TOAD_VAL_CLASS ||
+      value.type == TOAD_VAL_INSTANCE || value.type == TOAD_VAL_BOUND_METHOD)
     return 1;
   return 0;
 }
 
-static int ts_mir_runtime_loop_tick(tbs_env_t *env) {
+static int ts_mir_runtime_loop_tick(toad_env_t *env) {
   if (!env) return 1;
   if (env->safe_point) {
-    if (env->safe_point(env->safe_point_user_data, TBS_SAFE_POINT_LOOP, 1) == 0) return 1;
+    if (env->safe_point(env->safe_point_user_data, TOAD_SAFE_POINT_LOOP, 1) == 0) return 1;
     env->aborted = 1;
     return 0;
   }
@@ -885,40 +885,40 @@ static int ts_mir_runtime_loop_tick(tbs_env_t *env) {
   return 1;
 }
 
-static int ts_mir_runtime_body_flow_done(tbs_env_t *env, int *should_break) {
+static int ts_mir_runtime_body_flow_done(toad_env_t *env, int *should_break) {
   if (!should_break) return 1;
   *should_break = 0;
   if (!env) return 1;
 
-  if (env->flow == tbs_FLOW_BREAK) {
-    env->flow = tbs_FLOW_NORMAL;
+  if (env->flow == toad_FLOW_BREAK) {
+    env->flow = toad_FLOW_NORMAL;
     *should_break = 1;
     return 1;
   }
-  if (env->flow == tbs_FLOW_CONTINUE) {
-    env->flow = tbs_FLOW_NORMAL;
+  if (env->flow == toad_FLOW_CONTINUE) {
+    env->flow = toad_FLOW_NORMAL;
     return 1;
   }
-  if (env->flow != tbs_FLOW_NORMAL || env->aborted) {
+  if (env->flow != toad_FLOW_NORMAL || env->aborted) {
     *should_break = 1;
   }
   return 1;
 }
 
-static int ts_mir_runtime_while_value(tbs_node_t *node, tbs_env_t *env, tbs_value_t *out) {
-  tbs_value_t last = ts_mir_zero_value();
+static int ts_mir_runtime_while_value(toad_node_t *node, toad_env_t *env, toad_value_t *out) {
+  toad_value_t last = ts_mir_zero_value();
 
-  if (!node || !env || !out || node->type != TBS_NODE_WHILE) return 0;
+  if (!node || !env || !out || node->type != TOAD_NODE_WHILE) return 0;
 
   while (1) {
-    tbs_value_t cond;
+    toad_value_t cond;
     int done = 0;
 
-    if (env->flow != tbs_FLOW_NORMAL && env->flow != tbs_FLOW_CONTINUE) break;
-    if (env->flow == tbs_FLOW_CONTINUE) env->flow = tbs_FLOW_NORMAL;
+    if (env->flow != toad_FLOW_NORMAL && env->flow != toad_FLOW_CONTINUE) break;
+    if (env->flow == toad_FLOW_CONTINUE) env->flow = toad_FLOW_NORMAL;
 
     if (!ts_mir_runtime_value_arg(node->data.while_loop.condition, env, &cond)) return 0;
-    if (env->flow != tbs_FLOW_NORMAL || env->aborted) break;
+    if (env->flow != toad_FLOW_NORMAL || env->aborted) break;
     if (!ts_mir_value_truthy(cond)) break;
     if (!ts_mir_runtime_loop_tick(env)) break;
 
@@ -931,15 +931,15 @@ static int ts_mir_runtime_while_value(tbs_node_t *node, tbs_env_t *env, tbs_valu
   return 1;
 }
 
-static int ts_mir_runtime_for_value(tbs_node_t *node, tbs_env_t *env, tbs_value_t *out) {
-  tbs_value_t last = ts_mir_zero_value();
+static int ts_mir_runtime_for_value(toad_node_t *node, toad_env_t *env, toad_value_t *out) {
+  toad_value_t last = ts_mir_zero_value();
 
-  if (!node || !env || !out || node->type != TBS_NODE_FOR) return 0;
+  if (!node || !env || !out || node->type != TOAD_NODE_FOR) return 0;
 
   if (node->data.for_loop.init && !ts_mir_runtime_value_arg(node->data.for_loop.init, env, &last)) {
     return 0;
   }
-  if (env->flow != tbs_FLOW_NORMAL || env->aborted) {
+  if (env->flow != toad_FLOW_NORMAL || env->aborted) {
     *out = ts_mir_zero_value();
     return 1;
   }
@@ -948,26 +948,26 @@ static int ts_mir_runtime_for_value(tbs_node_t *node, tbs_env_t *env, tbs_value_
     int done = 0;
 
     if (node->data.for_loop.condition) {
-      tbs_value_t cond;
+      toad_value_t cond;
       if (!ts_mir_runtime_value_arg(node->data.for_loop.condition, env, &cond)) return 0;
-      if (env->flow != tbs_FLOW_NORMAL || env->aborted) break;
+      if (env->flow != toad_FLOW_NORMAL || env->aborted) break;
       if (!ts_mir_value_truthy(cond)) break;
     }
 
     if (!ts_mir_runtime_loop_tick(env)) break;
 
     if (!ts_mir_runtime_value_arg(node->data.for_loop.body, env, &last)) return 0;
-    if (env->flow == tbs_FLOW_BREAK) {
-      env->flow = tbs_FLOW_NORMAL;
+    if (env->flow == toad_FLOW_BREAK) {
+      env->flow = toad_FLOW_NORMAL;
       break;
     }
-    if (env->flow == tbs_FLOW_RETURN || env->flow == tbs_FLOW_THROW || env->aborted) break;
+    if (env->flow == toad_FLOW_RETURN || env->flow == toad_FLOW_THROW || env->aborted) break;
 
     if (node->data.for_loop.post) {
       if (!ts_mir_runtime_value_arg(node->data.for_loop.post, env, &last)) return 0;
-      if (env->flow != tbs_FLOW_NORMAL && env->flow != tbs_FLOW_CONTINUE) break;
+      if (env->flow != toad_FLOW_NORMAL && env->flow != toad_FLOW_CONTINUE) break;
     }
-    if (env->flow == tbs_FLOW_CONTINUE) env->flow = tbs_FLOW_NORMAL;
+    if (env->flow == toad_FLOW_CONTINUE) env->flow = toad_FLOW_NORMAL;
     ts_mir_runtime_body_flow_done(env, &done);
     if (done) break;
   }
@@ -976,25 +976,25 @@ static int ts_mir_runtime_for_value(tbs_node_t *node, tbs_env_t *env, tbs_value_
   return 1;
 }
 
-static int ts_mir_runtime_do_while_value(tbs_node_t *node, tbs_env_t *env,
-                                         tbs_value_t *out) {
-  tbs_value_t last = ts_mir_zero_value();
+static int ts_mir_runtime_do_while_value(toad_node_t *node, toad_env_t *env,
+                                         toad_value_t *out) {
+  toad_value_t last = ts_mir_zero_value();
 
-  if (!node || !env || !out || node->type != TBS_NODE_DO_WHILE) return 0;
+  if (!node || !env || !out || node->type != TOAD_NODE_DO_WHILE) return 0;
 
   while (1) {
-    tbs_value_t cond;
+    toad_value_t cond;
 
     if (!ts_mir_runtime_value_arg(node->data.do_while.body, env, &last)) return 0;
-    if (env->flow == tbs_FLOW_BREAK) {
-      env->flow = tbs_FLOW_NORMAL;
+    if (env->flow == toad_FLOW_BREAK) {
+      env->flow = toad_FLOW_NORMAL;
       break;
     }
-    if (env->flow == tbs_FLOW_RETURN || env->flow == tbs_FLOW_THROW || env->aborted) break;
-    if (env->flow == tbs_FLOW_CONTINUE) env->flow = tbs_FLOW_NORMAL;
+    if (env->flow == toad_FLOW_RETURN || env->flow == toad_FLOW_THROW || env->aborted) break;
+    if (env->flow == toad_FLOW_CONTINUE) env->flow = toad_FLOW_NORMAL;
 
     if (!ts_mir_runtime_value_arg(node->data.do_while.condition, env, &cond)) return 0;
-    if (env->flow != tbs_FLOW_NORMAL || env->aborted) break;
+    if (env->flow != toad_FLOW_NORMAL || env->aborted) break;
     if (!ts_mir_value_truthy(cond)) break;
     if (!ts_mir_runtime_loop_tick(env)) break;
   }
@@ -1003,50 +1003,50 @@ static int ts_mir_runtime_do_while_value(tbs_node_t *node, tbs_env_t *env,
   return 1;
 }
 
-static int ts_mir_runtime_for_in_value(tbs_node_t *node, tbs_env_t *env,
-                                       tbs_value_t *out) {
-  tbs_value_t collection;
-  tbs_value_t last = ts_mir_zero_value();
+static int ts_mir_runtime_for_in_value(toad_node_t *node, toad_env_t *env,
+                                       toad_value_t *out) {
+  toad_value_t collection;
+  toad_value_t last = ts_mir_zero_value();
 
-  if (!node || !env || !out || node->type != TBS_NODE_FOR_IN || !node->data.for_in.var_name) {
+  if (!node || !env || !out || node->type != TOAD_NODE_FOR_IN || !node->data.for_in.var_name) {
     return 0;
   }
 
   if (!ts_mir_runtime_value_arg(node->data.for_in.collection, env, &collection)) return 0;
-  if (env->flow != tbs_FLOW_NORMAL || env->aborted) {
+  if (env->flow != toad_FLOW_NORMAL || env->aborted) {
     *out = ts_mir_zero_value();
     return 1;
   }
 
-  if (collection.type == TBS_VAL_VECTOR) {
+  if (collection.type == TOAD_VAL_VECTOR) {
     for (size_t i = 0; i < collection.data.vector.size; ++i) {
       int done = 0;
       if (!ts_mir_runtime_loop_tick(env)) break;
-      tbs_env_set(env, node->data.for_in.var_name,
-                     tbs_val_num(collection.data.vector.data[i]));
+      toad_env_set(env, node->data.for_in.var_name,
+                     toad_val_num(collection.data.vector.data[i]));
       if (!ts_mir_runtime_value_arg(node->data.for_in.body, env, &last)) return 0;
       ts_mir_runtime_body_flow_done(env, &done);
       if (done) break;
     }
-  } else if (tbs_value_is_object_like(&collection)) {
-    tbs_map_iter_t it = tbs_map_iter_begin(&collection);
+  } else if (toad_value_is_object_like(&collection)) {
+    toad_map_iter_t it = toad_map_iter_begin(&collection);
     const char *key = NULL;
-    while (tbs_map_iter_next(&it, &key, NULL)) {
+    while (toad_map_iter_next(&it, &key, NULL)) {
       int done = 0;
       vstr sv;
       if (!ts_mir_runtime_loop_tick(env)) break;
       sv.data = (char *)key;
       sv.len = key ? strlen(key) : 0;
-      tbs_env_set(env, node->data.for_in.var_name, tbs_val_str(sv));
+      toad_env_set(env, node->data.for_in.var_name, toad_val_str(sv));
       if (!ts_mir_runtime_value_arg(node->data.for_in.body, env, &last)) return 0;
       ts_mir_runtime_body_flow_done(env, &done);
       if (done) break;
     }
-  } else if (collection.type == TBS_VAL_LIST) {
+  } else if (collection.type == TOAD_VAL_LIST) {
     for (size_t i = 0; i < collection.data.list.count; ++i) {
       int done = 0;
       if (!ts_mir_runtime_loop_tick(env)) break;
-      tbs_env_set(env, node->data.for_in.var_name, collection.data.list.items[i]);
+      toad_env_set(env, node->data.for_in.var_name, collection.data.list.items[i]);
       if (!ts_mir_runtime_value_arg(node->data.for_in.body, env, &last)) return 0;
       ts_mir_runtime_body_flow_done(env, &done);
       if (done) break;
@@ -1057,23 +1057,23 @@ static int ts_mir_runtime_for_in_value(tbs_node_t *node, tbs_env_t *env,
   return 1;
 }
 
-static int ts_mir_runtime_switch_value(tbs_node_t *node, tbs_env_t *env,
-                                       tbs_value_t *out) {
-  tbs_value_t switch_val;
+static int ts_mir_runtime_switch_value(toad_node_t *node, toad_env_t *env,
+                                       toad_value_t *out) {
+  toad_value_t switch_val;
 
-  if (!node || !env || !out || node->type != TBS_NODE_SWITCH) return 0;
+  if (!node || !env || !out || node->type != TOAD_NODE_SWITCH) return 0;
   if (!ts_mir_runtime_value_arg(node->data.switch_stmt.value, env, &switch_val)) return 0;
-  if (env->flow != tbs_FLOW_NORMAL || env->aborted) {
+  if (env->flow != toad_FLOW_NORMAL || env->aborted) {
     *out = ts_mir_zero_value();
     return 1;
   }
 
   for (size_t i = 0; i < node->data.switch_stmt.case_count; ++i) {
-    tbs_value_t case_val;
+    toad_value_t case_val;
     if (!ts_mir_runtime_value_arg(node->data.switch_stmt.cases[i * 2], env, &case_val)) {
       return 0;
     }
-    if (env->flow != tbs_FLOW_NORMAL || env->aborted) {
+    if (env->flow != toad_FLOW_NORMAL || env->aborted) {
       *out = ts_mir_zero_value();
       return 1;
     }
@@ -1090,27 +1090,27 @@ static int ts_mir_runtime_switch_value(tbs_node_t *node, tbs_env_t *env,
   return 1;
 }
 
-static int ts_mir_runtime_this_value(const tbs_node_t *node, tbs_env_t *env,
-                                     tbs_value_t *out) {
+static int ts_mir_runtime_this_value(const toad_node_t *node, toad_env_t *env,
+                                     toad_value_t *out) {
   if (!env || !out) return 0;
   if (env->current_method_is_static) {
     *out = throw_error(env, node, "this is only valid inside instance methods or constructors");
     return 1;
   }
 
-  *out = tbs_env_get(env, "this");
-  if (out->type != TBS_VAL_INSTANCE) {
+  *out = toad_env_get(env, "this");
+  if (out->type != TOAD_VAL_INSTANCE) {
     *out = throw_error(env, node, "this is only valid inside instance methods or constructors");
   }
   return 1;
 }
 
-static int ts_mir_runtime_super_value(tbs_node_t *node, tbs_env_t *env, tbs_value_t *out) {
-  tbs_value_t zero = ts_mir_zero_value();
-  tbs_class_t *owner_class = NULL;
-  tbs_class_t *parent = NULL;
+static int ts_mir_runtime_super_value(toad_node_t *node, toad_env_t *env, toad_value_t *out) {
+  toad_value_t zero = ts_mir_zero_value();
+  toad_class_t *owner_class = NULL;
+  toad_class_t *parent = NULL;
 
-  if (!node || !env || !out || node->type != TBS_NODE_SUPER) return 0;
+  if (!node || !env || !out || node->type != TOAD_NODE_SUPER) return 0;
 
   owner_class = eval_current_class(env);
   if (env->current_method_is_static) {
@@ -1131,11 +1131,11 @@ static int ts_mir_runtime_super_value(tbs_node_t *node, tbs_env_t *env, tbs_valu
 
     if (node->data.super_expr.is_call) {
       size_t argc = 0;
-      tbs_value_t *args = ts_mir_runtime_call_value_args(node, env, &argc);
+      toad_value_t *args = ts_mir_runtime_call_value_args(node, env, &argc);
       if (!args && node->data.super_expr.arg_count > 0) return 0;
 
-      tbs_func_t *method =
-          tbs_class_lookup_method_typed(parent, node->data.super_expr.member, 1, argc, args);
+      toad_func_t *method =
+          toad_class_lookup_method_typed(parent, node->data.super_expr.member, 1, argc, args);
       if (!method) {
         ts_mir_runtime_value_args_free(args, argc);
         *out = throw_error(env, node, "Parent class has no static method '%s'",
@@ -1153,11 +1153,11 @@ static int ts_mir_runtime_super_value(tbs_node_t *node, tbs_env_t *env, tbs_valu
       return 1;
     }
 
-    tbs_value_t static_field;
-    if (tbs_class_get_static_field(parent, node->data.super_expr.member, &static_field)) {
-      tbs_class_t *field_owner = NULL;
+    toad_value_t static_field;
+    if (toad_class_get_static_field(parent, node->data.super_expr.member, &static_field)) {
+      toad_class_t *field_owner = NULL;
       int access =
-          tbs_class_get_static_field_access(parent, node->data.super_expr.member, &field_owner);
+          toad_class_get_static_field_access(parent, node->data.super_expr.member, &field_owner);
       if (!can_access_declared_field(env, field_owner, access, node,
                                      node->data.super_expr.member)) {
         *out = throw_field_access_error(env, node, node->data.super_expr.member, access);
@@ -1167,7 +1167,7 @@ static int ts_mir_runtime_super_value(tbs_node_t *node, tbs_env_t *env, tbs_valu
       return 1;
     }
 
-    tbs_func_t *method = tbs_class_lookup_method(parent, node->data.super_expr.member, 1);
+    toad_func_t *method = toad_class_lookup_method(parent, node->data.super_expr.member, 1);
     if (!method) {
       *out = throw_error(env, node, "Parent class has no static field or method '%s'",
                          node->data.super_expr.member);
@@ -1178,25 +1178,25 @@ static int ts_mir_runtime_super_value(tbs_node_t *node, tbs_env_t *env, tbs_valu
       return 1;
     }
 
-    out->type = TBS_VAL_FUNCTION;
+    out->type = TOAD_VAL_FUNCTION;
     out->data.function.arg_params = method->data.script.arg_params;
     out->data.function.arg_count = method->data.script.arg_count;
     out->data.function.body = method->data.script.body;
     out->data.function.closure_env = method->closure_env;
-    tbs_env_retain(method->closure_env);
+    toad_env_retain(method->closure_env);
     out->data.function.owner_class = method->owner_class;
     out->data.function.is_static_method = method->is_static_method;
     out->data.function.access_level = method->access_level;
     return 1;
   }
 
-  tbs_value_t this_val = tbs_env_get(env, "this");
-  if (this_val.type != TBS_VAL_INSTANCE) {
+  toad_value_t this_val = toad_env_get(env, "this");
+  if (this_val.type != TOAD_VAL_INSTANCE) {
     *out = throw_error(env, node, "super is only valid inside instance methods or constructors");
     return 1;
   }
 
-  tbs_instance_t *instance = this_val.data.instance_val.instance;
+  toad_instance_t *instance = this_val.data.instance_val.instance;
   parent = owner_class ? owner_class->prototype : instance->klass->prototype;
   if (!parent) {
     const char *owner_name = owner_class ? owner_class->name : instance->klass->name;
@@ -1212,10 +1212,10 @@ static int ts_mir_runtime_super_value(tbs_node_t *node, tbs_env_t *env, tbs_valu
     }
 
     size_t argc = 0;
-    tbs_value_t *args = ts_mir_runtime_call_value_args(node, env, &argc);
+    toad_value_t *args = ts_mir_runtime_call_value_args(node, env, &argc);
     if (!args && node->data.super_expr.arg_count > 0) return 0;
 
-    tbs_func_t *constructor = eval_find_constructor_typed(parent, argc, args);
+    toad_func_t *constructor = eval_find_constructor_typed(parent, argc, args);
     if (!constructor) {
       ts_mir_runtime_value_args_free(args, argc);
       *out = zero;
@@ -1229,11 +1229,11 @@ static int ts_mir_runtime_super_value(tbs_node_t *node, tbs_env_t *env, tbs_valu
 
   if (node->data.super_expr.is_call) {
     size_t argc = 0;
-    tbs_value_t *args = ts_mir_runtime_call_value_args(node, env, &argc);
+    toad_value_t *args = ts_mir_runtime_call_value_args(node, env, &argc);
     if (!args && node->data.super_expr.arg_count > 0) return 0;
 
-    tbs_func_t *method =
-        tbs_class_lookup_method_typed(parent, node->data.super_expr.member, 0, argc, args);
+    toad_func_t *method =
+        toad_class_lookup_method_typed(parent, node->data.super_expr.member, 0, argc, args);
     if (!method) {
       ts_mir_runtime_value_args_free(args, argc);
       *out =
@@ -1251,21 +1251,21 @@ static int ts_mir_runtime_super_value(tbs_node_t *node, tbs_env_t *env, tbs_valu
     return 1;
   }
 
-  tbs_func_t *method = tbs_class_lookup_method(parent, node->data.super_expr.member, 0);
+  toad_func_t *method = toad_class_lookup_method(parent, node->data.super_expr.member, 0);
   if (method) {
     if (!can_access_method(env, method, node)) {
       *out = throw_method_access_error(env, node, node->data.super_expr.member, method);
       return 1;
     }
-    *out = tbs_val_bound_method(instance, method);
+    *out = toad_val_bound_method(instance, method);
     return 1;
   }
 
-  tbs_value_t field_value;
-  if (tbs_instance_get_field(instance, node->data.super_expr.member, &field_value)) {
-    tbs_class_t *field_owner = NULL;
+  toad_value_t field_value;
+  if (toad_instance_get_field(instance, node->data.super_expr.member, &field_value)) {
+    toad_class_t *field_owner = NULL;
     int access =
-        tbs_class_get_instance_field_access(parent, node->data.super_expr.member, &field_owner);
+        toad_class_get_instance_field_access(parent, node->data.super_expr.member, &field_owner);
     if (!can_access_declared_field(env, field_owner, access, node, node->data.super_expr.member)) {
       *out = throw_field_access_error(env, node, node->data.super_expr.member, access);
       return 1;
@@ -1279,17 +1279,17 @@ static int ts_mir_runtime_super_value(tbs_node_t *node, tbs_env_t *env, tbs_valu
   return 1;
 }
 
-static int ts_mir_runtime_member_set_value(tbs_node_t *node, tbs_env_t *env,
-                                           tbs_value_t *out) {
-  tbs_value_t zero = ts_mir_zero_value();
-  tbs_node_t *object_node = NULL;
-  tbs_value_t val;
+static int ts_mir_runtime_member_set_value(toad_node_t *node, toad_env_t *env,
+                                           toad_value_t *out) {
+  toad_value_t zero = ts_mir_zero_value();
+  toad_node_t *object_node = NULL;
+  toad_value_t val;
 
-  if (!node || !env || !out || node->type != TBS_NODE_MEMBER_SET) return 0;
+  if (!node || !env || !out || node->type != TOAD_NODE_MEMBER_SET) return 0;
   object_node = node->data.member_set.object;
   if (!object_node ||
-      (object_node->type != TBS_NODE_VARIABLE && object_node->type != TBS_NODE_THIS &&
-       object_node->type != TBS_NODE_SUPER)) {
+      (object_node->type != TOAD_NODE_VARIABLE && object_node->type != TOAD_NODE_THIS &&
+       object_node->type != TOAD_NODE_SUPER)) {
     *out = throw_error(env, node,
                        "Member assignment '%s' requires a variable receiver, this, or static super",
                        node->data.member_set.member ? node->data.member_set.member : "<null>");
@@ -1297,23 +1297,23 @@ static int ts_mir_runtime_member_set_value(tbs_node_t *node, tbs_env_t *env,
   }
 
   if (!ts_mir_runtime_value_arg(node->data.member_set.value, env, &val)) return 0;
-  if (env->flow != tbs_FLOW_NORMAL) {
+  if (env->flow != toad_FLOW_NORMAL) {
     *out = zero;
     return 1;
   }
 
-  if (object_node->type == TBS_NODE_VARIABLE) {
+  if (object_node->type == TOAD_NODE_VARIABLE) {
     const char *var_name = object_node->data.variable.name;
-    tbs_value_t object = tbs_env_get(env, var_name);
-    if (tbs_value_is_object_like(&object)) {
-      tbs_map_set(&object, node->data.member_set.member, val);
-      tbs_env_set(env, var_name, object);
+    toad_value_t object = toad_env_get(env, var_name);
+    if (toad_value_is_object_like(&object)) {
+      toad_map_set(&object, node->data.member_set.member, val);
+      toad_env_set(env, var_name, object);
       *out = val;
       return 1;
     }
-    if (object.type == TBS_VAL_INSTANCE) {
-      tbs_class_t *field_owner = NULL;
-      int access = tbs_class_get_instance_field_access(
+    if (object.type == TOAD_VAL_INSTANCE) {
+      toad_class_t *field_owner = NULL;
+      int access = toad_class_get_instance_field_access(
           object.data.instance_val.instance->klass, node->data.member_set.member, &field_owner);
       if (!can_access_declared_field(env, field_owner, access, object_node,
                                      node->data.member_set.member)) {
@@ -1322,7 +1322,7 @@ static int ts_mir_runtime_member_set_value(tbs_node_t *node, tbs_env_t *env,
       }
       {
         char field_error[256];
-        if (!tbs_instance_set_field_checked(object.data.instance_val.instance,
+        if (!toad_instance_set_field_checked(object.data.instance_val.instance,
                                                node->data.member_set.member, val, field_error,
                                                sizeof(field_error))) {
           *out = throw_error(env, node, "%s", field_error);
@@ -1332,31 +1332,31 @@ static int ts_mir_runtime_member_set_value(tbs_node_t *node, tbs_env_t *env,
       *out = val;
       return 1;
     }
-    if (object.type == TBS_VAL_CLASS) {
-      tbs_class_t *field_owner = NULL;
-      int access = tbs_class_get_static_field_access(object.data.class_val.klass,
+    if (object.type == TOAD_VAL_CLASS) {
+      toad_class_t *field_owner = NULL;
+      int access = toad_class_get_static_field_access(object.data.class_val.klass,
                                                         node->data.member_set.member, &field_owner);
       if (!can_access_declared_field(env, field_owner, access, object_node,
                                      node->data.member_set.member)) {
         *out = throw_field_access_error(env, node, node->data.member_set.member, access);
         return 1;
       }
-      tbs_class_set_static_field(object.data.class_val.klass, node->data.member_set.member, val);
+      toad_class_set_static_field(object.data.class_val.klass, node->data.member_set.member, val);
       *out = val;
       return 1;
     }
   }
 
-  if (object_node->type == TBS_NODE_THIS) {
-    tbs_value_t this_val;
+  if (object_node->type == TOAD_NODE_THIS) {
+    toad_value_t this_val;
     if (!ts_mir_runtime_this_value(object_node, env, &this_val)) return 0;
-    if (env->flow != tbs_FLOW_NORMAL || this_val.type != TBS_VAL_INSTANCE) {
+    if (env->flow != toad_FLOW_NORMAL || this_val.type != TOAD_VAL_INSTANCE) {
       *out = zero;
       return 1;
     }
 
-    tbs_class_t *field_owner = NULL;
-    int access = tbs_class_get_instance_field_access(this_val.data.instance_val.instance->klass,
+    toad_class_t *field_owner = NULL;
+    int access = toad_class_get_instance_field_access(this_val.data.instance_val.instance->klass,
                                                         node->data.member_set.member, &field_owner);
     if (!can_access_declared_field(env, field_owner, access, object_node,
                                    node->data.member_set.member)) {
@@ -1365,7 +1365,7 @@ static int ts_mir_runtime_member_set_value(tbs_node_t *node, tbs_env_t *env,
     }
     {
       char field_error[256];
-      if (!tbs_instance_set_field_checked(this_val.data.instance_val.instance,
+      if (!toad_instance_set_field_checked(this_val.data.instance_val.instance,
                                              node->data.member_set.member, val, field_error,
                                              sizeof(field_error))) {
         *out = throw_error(env, node, "%s", field_error);
@@ -1376,36 +1376,36 @@ static int ts_mir_runtime_member_set_value(tbs_node_t *node, tbs_env_t *env,
     return 1;
   }
 
-  if (object_node->type == TBS_NODE_SUPER) {
-    tbs_class_t *owner_class = eval_current_class(env);
-    tbs_class_t *parent = owner_class ? owner_class->prototype : NULL;
+  if (object_node->type == TOAD_NODE_SUPER) {
+    toad_class_t *owner_class = eval_current_class(env);
+    toad_class_t *parent = owner_class ? owner_class->prototype : NULL;
     if (!parent) {
       *out = throw_error(env, object_node, "super is only valid inside class methods");
       return 1;
     }
 
     if (env->current_method_is_static) {
-      tbs_class_t *field_owner = NULL;
+      toad_class_t *field_owner = NULL;
       int access =
-          tbs_class_get_static_field_access(parent, node->data.member_set.member, &field_owner);
+          toad_class_get_static_field_access(parent, node->data.member_set.member, &field_owner);
       if (!can_access_declared_field(env, field_owner, access, object_node,
                                      node->data.member_set.member)) {
         *out = throw_field_access_error(env, node, node->data.member_set.member, access);
         return 1;
       }
-      tbs_class_set_static_field(parent, node->data.member_set.member, val);
+      toad_class_set_static_field(parent, node->data.member_set.member, val);
       *out = val;
       return 1;
     }
 
-    tbs_value_t this_val = tbs_env_get(env, "this");
-    if (this_val.type != TBS_VAL_INSTANCE) {
+    toad_value_t this_val = toad_env_get(env, "this");
+    if (this_val.type != TOAD_VAL_INSTANCE) {
       *out = throw_error(env, node, "super is only valid inside instance methods or constructors");
       return 1;
     }
-    tbs_class_t *field_owner = NULL;
+    toad_class_t *field_owner = NULL;
     int access =
-        tbs_class_get_instance_field_access(parent, node->data.member_set.member, &field_owner);
+        toad_class_get_instance_field_access(parent, node->data.member_set.member, &field_owner);
     if (!can_access_declared_field(env, field_owner, access, object_node,
                                    node->data.member_set.member)) {
       *out = throw_field_access_error(env, node, node->data.member_set.member, access);
@@ -1413,7 +1413,7 @@ static int ts_mir_runtime_member_set_value(tbs_node_t *node, tbs_env_t *env,
     }
     {
       char field_error[256];
-      if (!tbs_instance_set_field_checked(this_val.data.instance_val.instance,
+      if (!toad_instance_set_field_checked(this_val.data.instance_val.instance,
                                              node->data.member_set.member, val, field_error,
                                              sizeof(field_error))) {
         *out = throw_error(env, node, "%s", field_error);
@@ -1429,14 +1429,14 @@ static int ts_mir_runtime_member_set_value(tbs_node_t *node, tbs_env_t *env,
   return 1;
 }
 
-static int ts_mir_runtime_value_arg(tbs_node_t *node, tbs_env_t *env, tbs_value_t *out) {
+static int ts_mir_runtime_value_arg(toad_node_t *node, toad_env_t *env, toad_value_t *out) {
   if (!node || !env || !out) return 0;
   if (node->line > 0) {
     env->last_line = node->line;
     env->last_column = node->column;
   }
   if (env->safe_point &&
-      env->safe_point(env->safe_point_user_data, TBS_SAFE_POINT_STEP, 1) != 0) {
+      env->safe_point(env->safe_point_user_data, TOAD_SAFE_POINT_STEP, 1) != 0) {
     env->aborted = 1;
     return 0;
   } else if (!env->safe_point) {
@@ -1448,326 +1448,326 @@ static int ts_mir_runtime_value_arg(tbs_node_t *node, tbs_env_t *env, tbs_value_
   }
 
   switch (node->type) {
-  case TBS_NODE_NUMBER:
-    *out = tbs_val_num(node->data.number);
+  case TOAD_NODE_NUMBER:
+    *out = toad_val_num(node->data.number);
     return 1;
 
-  case TBS_NODE_INTEGER:
-    *out = tbs_val_int(node->data.integer);
+  case TOAD_NODE_INTEGER:
+    *out = toad_val_int(node->data.integer);
     return 1;
 
-  case TBS_NODE_STRING:
-    *out = tbs_val_str(node->data.string.value);
+  case TOAD_NODE_STRING:
+    *out = toad_val_str(node->data.string.value);
     return 1;
 
-  case TBS_NODE_NULL:
+  case TOAD_NODE_NULL:
     memset(out, 0, sizeof(*out));
-    out->type = TBS_VAL_NULL;
+    out->type = TOAD_VAL_NULL;
     return 1;
 
-  case TBS_NODE_THIS:
+  case TOAD_NODE_THIS:
     return ts_mir_runtime_this_value(node, env, out);
 
-  case TBS_NODE_SUPER:
+  case TOAD_NODE_SUPER:
     return ts_mir_runtime_super_value(node, env, out);
 
-  case TBS_NODE_CLASS_DEF:
+  case TOAD_NODE_CLASS_DEF:
     *out = eval_class_def_node(node, env);
     return 1;
 
-  case TBS_NODE_NEW:
+  case TOAD_NODE_NEW:
     *out = eval_class_instantiation(node->data.new_expr.class_name, node->data.new_expr.args,
                                     node->data.new_expr.arg_count, env);
     return 1;
 
-  case TBS_NODE_TEMPLATE_STRING:
+  case TOAD_NODE_TEMPLATE_STRING:
     return ts_mir_runtime_template_value(node, env, out);
 
-  case TBS_NODE_FUNCTION_EXPRESSION:
-    out->type = TBS_VAL_FUNCTION;
+  case TOAD_NODE_FUNCTION_EXPRESSION:
+    out->type = TOAD_VAL_FUNCTION;
     out->data.function.arg_params = node->data.func_def.arg_params;
     out->data.function.arg_count = node->data.func_def.arg_count;
     out->data.function.body = node->data.func_def.body;
     {
       /* Capture only the free variables of the closure body. */
       char **free_vars =
-          tbs_collect_closure_free_vars(node->data.func_def.body, node->data.func_def.arg_params,
+          toad_collect_closure_free_vars(node->data.func_def.body, node->data.func_def.arg_params,
                                            node->data.func_def.arg_count, &env->arena);
       size_t fv_count = 0;
       while (free_vars && free_vars[fv_count])
         fv_count++;
       out->data.function.closure_env =
-          free_vars ? tbs_env_snapshot_names(env, (const char *const *)free_vars, fv_count)
-                    : tbs_env_snapshot(env);
+          free_vars ? toad_env_snapshot_names(env, (const char *const *)free_vars, fv_count)
+                    : toad_env_snapshot(env);
     }
     out->data.function.owner_class = NULL;
     out->data.function.is_static_method = 0;
-    out->data.function.access_level = TBS_ACCESS_PUBLIC;
+    out->data.function.access_level = TOAD_ACCESS_PUBLIC;
     return 1;
 
-  case TBS_NODE_FUNCTION_DEFINITION:
+  case TOAD_NODE_FUNCTION_DEFINITION:
     if (!ts_mir_runtime_define_func_in_env(env, node)) return 0;
     *out = ts_mir_zero_value();
     return 1;
 
-  case TBS_NODE_VARIABLE:
+  case TOAD_NODE_VARIABLE:
     if (!node->data.variable.name) return 0;
-    *out = tbs_env_get(env, node->data.variable.name);
+    *out = toad_env_get(env, node->data.variable.name);
     return 1;
 
-  case TBS_NODE_ASSIGNMENT:
+  case TOAD_NODE_ASSIGNMENT:
     if (!node->data.assignment.name ||
         !ts_mir_runtime_value_arg(node->data.assignment.value, env, out)) {
       return 0;
     }
     {
-      int destroy_container = out->ownership == TBS_VALUE_OWNED &&
-                              (out->type == TBS_VAL_MAP || out->type == TBS_VAL_OBJECT ||
-                               out->type == TBS_VAL_LIST || out->type == TBS_VAL_SET);
-      tbs_env_set(env, node->data.assignment.name, *out);
-      if (destroy_container) cmeta_data_value_destroy(tbs_value_cmeta_data(), out);
+      int destroy_container = out->ownership == TOAD_VALUE_OWNED &&
+                              (out->type == TOAD_VAL_MAP || out->type == TOAD_VAL_OBJECT ||
+                               out->type == TOAD_VAL_LIST || out->type == TOAD_VAL_SET);
+      toad_env_set(env, node->data.assignment.name, *out);
+      if (destroy_container) cmeta_data_value_destroy(toad_value_cmeta_data(), out);
     }
-    *out = tbs_env_get(env, node->data.assignment.name);
+    *out = toad_env_get(env, node->data.assignment.name);
     return 1;
 
-  case TBS_NODE_CONSTANT_DECL:
+  case TOAD_NODE_CONSTANT_DECL:
     if (!node->data.assignment.name ||
         !ts_mir_runtime_value_arg(node->data.assignment.value, env, out)) {
       return 0;
     }
     {
-      int destroy_container = out->ownership == TBS_VALUE_OWNED &&
-                              (out->type == TBS_VAL_MAP || out->type == TBS_VAL_OBJECT ||
-                               out->type == TBS_VAL_LIST || out->type == TBS_VAL_SET);
-      tbs_env_set_constant(env, node->data.assignment.name, *out);
-      if (destroy_container) cmeta_data_value_destroy(tbs_value_cmeta_data(), out);
+      int destroy_container = out->ownership == TOAD_VALUE_OWNED &&
+                              (out->type == TOAD_VAL_MAP || out->type == TOAD_VAL_OBJECT ||
+                               out->type == TOAD_VAL_LIST || out->type == TOAD_VAL_SET);
+      toad_env_set_constant(env, node->data.assignment.name, *out);
+      if (destroy_container) cmeta_data_value_destroy(toad_value_cmeta_data(), out);
     }
-    *out = tbs_env_get(env, node->data.assignment.name);
+    *out = toad_env_get(env, node->data.assignment.name);
     return 1;
 
-  case TBS_NODE_DESTRUCTURING_ASSIGNMENT:
+  case TOAD_NODE_DESTRUCTURING_ASSIGNMENT:
     if (!ts_mir_runtime_value_arg(node->data.destructuring.value, env, out)) return 0;
-    if (env->flow != tbs_FLOW_NORMAL || env->aborted) return 1;
+    if (env->flow != toad_FLOW_NORMAL || env->aborted) return 1;
     eval_destructure(node->data.destructuring.targets, *out, env,
                      node->data.destructuring.is_constant);
     return 1;
 
-  case TBS_NODE_BLOCK: {
-    tbs_value_t last = tbs_val_num(0.0);
+  case TOAD_NODE_BLOCK: {
+    toad_value_t last = toad_val_num(0.0);
     for (size_t i = 0; i < node->data.block.count; ++i) {
       if (!ts_mir_runtime_value_arg(node->data.block.statements[i], env, &last)) return 0;
-      if (env->flow != tbs_FLOW_NORMAL || env->aborted) break;
+      if (env->flow != toad_FLOW_NORMAL || env->aborted) break;
     }
     *out = last;
     return 1;
   }
 
-  case TBS_NODE_FLOW:
-    if (node->data.flow.type == tbs_TOKEN_RETURN) {
+  case TOAD_NODE_FLOW:
+    if (node->data.flow.type == toad_TOKEN_RETURN) {
       if (node->data.flow.value) {
         if (!ts_mir_runtime_value_arg(node->data.flow.value, env, out)) return 0;
-        if (env->flow != tbs_FLOW_NORMAL) return 1;
+        if (env->flow != toad_FLOW_NORMAL) return 1;
       } else {
-        *out = tbs_val_num(0.0);
+        *out = toad_val_num(0.0);
       }
       env->return_value = *out;
-      env->flow = tbs_FLOW_RETURN;
+      env->flow = toad_FLOW_RETURN;
       return 1;
     }
-    *out = tbs_val_num(0.0);
-    if (node->data.flow.type == tbs_TOKEN_BREAK) {
-      env->flow = tbs_FLOW_BREAK;
-    } else if (node->data.flow.type == tbs_TOKEN_CONTINUE) {
-      env->flow = tbs_FLOW_CONTINUE;
+    *out = toad_val_num(0.0);
+    if (node->data.flow.type == toad_TOKEN_BREAK) {
+      env->flow = toad_FLOW_BREAK;
+    } else if (node->data.flow.type == toad_TOKEN_CONTINUE) {
+      env->flow = toad_FLOW_CONTINUE;
     }
     return 1;
 
-  case TBS_NODE_THROW:
+  case TOAD_NODE_THROW:
     if (node->data.throw_stmt.value) {
       if (!ts_mir_runtime_value_arg(node->data.throw_stmt.value, env, out)) return 0;
     } else {
-      *out = tbs_val_num(0.0);
+      *out = toad_val_num(0.0);
     }
-    env->flow = tbs_FLOW_THROW;
+    env->flow = toad_FLOW_THROW;
     env->error_value = *out;
     return 1;
 
-  case TBS_NODE_TRY_CATCH:
+  case TOAD_NODE_TRY_CATCH:
     return ts_mir_runtime_try_catch_value(node, env, out);
 
-  case TBS_NODE_IF: {
-    tbs_value_t cond;
+  case TOAD_NODE_IF: {
+    toad_value_t cond;
     if (!ts_mir_runtime_value_arg(node->data.if_stmt.condition, env, &cond)) return 0;
     if (ts_mir_value_truthy(cond)) {
       return node->data.if_stmt.if_branch
                  ? ts_mir_runtime_value_arg(node->data.if_stmt.if_branch, env, out)
-                 : (*out = tbs_val_num(0.0), 1);
+                 : (*out = toad_val_num(0.0), 1);
     }
     return node->data.if_stmt.else_branch
                ? ts_mir_runtime_value_arg(node->data.if_stmt.else_branch, env, out)
-               : (*out = tbs_val_num(0.0), 1);
+               : (*out = toad_val_num(0.0), 1);
   }
 
-  case TBS_NODE_WHILE:
+  case TOAD_NODE_WHILE:
     return ts_mir_runtime_while_value(node, env, out);
 
-  case TBS_NODE_FOR:
+  case TOAD_NODE_FOR:
     return ts_mir_runtime_for_value(node, env, out);
 
-  case TBS_NODE_DO_WHILE:
+  case TOAD_NODE_DO_WHILE:
     return ts_mir_runtime_do_while_value(node, env, out);
 
-  case TBS_NODE_FOR_IN:
+  case TOAD_NODE_FOR_IN:
     return ts_mir_runtime_for_in_value(node, env, out);
 
-  case TBS_NODE_SWITCH:
+  case TOAD_NODE_SWITCH:
     return ts_mir_runtime_switch_value(node, env, out);
 
-  case TBS_NODE_BINARY_OP:
+  case TOAD_NODE_BINARY_OP:
     return ts_mir_eval_value_binary(node, env, out);
 
-  case TBS_NODE_INSTANCEOF: {
-    tbs_value_t object;
-    tbs_value_t class_value;
+  case TOAD_NODE_INSTANCEOF: {
+    toad_value_t object;
+    toad_value_t class_value;
     if (!ts_mir_runtime_value_arg(node->data.instanceof_expr.object, env, &object)) return 0;
-    if (env->flow != tbs_FLOW_NORMAL) {
-      *out = tbs_val_num(0.0);
+    if (env->flow != toad_FLOW_NORMAL) {
+      *out = toad_val_num(0.0);
       return 1;
     }
-    if (object.type != TBS_VAL_INSTANCE) {
-      *out = tbs_val_num(0.0);
+    if (object.type != TOAD_VAL_INSTANCE) {
+      *out = toad_val_num(0.0);
       return 1;
     }
     if (node->data.instanceof_expr.class_expr) {
       if (!ts_mir_runtime_value_arg(node->data.instanceof_expr.class_expr, env, &class_value))
         return 0;
     } else {
-      class_value = tbs_env_get(env, node->data.instanceof_expr.class_name);
+      class_value = toad_env_get(env, node->data.instanceof_expr.class_name);
     }
-    *out = tbs_val_num(class_value.type == TBS_VAL_CLASS
-                              ? (double)tbs_instance_of(object.data.instance_val.instance,
+    *out = toad_val_num(class_value.type == TOAD_VAL_CLASS
+                              ? (double)toad_instance_of(object.data.instance_val.instance,
                                                            class_value.data.class_val.klass)
                               : 0.0);
     return 1;
   }
 
-  case TBS_NODE_FUNCTION_CALL: {
-    tbs_value_t *args = NULL;
+  case TOAD_NODE_FUNCTION_CALL: {
+    toad_value_t *args = NULL;
     size_t argc = 0;
     if (!node->data.function.name) return 0;
     args = ts_mir_runtime_call_value_args(node, env, &argc);
     if (!args && node->data.function.arg_count > 0) return 0;
-    *out = tbs_call_internal(node->data.function.name, argc, args, env);
+    *out = toad_call_internal(node->data.function.name, argc, args, env);
     ts_mir_runtime_value_args_free(args, argc);
     return !env->aborted;
   }
 
-  case TBS_NODE_MEMBER_CALL: {
-    tbs_value_t object;
-    tbs_value_t *args = NULL;
+  case TOAD_NODE_MEMBER_CALL: {
+    toad_value_t object;
+    toad_value_t *args = NULL;
     size_t argc = 0;
 
     if (!node->data.member_call.object || !node->data.member_call.method) return 0;
 
-    if (node->data.member_call.object->type != TBS_NODE_VARIABLE) {
-      *out = tbs_eval(node, env);
-      return !env->aborted && env->flow != tbs_FLOW_THROW;
+    if (node->data.member_call.object->type != TOAD_NODE_VARIABLE) {
+      *out = toad_eval(node, env);
+      return !env->aborted && env->flow != toad_FLOW_THROW;
     }
 
-    if (node->data.member_call.object->type == TBS_NODE_VARIABLE &&
+    if (node->data.member_call.object->type == TOAD_NODE_VARIABLE &&
         node->data.member_call.object->data.variable.name) {
       char full_name[256];
       snprintf(full_name, sizeof(full_name), "%s.%s",
                node->data.member_call.object->data.variable.name, node->data.member_call.method);
-      if (ts_env_has_func(env, full_name) || tbs_find_builtin(full_name, env) ||
+      if (ts_env_has_func(env, full_name) || toad_find_builtin(full_name, env) ||
           ts_resolves_core_compat_func(full_name)) {
         args = ts_mir_runtime_call_value_args(node, env, &argc);
         if (!args && node->data.member_call.arg_count > 0) return 0;
-        *out = tbs_call_internal(full_name, argc, args, env);
+        *out = toad_call_internal(full_name, argc, args, env);
         ts_mir_runtime_value_args_free(args, argc);
         return !env->aborted;
       }
 
-      *out = tbs_member_call_checked_value_nodes(
+      *out = toad_member_call_checked_value_nodes(
           node->data.member_call.object->data.variable.name, node->data.member_call.method,
           node->data.member_call.object, node, env);
       if (!env->aborted) return 1;
     }
 
     if (!ts_mir_runtime_value_arg(node->data.member_call.object, env, &object)) {
-      *out = tbs_eval(node, env);
-      return !env->aborted && env->flow != tbs_FLOW_THROW;
+      *out = toad_eval(node, env);
+      return !env->aborted && env->flow != toad_FLOW_THROW;
     }
     if (strcmp(node->data.member_call.method, "length") == 0 &&
         node->data.member_call.arg_count == 0) {
-      if (object.type == TBS_VAL_LIST || object.type == TBS_VAL_SET) {
-        *out = tbs_val_num((double)object.data.list.count);
+      if (object.type == TOAD_VAL_LIST || object.type == TOAD_VAL_SET) {
+        *out = toad_val_num((double)object.data.list.count);
         return 1;
       }
-      if (object.type == TBS_VAL_VECTOR) {
-        *out = tbs_val_num((double)object.data.vector.size);
+      if (object.type == TOAD_VAL_VECTOR) {
+        *out = toad_val_num((double)object.data.vector.size);
         return 1;
       }
-      if (object.type == TBS_VAL_STRING) {
-        *out = tbs_val_num((double)object.data.string.len);
+      if (object.type == TOAD_VAL_STRING) {
+        *out = toad_val_num((double)object.data.string.len);
         return 1;
       }
-      if (object.type == TBS_VAL_BYTES) {
-        *out = tbs_val_num((double)object.data.bytes.len);
+      if (object.type == TOAD_VAL_BYTES) {
+        *out = toad_val_num((double)object.data.bytes.len);
         return 1;
       }
     }
-    if (object.type == TBS_VAL_INSTANCE || object.type == TBS_VAL_CLASS ||
-        tbs_value_is_object_like(&object) || object.type == TBS_VAL_LIST ||
-        object.type == TBS_VAL_SET || object.type == TBS_VAL_VECTOR ||
-        object.type == TBS_VAL_STRING || object.type == TBS_VAL_BYTES) {
+    if (object.type == TOAD_VAL_INSTANCE || object.type == TOAD_VAL_CLASS ||
+        toad_value_is_object_like(&object) || object.type == TOAD_VAL_LIST ||
+        object.type == TOAD_VAL_SET || object.type == TOAD_VAL_VECTOR ||
+        object.type == TOAD_VAL_STRING || object.type == TOAD_VAL_BYTES) {
       const char *temp_name = "__ts_mir_value_receiver";
-      tbs_env_set(env, temp_name, object);
-      *out = tbs_member_call_checked_value_nodes(temp_name, node->data.member_call.method,
+      toad_env_set(env, temp_name, object);
+      *out = toad_member_call_checked_value_nodes(temp_name, node->data.member_call.method,
                                                     node->data.member_call.object, node, env);
       return !env->aborted;
     }
     return 0;
   }
 
-  case TBS_NODE_VECTOR: {
+  case TOAD_NODE_VECTOR: {
     size_t actual = 0;
     size_t cap = 0;
-    tbs_value_t *vals = NULL;
+    toad_value_t *vals = NULL;
     vec_t vector_data = {0};
 
     for (size_t i = 0; i < node->data.vector.count; ++i) {
-      tbs_value_t value;
-      tbs_node_t *element = node->data.vector.elements[i];
+      toad_value_t value;
+      toad_node_t *element = node->data.vector.elements[i];
 
-      if (element && element->type == TBS_NODE_SPREAD) {
+      if (element && element->type == TOAD_NODE_SPREAD) {
         if (!ts_mir_runtime_value_arg(element->data.spread.child, env, &value)) {
-          tbs_values_destroy(vals, actual);
+          toad_values_destroy(vals, actual);
           free(vals);
           return 0;
         }
-        if (value.type == TBS_VAL_VECTOR) {
+        if (value.type == TOAD_VAL_VECTOR) {
           if (!ts_mir_value_array_grow(&vals, &cap, actual + value.data.vector.size)) {
-            cmeta_data_value_destroy(tbs_value_cmeta_data(), &value);
-            tbs_values_destroy(vals, actual);
+            cmeta_data_value_destroy(toad_value_cmeta_data(), &value);
+            toad_values_destroy(vals, actual);
             free(vals);
             return 0;
           }
           for (size_t j = 0; j < value.data.vector.size; ++j) {
-            vals[actual++] = tbs_val_num(value.data.vector.data[j]);
+            vals[actual++] = toad_val_num(value.data.vector.data[j]);
           }
-        } else if (value.type == TBS_VAL_LIST) {
+        } else if (value.type == TOAD_VAL_LIST) {
           if (!ts_mir_value_array_grow(&vals, &cap, actual + value.data.list.count)) {
-            cmeta_data_value_destroy(tbs_value_cmeta_data(), &value);
-            tbs_values_destroy(vals, actual);
+            cmeta_data_value_destroy(toad_value_cmeta_data(), &value);
+            toad_values_destroy(vals, actual);
             free(vals);
             return 0;
           }
           for (size_t j = 0; j < value.data.list.count; ++j) {
-            tbs_value_t copied;
-            if (tbs_value_copy_to_env(value.data.list.items[j], env, &copied) != 0) {
-              cmeta_data_value_destroy(tbs_value_cmeta_data(), &value);
-              tbs_values_destroy(vals, actual);
+            toad_value_t copied;
+            if (toad_value_copy_to_env(value.data.list.items[j], env, &copied) != 0) {
+              cmeta_data_value_destroy(toad_value_cmeta_data(), &value);
+              toad_values_destroy(vals, actual);
               free(vals);
               return 0;
             }
@@ -1775,26 +1775,26 @@ static int ts_mir_runtime_value_arg(tbs_node_t *node, tbs_env_t *env, tbs_value_
           }
         } else {
           if (!ts_mir_value_array_grow(&vals, &cap, actual + 1)) {
-            cmeta_data_value_destroy(tbs_value_cmeta_data(), &value);
-            tbs_values_destroy(vals, actual);
+            cmeta_data_value_destroy(toad_value_cmeta_data(), &value);
+            toad_values_destroy(vals, actual);
             free(vals);
             return 0;
           }
           vals[actual++] = value;
           memset(&value, 0, sizeof(value));
         }
-        cmeta_data_value_destroy(tbs_value_cmeta_data(), &value);
+        cmeta_data_value_destroy(toad_value_cmeta_data(), &value);
         continue;
       }
 
       if (!ts_mir_runtime_value_arg(element, env, &value)) {
-        tbs_values_destroy(vals, actual);
+        toad_values_destroy(vals, actual);
         free(vals);
         return 0;
       }
       if (!ts_mir_value_array_grow(&vals, &cap, actual + 1)) {
-        cmeta_data_value_destroy(tbs_value_cmeta_data(), &value);
-        tbs_values_destroy(vals, actual);
+        cmeta_data_value_destroy(toad_value_cmeta_data(), &value);
+        toad_values_destroy(vals, actual);
         free(vals);
         return 0;
       }
@@ -1805,7 +1805,7 @@ static int ts_mir_runtime_value_arg(tbs_node_t *node, tbs_env_t *env, tbs_value_
             STL_OK ||
         vec_reserve(&vector_data, actual) != STL_OK) {
       if (vector_data.data) vec_destroy(&vector_data);
-      tbs_values_destroy(vals, actual);
+      toad_values_destroy(vals, actual);
       free(vals);
       return 0;
     }
@@ -1813,92 +1813,92 @@ static int ts_mir_runtime_value_arg(tbs_node_t *node, tbs_env_t *env, tbs_value_
       double element_value = ts_mir_numeric_value(vals[i]);
       if (vec_push(&vector_data, &element_value) != STL_OK) {
         vec_destroy(&vector_data);
-        tbs_values_destroy(vals, actual);
+        toad_values_destroy(vals, actual);
         free(vals);
         return 0;
       }
     }
-    if (tbs_value_copy_to_env(tbs_val_vec((double *)vector_data.data, vector_data.size), env,
+    if (toad_value_copy_to_env(toad_val_vec((double *)vector_data.data, vector_data.size), env,
                                  out) != 0) {
       vec_destroy(&vector_data);
-      tbs_values_destroy(vals, actual);
+      toad_values_destroy(vals, actual);
       free(vals);
       return 0;
     }
     vec_destroy(&vector_data);
-    tbs_values_destroy(vals, actual);
+    toad_values_destroy(vals, actual);
     free(vals);
     return 1;
   }
 
-  case TBS_NODE_MAP_LITERAL: {
-    tbs_value_t map = tbs_val_map();
+  case TOAD_NODE_MAP_LITERAL: {
+    toad_value_t map = toad_val_map();
     for (size_t i = 0; i < node->data.map_literal.count; ++i) {
-      tbs_value_t value;
+      toad_value_t value;
       if (!node->data.map_literal.keys[i] ||
           !ts_mir_runtime_value_arg(node->data.map_literal.values[i], env, &value)) {
-        tbs_map_free(&map);
+        toad_map_free(&map);
         return 0;
       }
-      if (tbs_map_set(&map, node->data.map_literal.keys[i], value) != 0) {
-        cmeta_data_value_destroy(tbs_value_cmeta_data(), &value);
-        cmeta_data_value_destroy(tbs_value_cmeta_data(), &map);
+      if (toad_map_set(&map, node->data.map_literal.keys[i], value) != 0) {
+        cmeta_data_value_destroy(toad_value_cmeta_data(), &value);
+        cmeta_data_value_destroy(toad_value_cmeta_data(), &map);
         return 0;
       }
-      cmeta_data_value_destroy(tbs_value_cmeta_data(), &value);
+      cmeta_data_value_destroy(toad_value_cmeta_data(), &value);
     }
     *out = map;
     return 1;
   }
 
-  case TBS_NODE_INDEX: {
-    tbs_value_t array;
-    tbs_value_t index;
+  case TOAD_NODE_INDEX: {
+    toad_value_t array;
+    toad_value_t index;
     int64_t idx = 0;
 
     if (!ts_mir_runtime_value_arg(node->data.index_access.array, env, &array) ||
         !ts_mir_runtime_value_arg(node->data.index_access.index, env, &index)) {
-      *out = tbs_eval(node, env);
-      return !env->aborted && env->flow != tbs_FLOW_THROW;
+      *out = toad_eval(node, env);
+      return !env->aborted && env->flow != toad_FLOW_THROW;
     }
 
-    if (index.type == TBS_VAL_STRING && tbs_value_is_object_like(&array)) {
-      *out = tbs_map_get(&array, index.data.string.data);
+    if (index.type == TOAD_VAL_STRING && toad_value_is_object_like(&array)) {
+      *out = toad_map_get(&array, index.data.string.data);
       return 1;
     }
 
     idx = (int64_t)ts_mir_numeric_value(index);
     if (idx < 0) {
-      *out = tbs_val_num(0.0);
+      *out = toad_val_num(0.0);
       return 1;
     }
-    if (array.type == TBS_VAL_VECTOR) {
-      *out = (size_t)idx < array.data.vector.size ? tbs_val_num(array.data.vector.data[idx])
-                                                  : tbs_val_num(0.0);
+    if (array.type == TOAD_VAL_VECTOR) {
+      *out = (size_t)idx < array.data.vector.size ? toad_val_num(array.data.vector.data[idx])
+                                                  : toad_val_num(0.0);
       return 1;
     }
-    if (array.type == TBS_VAL_LIST) {
-      *out = tbs_list_get(&array, (size_t)idx);
+    if (array.type == TOAD_VAL_LIST) {
+      *out = toad_list_get(&array, (size_t)idx);
       return 1;
     }
-    if (array.type == TBS_VAL_SET) {
-      *out = tbs_list_get(&array, (size_t)idx);
+    if (array.type == TOAD_VAL_SET) {
+      *out = toad_list_get(&array, (size_t)idx);
       return 1;
     }
-    if (array.type == TBS_VAL_BYTES) {
+    if (array.type == TOAD_VAL_BYTES) {
       *out = (size_t)idx < array.data.bytes.len
-                 ? tbs_val_int((unsigned char)array.data.bytes.data[idx])
-                 : tbs_val_num(0.0);
+                 ? toad_val_int((unsigned char)array.data.bytes.data[idx])
+                 : toad_val_num(0.0);
       return 1;
     }
-    *out = tbs_eval(node, env);
+    *out = toad_eval(node, env);
     return !env->aborted;
   }
 
-  case TBS_NODE_SLICE: {
-    tbs_value_t array;
-    tbs_value_t start_value = tbs_val_num(0.0);
-    tbs_value_t end_value = tbs_val_num(0.0);
+  case TOAD_NODE_SLICE: {
+    toad_value_t array;
+    toad_value_t start_value = toad_val_num(0.0);
+    toad_value_t end_value = toad_val_num(0.0);
     int64_t start = 0;
     int64_t end = 0;
 
@@ -1914,119 +1914,119 @@ static int ts_mir_runtime_value_arg(tbs_node_t *node, tbs_env_t *env, tbs_value_
     if (node->data.slice.start) start = (int64_t)ts_mir_numeric_value(start_value);
     if (node->data.slice.end) {
       end = (int64_t)ts_mir_numeric_value(end_value);
-    } else if (array.type == TBS_VAL_VECTOR) {
+    } else if (array.type == TOAD_VAL_VECTOR) {
       end = (int64_t)array.data.vector.size;
-    } else if (array.type == TBS_VAL_LIST) {
+    } else if (array.type == TOAD_VAL_LIST) {
       end = (int64_t)array.data.list.count;
     } else {
       return 0;
     }
 
     if (start < 0 || end < start) {
-      cmeta_data_value_destroy(tbs_value_cmeta_data(), &array);
-      cmeta_data_value_destroy(tbs_value_cmeta_data(), &start_value);
-      cmeta_data_value_destroy(tbs_value_cmeta_data(), &end_value);
+      cmeta_data_value_destroy(toad_value_cmeta_data(), &array);
+      cmeta_data_value_destroy(toad_value_cmeta_data(), &start_value);
+      cmeta_data_value_destroy(toad_value_cmeta_data(), &end_value);
       return 0;
     }
-    if (array.type == TBS_VAL_VECTOR) {
+    if (array.type == TOAD_VAL_VECTOR) {
       if ((size_t)end > array.data.vector.size) {
-        cmeta_data_value_destroy(tbs_value_cmeta_data(), &array);
-        cmeta_data_value_destroy(tbs_value_cmeta_data(), &start_value);
-        cmeta_data_value_destroy(tbs_value_cmeta_data(), &end_value);
+        cmeta_data_value_destroy(toad_value_cmeta_data(), &array);
+        cmeta_data_value_destroy(toad_value_cmeta_data(), &start_value);
+        cmeta_data_value_destroy(toad_value_cmeta_data(), &end_value);
         return 0;
       }
       size_t count = (size_t)(end - start);
       int copied =
-          tbs_value_copy_to_env(
-              tbs_val_vec(count ? array.data.vector.data + start : NULL, count), env, out) == 0;
-      cmeta_data_value_destroy(tbs_value_cmeta_data(), &array);
-      cmeta_data_value_destroy(tbs_value_cmeta_data(), &start_value);
-      cmeta_data_value_destroy(tbs_value_cmeta_data(), &end_value);
+          toad_value_copy_to_env(
+              toad_val_vec(count ? array.data.vector.data + start : NULL, count), env, out) == 0;
+      cmeta_data_value_destroy(toad_value_cmeta_data(), &array);
+      cmeta_data_value_destroy(toad_value_cmeta_data(), &start_value);
+      cmeta_data_value_destroy(toad_value_cmeta_data(), &end_value);
       return copied;
     }
-    if (array.type == TBS_VAL_LIST) {
+    if (array.type == TOAD_VAL_LIST) {
       if ((size_t)end > array.data.list.count) {
-        cmeta_data_value_destroy(tbs_value_cmeta_data(), &array);
-        cmeta_data_value_destroy(tbs_value_cmeta_data(), &start_value);
-        cmeta_data_value_destroy(tbs_value_cmeta_data(), &end_value);
+        cmeta_data_value_destroy(toad_value_cmeta_data(), &array);
+        cmeta_data_value_destroy(toad_value_cmeta_data(), &start_value);
+        cmeta_data_value_destroy(toad_value_cmeta_data(), &end_value);
         return 0;
       }
-      tbs_value_t list = tbs_val_list_empty();
+      toad_value_t list = toad_val_list_empty();
       for (size_t i = (size_t)start; i < (size_t)end; ++i) {
-        if (tbs_list_push(&list, tbs_value_borrow(array.data.list.items[i])) != 0) {
-          cmeta_data_value_destroy(tbs_value_cmeta_data(), &list);
-          cmeta_data_value_destroy(tbs_value_cmeta_data(), &array);
-          cmeta_data_value_destroy(tbs_value_cmeta_data(), &start_value);
-          cmeta_data_value_destroy(tbs_value_cmeta_data(), &end_value);
+        if (toad_list_push(&list, toad_value_borrow(array.data.list.items[i])) != 0) {
+          cmeta_data_value_destroy(toad_value_cmeta_data(), &list);
+          cmeta_data_value_destroy(toad_value_cmeta_data(), &array);
+          cmeta_data_value_destroy(toad_value_cmeta_data(), &start_value);
+          cmeta_data_value_destroy(toad_value_cmeta_data(), &end_value);
           return 0;
         }
       }
-      cmeta_data_value_destroy(tbs_value_cmeta_data(), &array);
-      cmeta_data_value_destroy(tbs_value_cmeta_data(), &start_value);
-      cmeta_data_value_destroy(tbs_value_cmeta_data(), &end_value);
+      cmeta_data_value_destroy(toad_value_cmeta_data(), &array);
+      cmeta_data_value_destroy(toad_value_cmeta_data(), &start_value);
+      cmeta_data_value_destroy(toad_value_cmeta_data(), &end_value);
       *out = list;
       return 1;
     }
-    cmeta_data_value_destroy(tbs_value_cmeta_data(), &array);
-    cmeta_data_value_destroy(tbs_value_cmeta_data(), &start_value);
-    cmeta_data_value_destroy(tbs_value_cmeta_data(), &end_value);
+    cmeta_data_value_destroy(toad_value_cmeta_data(), &array);
+    cmeta_data_value_destroy(toad_value_cmeta_data(), &start_value);
+    cmeta_data_value_destroy(toad_value_cmeta_data(), &end_value);
     return 0;
   }
 
-  case TBS_NODE_MEMBER_ACCESS: {
-    tbs_value_t object;
+  case TOAD_NODE_MEMBER_ACCESS: {
+    toad_value_t object;
     const char *member = node->data.member_access.member;
     if (!member || !ts_mir_runtime_value_arg(node->data.member_access.object, env, &object)) {
       return 0;
     }
     if (strcmp(member, "length") == 0) {
-      if (object.type == TBS_VAL_LIST || object.type == TBS_VAL_SET) {
-        *out = tbs_val_num((double)object.data.list.count);
+      if (object.type == TOAD_VAL_LIST || object.type == TOAD_VAL_SET) {
+        *out = toad_val_num((double)object.data.list.count);
         return 1;
       }
-      if (object.type == TBS_VAL_VECTOR) {
-        *out = tbs_val_num((double)object.data.vector.size);
+      if (object.type == TOAD_VAL_VECTOR) {
+        *out = toad_val_num((double)object.data.vector.size);
         return 1;
       }
-      if (object.type == TBS_VAL_STRING) {
-        *out = tbs_val_num((double)object.data.string.len);
+      if (object.type == TOAD_VAL_STRING) {
+        *out = toad_val_num((double)object.data.string.len);
         return 1;
       }
-      if (object.type == TBS_VAL_BYTES) {
-        *out = tbs_val_num((double)object.data.bytes.len);
+      if (object.type == TOAD_VAL_BYTES) {
+        *out = toad_val_num((double)object.data.bytes.len);
         return 1;
       }
     }
-    if (tbs_value_is_object_like(&object)) {
-      *out = tbs_map_get(&object, member);
+    if (toad_value_is_object_like(&object)) {
+      *out = toad_map_get(&object, member);
       return 1;
     }
-    if (object.type == TBS_VAL_DATETIME) {
-      return tbs_datetime_member_get(object, member, out);
+    if (object.type == TOAD_VAL_DATETIME) {
+      return toad_datetime_member_get(object, member, out);
     }
-    if (object.type == TBS_VAL_DATE) {
-      return tbs_date_member_get(object, member, out);
+    if (object.type == TOAD_VAL_DATE) {
+      return toad_date_member_get(object, member, out);
     }
-    if (object.type == TBS_VAL_TIME) {
-      return tbs_time_member_get(object, member, out);
+    if (object.type == TOAD_VAL_TIME) {
+      return toad_time_member_get(object, member, out);
     }
-    if (object.type == TBS_VAL_DURATION) {
-      return tbs_duration_member_get(object, member, out);
+    if (object.type == TOAD_VAL_DURATION) {
+      return toad_duration_member_get(object, member, out);
     }
-    if (object.type == TBS_VAL_DECIMAL) {
-      return tbs_decimal_member_get(object, member, out);
+    if (object.type == TOAD_VAL_DECIMAL) {
+      return toad_decimal_member_get(object, member, out);
     }
-    if (object.type == TBS_VAL_INSTANCE || object.type == TBS_VAL_CLASS) {
+    if (object.type == TOAD_VAL_INSTANCE || object.type == TOAD_VAL_CLASS) {
       const char *object_name = NULL;
       if (node->data.member_access.object &&
-          node->data.member_access.object->type == TBS_NODE_VARIABLE) {
+          node->data.member_access.object->type == TOAD_NODE_VARIABLE) {
         object_name = node->data.member_access.object->data.variable.name;
       } else {
         object_name = "__ts_mir_value_receiver";
-        tbs_env_set(env, object_name, object);
+        toad_env_set(env, object_name, object);
       }
       *out =
-          tbs_oop_get_member_checked(object_name, member, node->data.member_access.object, env);
+          toad_oop_get_member_checked(object_name, member, node->data.member_access.object, env);
       return !env->aborted;
     }
     *out = throw_error(env, node, "Member access '%s' is invalid for %s (receiver node type %d)",
@@ -2036,7 +2036,7 @@ static int ts_mir_runtime_value_arg(tbs_node_t *node, tbs_env_t *env, tbs_value_
     return 1;
   }
 
-  case TBS_NODE_MEMBER_SET:
+  case TOAD_NODE_MEMBER_SET:
     return ts_mir_runtime_member_set_value(node, env, out);
 
   default:
@@ -2044,25 +2044,25 @@ static int ts_mir_runtime_value_arg(tbs_node_t *node, tbs_env_t *env, tbs_value_
   }
 }
 
-static tbs_value_t *ts_mir_runtime_call_value_args(tbs_node_t *call_node, tbs_env_t *env,
+static toad_value_t *ts_mir_runtime_call_value_args(toad_node_t *call_node, toad_env_t *env,
                                                       size_t *out_count) {
   size_t cap = 0;
   size_t actual = 0;
-  tbs_value_t *vals = NULL;
+  toad_value_t *vals = NULL;
   size_t arg_count = 0;
-  tbs_node_t **arg_nodes = NULL;
+  toad_node_t **arg_nodes = NULL;
 
   if (!out_count) return NULL;
   *out_count = 0;
   if (!call_node || !env) return NULL;
 
-  if (call_node->type == TBS_NODE_FUNCTION_CALL) {
+  if (call_node->type == TOAD_NODE_FUNCTION_CALL) {
     arg_count = call_node->data.function.arg_count;
     arg_nodes = call_node->data.function.args;
-  } else if (call_node->type == TBS_NODE_MEMBER_CALL) {
+  } else if (call_node->type == TOAD_NODE_MEMBER_CALL) {
     arg_count = call_node->data.member_call.arg_count;
     arg_nodes = call_node->data.member_call.args;
-  } else if (call_node->type == TBS_NODE_SUPER) {
+  } else if (call_node->type == TOAD_NODE_SUPER) {
     arg_count = call_node->data.super_expr.arg_count;
     arg_nodes = call_node->data.super_expr.args;
   } else {
@@ -2070,35 +2070,35 @@ static tbs_value_t *ts_mir_runtime_call_value_args(tbs_node_t *call_node, tbs_en
   }
 
   for (size_t i = 0; i < arg_count; ++i) {
-    tbs_node_t *arg = arg_nodes[i];
+    toad_node_t *arg = arg_nodes[i];
     if (!arg) continue;
 
-    if (arg->type == TBS_NODE_SPREAD) {
-      tbs_value_t spread;
+    if (arg->type == TOAD_NODE_SPREAD) {
+      toad_value_t spread;
       if (!ts_mir_runtime_value_arg(arg->data.spread.child, env, &spread)) {
         if (!env->aborted && env->error_msg[0] == '\0') ts_mir_value_arg_error(env, arg);
         ts_mir_runtime_value_args_free(vals, actual);
         return NULL;
       }
-      if (spread.type == TBS_VAL_VECTOR) {
+      if (spread.type == TOAD_VAL_VECTOR) {
         if (!ts_mir_value_array_grow(&vals, &cap, actual + spread.data.vector.size)) {
-          cmeta_data_value_destroy(tbs_value_cmeta_data(), &spread);
+          cmeta_data_value_destroy(toad_value_cmeta_data(), &spread);
           ts_mir_runtime_value_args_free(vals, actual);
           return NULL;
         }
         for (size_t j = 0; j < spread.data.vector.size; ++j) {
-          vals[actual++] = tbs_val_num(spread.data.vector.data[j]);
+          vals[actual++] = toad_val_num(spread.data.vector.data[j]);
         }
-      } else if (spread.type == TBS_VAL_LIST) {
+      } else if (spread.type == TOAD_VAL_LIST) {
         if (!ts_mir_value_array_grow(&vals, &cap, actual + spread.data.list.count)) {
-          cmeta_data_value_destroy(tbs_value_cmeta_data(), &spread);
+          cmeta_data_value_destroy(toad_value_cmeta_data(), &spread);
           ts_mir_runtime_value_args_free(vals, actual);
           return NULL;
         }
         for (size_t j = 0; j < spread.data.list.count; ++j) {
-          tbs_value_t copied;
-          if (tbs_value_copy_to_env(spread.data.list.items[j], env, &copied) != 0) {
-            cmeta_data_value_destroy(tbs_value_cmeta_data(), &spread);
+          toad_value_t copied;
+          if (toad_value_copy_to_env(spread.data.list.items[j], env, &copied) != 0) {
+            cmeta_data_value_destroy(toad_value_cmeta_data(), &spread);
             ts_mir_runtime_value_args_free(vals, actual);
             return NULL;
           }
@@ -2106,14 +2106,14 @@ static tbs_value_t *ts_mir_runtime_call_value_args(tbs_node_t *call_node, tbs_en
         }
       } else {
         if (!ts_mir_value_array_grow(&vals, &cap, actual + 1)) {
-          cmeta_data_value_destroy(tbs_value_cmeta_data(), &spread);
+          cmeta_data_value_destroy(toad_value_cmeta_data(), &spread);
           ts_mir_runtime_value_args_free(vals, actual);
           return NULL;
         }
         vals[actual++] = spread;
         memset(&spread, 0, sizeof(spread));
       }
-      cmeta_data_value_destroy(tbs_value_cmeta_data(), &spread);
+      cmeta_data_value_destroy(toad_value_cmeta_data(), &spread);
       continue;
     }
 
@@ -2135,17 +2135,17 @@ static tbs_value_t *ts_mir_runtime_call_value_args(tbs_node_t *call_node, tbs_en
 
 double ts_mir_call_value_assign(void *ctx_ptr, const char *target_name, const char *name,
                                 void *call_node_ptr) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
-  tbs_node_t *call_node = (tbs_node_t *)call_node_ptr;
-  tbs_value_t *args = NULL;
-  tbs_value_t result;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
+  toad_node_t *call_node = (toad_node_t *)call_node_ptr;
+  toad_value_t *args = NULL;
+  toad_value_t result;
   size_t argc = 0;
   size_t declared_argc = 0;
 
   if (!ctx || !target_name || !name || !call_node) return 0.0;
-  if (call_node->type == TBS_NODE_FUNCTION_CALL) {
+  if (call_node->type == TOAD_NODE_FUNCTION_CALL) {
     declared_argc = call_node->data.function.arg_count;
-  } else if (call_node->type == TBS_NODE_MEMBER_CALL) {
+  } else if (call_node->type == TOAD_NODE_MEMBER_CALL) {
     declared_argc = call_node->data.member_call.arg_count;
   }
 
@@ -2155,17 +2155,17 @@ double ts_mir_call_value_assign(void *ctx_ptr, const char *target_name, const ch
     return 0.0;
   }
 
-  result = tbs_call_internal(name, argc, args, &ctx->env);
-  tbs_env_set(&ctx->env, target_name, result);
+  result = toad_call_internal(name, argc, args, &ctx->env);
+  toad_env_set(&ctx->env, target_name, result);
   ts_mir_runtime_value_args_free(args, argc);
-  if (ctx->env.flow != tbs_FLOW_NORMAL || ctx->env.aborted) ts_mir_promote_env_error(ctx);
+  if (ctx->env.flow != toad_FLOW_NORMAL || ctx->env.aborted) ts_mir_promote_env_error(ctx);
   return ts_mir_numeric_value(result);
 }
 
 double ts_mir_value_expr_assign(void *ctx_ptr, const char *target_name, void *node_ptr) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
-  tbs_node_t *node = (tbs_node_t *)node_ptr;
-  tbs_value_t result;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
+  toad_node_t *node = (toad_node_t *)node_ptr;
+  toad_value_t result;
 
   if (!ctx || !target_name || !node) return 0.0;
   {
@@ -2196,15 +2196,15 @@ double ts_mir_value_expr_assign(void *ctx_ptr, const char *target_name, void *no
     }
   }
 
-  tbs_env_set(&ctx->env, target_name, result);
-  if (ctx->env.flow != tbs_FLOW_NORMAL || ctx->env.aborted) ts_mir_promote_env_error(ctx);
+  toad_env_set(&ctx->env, target_name, result);
+  if (ctx->env.flow != toad_FLOW_NORMAL || ctx->env.aborted) ts_mir_promote_env_error(ctx);
   return ts_mir_numeric_value(result);
 }
 
 double ts_mir_value_expr(void *ctx_ptr, void *node_ptr) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
-  tbs_node_t *node = (tbs_node_t *)node_ptr;
-  tbs_value_t result;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
+  toad_node_t *node = (toad_node_t *)node_ptr;
+  toad_value_t result;
   double numeric_result;
 
   if (!ctx || !node) return 0.0;
@@ -2229,77 +2229,77 @@ double ts_mir_value_expr(void *ctx_ptr, void *node_ptr) {
     }
   }
 
-  if (ctx->env.flow != tbs_FLOW_NORMAL || ctx->env.aborted) ts_mir_promote_env_error(ctx);
+  if (ctx->env.flow != toad_FLOW_NORMAL || ctx->env.aborted) ts_mir_promote_env_error(ctx);
   numeric_result = ts_mir_numeric_value(result);
-  cmeta_data_value_destroy(tbs_value_cmeta_data(), &result);
+  cmeta_data_value_destroy(toad_value_cmeta_data(), &result);
   return numeric_result;
 }
 
-tbs_value_t turbo_script_mir_eval_node(const tbs_node_t *node, tbs_env_t *env) {
-  tbs_value_t result = tbs_val_num(0.0);
+toad_value_t toad_script_mir_eval_node(const toad_node_t *node, toad_env_t *env) {
+  toad_value_t result = toad_val_num(0.0);
 
   if (!node || !env) return result;
-  if (!ts_mir_runtime_value_arg((tbs_node_t *)node, env, &result)) {
+  if (!ts_mir_runtime_value_arg((toad_node_t *)node, env, &result)) {
     if (!env->aborted && env->error_msg[0] == '\0')
-      ts_mir_value_arg_error(env, (tbs_node_t *)node);
+      ts_mir_value_arg_error(env, (toad_node_t *)node);
   }
   return result;
 }
 
-int turbo_script_mir_exec_script_body(tbs_func_t *func, tbs_env_t *local_env,
-                                      tbs_env_t *caller_env, tbs_value_t *out) {
-  tbs_value_t result = tbs_val_num(0.0);
+int toad_script_mir_exec_script_body(toad_func_t *func, toad_env_t *local_env,
+                                      toad_env_t *caller_env, toad_value_t *out) {
+  toad_value_t result = toad_val_num(0.0);
 
   (void)caller_env;
   if (!func || !local_env || !out) return 1;
   if (!ts_mir_runtime_value_arg(func->data.script.body, local_env, &result)) {
     if (!local_env->aborted && local_env->error_msg[0] == '\0')
       ts_mir_value_arg_error(local_env, func->data.script.body);
-    result = tbs_val_num(0.0);
+    result = toad_val_num(0.0);
   }
   *out = result;
   return 1;
 }
 
-static int ts_mir_string_equals(tbs_value_t value, const char *text) {
+static int ts_mir_string_equals(toad_value_t value, const char *text) {
   size_t len = text ? strlen(text) : 0;
-  return value.type == TBS_VAL_STRING && value.data.string.data &&
+  return value.type == TOAD_VAL_STRING && value.data.string.data &&
          value.data.string.len == len && memcmp(value.data.string.data, text, len) == 0;
 }
 
-static tbs_value_t ts_mir_await_result(tbs_value_t value) {
-  if (tbs_value_is_object_like(&value) && tbs_map_has(&value, "status") &&
-      tbs_map_has(&value, "value")) {
-    tbs_value_t status = tbs_map_get(&value, "status");
+static toad_value_t ts_mir_await_result(toad_value_t value) {
+  if (toad_value_is_object_like(&value) && toad_map_has(&value, "status") &&
+      toad_map_has(&value, "value")) {
+    toad_value_t status = toad_map_get(&value, "status");
     if (ts_mir_string_equals(status, "suspended") || ts_mir_string_equals(status, "dead")) {
-      return tbs_map_get(&value, "value");
+      return toad_map_get(&value, "value");
     }
   }
-  return tbs_value_borrow(value);
+  return toad_value_borrow(value);
 }
 
-static int ts_mir_eval_await_arg(tbs_node_t *node, tbs_env_t *env, tbs_value_t *out) {
-  tbs_value_t *args = NULL;
+static int ts_mir_eval_await_arg(toad_node_t *node, toad_env_t *env, toad_value_t *out) {
+  toad_value_t *args = NULL;
   size_t argc = 0;
 
   if (!node || !env || !out) return 0;
 
-  if (node->type == TBS_NODE_FUNCTION_CALL && node->data.function.name) {
+  if (node->type == TOAD_NODE_FUNCTION_CALL && node->data.function.name) {
     args = ts_mir_runtime_call_value_args(node, env, &argc);
     if (!args && node->data.function.arg_count > 0) return 0;
-    *out = tbs_call_internal(node->data.function.name, argc, args, env);
+    *out = toad_call_internal(node->data.function.name, argc, args, env);
     ts_mir_runtime_value_args_free(args, argc);
-    return env->flow == tbs_FLOW_NORMAL && !env->aborted;
+    return env->flow == toad_FLOW_NORMAL && !env->aborted;
   }
 
   return ts_mir_runtime_value_arg(node, env, out);
 }
 
 double ts_mir_await_value(void *ctx_ptr, void *arg_node_ptr) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
-  tbs_node_t *arg_node = (tbs_node_t *)arg_node_ptr;
-  tbs_value_t value;
-  tbs_value_t awaited;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
+  toad_node_t *arg_node = (toad_node_t *)arg_node_ptr;
+  toad_value_t value;
+  toad_value_t awaited;
   double result;
 
   if (!ctx || !arg_node) return 0.0;
@@ -2311,17 +2311,17 @@ double ts_mir_await_value(void *ctx_ptr, void *arg_node_ptr) {
   }
 
   awaited = ts_mir_await_result(value);
-  if (ctx->env.flow != tbs_FLOW_NORMAL || ctx->env.aborted) ts_mir_promote_env_error(ctx);
+  if (ctx->env.flow != toad_FLOW_NORMAL || ctx->env.aborted) ts_mir_promote_env_error(ctx);
   result = ts_mir_numeric_value(awaited);
-  cmeta_data_value_destroy(tbs_value_cmeta_data(), &value);
+  cmeta_data_value_destroy(toad_value_cmeta_data(), &value);
   return result;
 }
 
 double ts_mir_await_assign(void *ctx_ptr, const char *target_name, void *arg_node_ptr) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
-  tbs_node_t *arg_node = (tbs_node_t *)arg_node_ptr;
-  tbs_value_t value;
-  tbs_value_t awaited;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
+  toad_node_t *arg_node = (toad_node_t *)arg_node_ptr;
+  toad_value_t value;
+  toad_value_t awaited;
   double result;
 
   if (!ctx || !target_name || !arg_node) return 0.0;
@@ -2334,55 +2334,55 @@ double ts_mir_await_assign(void *ctx_ptr, const char *target_name, void *arg_nod
 
   awaited = ts_mir_await_result(value);
   result = ts_mir_numeric_value(awaited);
-  tbs_env_set(&ctx->env, target_name, awaited);
-  cmeta_data_value_destroy(tbs_value_cmeta_data(), &value);
-  if (ctx->env.flow != tbs_FLOW_NORMAL || ctx->env.aborted) ts_mir_promote_env_error(ctx);
+  toad_env_set(&ctx->env, target_name, awaited);
+  cmeta_data_value_destroy(toad_value_cmeta_data(), &value);
+  if (ctx->env.flow != toad_FLOW_NORMAL || ctx->env.aborted) ts_mir_promote_env_error(ctx);
   return result;
 }
 
 double ts_mir_function_expr_assign(void *ctx_ptr, const char *target_name, void *node_ptr) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
-  tbs_node_t *node = (tbs_node_t *)node_ptr;
-  tbs_value_t value = {0};
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
+  toad_node_t *node = (toad_node_t *)node_ptr;
+  toad_value_t value = {0};
 
-  if (!ctx || !target_name || !node || node->type != TBS_NODE_FUNCTION_EXPRESSION) return 0.0;
+  if (!ctx || !target_name || !node || node->type != TOAD_NODE_FUNCTION_EXPRESSION) return 0.0;
 
-  value.type = TBS_VAL_FUNCTION;
+  value.type = TOAD_VAL_FUNCTION;
   value.data.function.arg_params = node->data.func_def.arg_params;
   value.data.function.arg_count = node->data.func_def.arg_count;
   value.data.function.body = node->data.func_def.body;
   {
     /* Capture only the free variables of the closure body. */
     char **free_vars =
-        tbs_collect_closure_free_vars(node->data.func_def.body, node->data.func_def.arg_params,
+        toad_collect_closure_free_vars(node->data.func_def.body, node->data.func_def.arg_params,
                                          node->data.func_def.arg_count, &ctx->env.arena);
     size_t fv_count = 0;
     while (free_vars && free_vars[fv_count])
       fv_count++;
     value.data.function.closure_env =
-        free_vars ? tbs_env_snapshot_names(&ctx->env, (const char *const *)free_vars, fv_count)
-                  : tbs_env_snapshot(&ctx->env);
+        free_vars ? toad_env_snapshot_names(&ctx->env, (const char *const *)free_vars, fv_count)
+                  : toad_env_snapshot(&ctx->env);
   }
   value.data.function.owner_class = NULL;
   value.data.function.is_static_method = 0;
-  value.data.function.access_level = TBS_ACCESS_PUBLIC;
-  tbs_env_set(&ctx->env, target_name, value);
+  value.data.function.access_level = TOAD_ACCESS_PUBLIC;
+  toad_env_set(&ctx->env, target_name, value);
   return 0.0;
 }
 
 double ts_mir_try_catch_assign(void *ctx_ptr, const char *target_name, void *node_ptr) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
-  tbs_node_t *node = (tbs_node_t *)node_ptr;
-  tbs_value_t result;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
+  toad_node_t *node = (toad_node_t *)node_ptr;
+  toad_value_t result;
 
-  if (!ctx || !target_name || !node || node->type != TBS_NODE_TRY_CATCH) return 0.0;
+  if (!ctx || !target_name || !node || node->type != TOAD_NODE_TRY_CATCH) return 0.0;
 
   if (!ts_mir_runtime_value_arg(node, &ctx->env, &result)) {
     if (!ctx->env.aborted && ctx->env.error_msg[0] == '\0') ts_mir_value_arg_error(&ctx->env, node);
     ts_mir_promote_env_error(ctx);
     return 0.0;
   }
-  tbs_env_set(&ctx->env, target_name, result);
-  if (ctx->env.flow != tbs_FLOW_NORMAL || ctx->env.aborted) ts_mir_promote_env_error(ctx);
+  toad_env_set(&ctx->env, target_name, result);
+  if (ctx->env.flow != toad_FLOW_NORMAL || ctx->env.aborted) ts_mir_promote_env_error(ctx);
   return ts_mir_numeric_value(result);
 }

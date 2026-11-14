@@ -1,32 +1,32 @@
 #include "tinytest.h"
-#include <turboscript/engine.h>
+#include <toad/engine.h>
 #include "../src/graph/cflow_mir_kernel.h"
 
 #include <cflow/graph.h>
 #include <cflow/plan.h>
 #include <cmeta/cmeta.h>
 
-static tbs_node_t *ts_kernel_test_lambda(const char *source,
-                                            tbs_node_t **root_out) {
-  tbs_node_t *root = tbs_parse(source, 0);
+static toad_node_t *ts_kernel_test_lambda(const char *source,
+                                            toad_node_t **root_out) {
+  toad_node_t *root = toad_parse(source, 0);
   if (root_out) *root_out = root;
-  if (!root || root->type != TBS_NODE_BLOCK ||
+  if (!root || root->type != TOAD_NODE_BLOCK ||
       root->data.block.count != 1u)
     return NULL;
-  tbs_node_t *lambda = root->data.block.statements[0];
-  return lambda && lambda->type == TBS_NODE_FUNCTION_EXPRESSION
+  toad_node_t *lambda = root->data.block.statements[0];
+  return lambda && lambda->type == TOAD_NODE_FUNCTION_EXPRESSION
              ? lambda
              : NULL;
 }
 
-spec("TurboScript CFlow MIR kernels") {
+spec("Toad CFlow MIR kernels") {
   it("executes filter and map MIR kernels through a compiled CFlow plan") {
-    turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_BARE);
-    tbs_node_t *filter_root = NULL;
-    tbs_node_t *map_root = NULL;
-    tbs_node_t *filter_lambda =
+    toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
+    toad_node_t *filter_root = NULL;
+    toad_node_t *map_root = NULL;
+    toad_node_t *filter_lambda =
         ts_kernel_test_lambda("x => x > 0", &filter_root);
-    tbs_node_t *map_lambda =
+    toad_node_t *map_lambda =
         ts_kernel_test_lambda("x => x * 2", &map_root);
     ts_cflow_mir_kernel_binding_t filter_binding = {0};
     ts_cflow_mir_kernel_binding_t map_binding = {0};
@@ -91,22 +91,22 @@ spec("TurboScript CFlow MIR kernels") {
     check((((const double *)repeated.data)[1]) == (4.0));
 
     /* CFlow snapshots copy callable by value but borrow the captured kernel
-     * pointer. Destroy all result/plan/graph users before the TurboScript owner. */
+     * pointer. Destroy all result/plan/graph users before the Toad owner. */
     cflow_result_destroy(&repeated);
     cflow_result_destroy(&result);
     cflow_plan_destroy(&plan);
     cflow_graph_destroy(&graph);
     ts_cflow_mir_kernel_binding_destroy(&map_binding);
     ts_cflow_mir_kernel_binding_destroy(&filter_binding);
-    tbs_free(map_root);
-    tbs_free(filter_root);
-    turbo_script_free(ctx);
+    toad_free(map_root);
+    toad_free(filter_root);
+    toad_script_free(ctx);
   }
 
   it("executes a seeded reduce MIR kernel through a reusable CFlow plan") {
-    turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_BARE);
-    tbs_node_t *root = NULL;
-    tbs_node_t *lambda =
+    toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
+    toad_node_t *root = NULL;
+    toad_node_t *lambda =
         ts_kernel_test_lambda("(acc, x) => acc + x", &root);
     ts_cflow_mir_kernel_binding_t binding = {0};
     cflow_graph graph = {0};
@@ -146,14 +146,14 @@ spec("TurboScript CFlow MIR kernels") {
     cflow_plan_destroy(&plan);
     cflow_graph_destroy(&graph);
     ts_cflow_mir_kernel_binding_destroy(&binding);
-    tbs_free(root);
-    turbo_script_free(ctx);
+    toad_free(root);
+    toad_script_free(ctx);
   }
 
   it("rejects captured lambdas before MIR kernel compilation") {
-    turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_BARE);
-    tbs_node_t *root = NULL;
-    tbs_node_t *lambda =
+    toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
+    toad_node_t *root = NULL;
+    toad_node_t *lambda =
         ts_kernel_test_lambda("x => x * factor", &root);
     ts_cflow_mir_kernel_binding_t binding = {0};
     const char *error = NULL;
@@ -165,7 +165,7 @@ spec("TurboScript CFlow MIR kernels") {
     check_not_null(error);
     check_null(binding.owner);
 
-    tbs_free(root);
-    turbo_script_free(ctx);
+    toad_free(root);
+    toad_script_free(ctx);
   }
 }

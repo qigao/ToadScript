@@ -1,6 +1,6 @@
 /**
  * @file compiler.c
- * @brief Core compiler infrastructure for the TurboScript MIR backend.
+ * @brief Core compiler infrastructure for the Toad MIR backend.
  *
  * This module owns backend-wide helpers that are already used by other MIR
  * modules during the incremental split from mir.c.
@@ -23,7 +23,7 @@ void ts_mir_fail(ts_mir_compiler_t *c, const char *fmt, ...) {
   if (!c->ts_ctx)
     return;
 
-  c->ts_ctx->error_code = TURBO_SCRIPT_ERROR_JIT;
+  c->ts_ctx->error_code = TOAD_SCRIPT_ERROR_JIT;
   va_start(args, fmt);
   vsnprintf(c->ts_ctx->error_msg, sizeof(c->ts_ctx->error_msg), fmt, args);
   va_end(args);
@@ -237,9 +237,9 @@ static const char *ts_mir_retain_string(ts_mir_compiler_t *c,
   return copy;
 }
 
-const tbs_function_reflection_t *ts_mir_admit_builtin(
+const toad_function_reflection_t *ts_mir_admit_builtin(
     ts_mir_compiler_t *c, const char *name) {
-  tbs_function_reflection_t reflected;
+  toad_function_reflection_t reflected;
   ts_mir_builtin_admission_t *entry;
 
   if (!c || !name || name[0] == '\0') return NULL;
@@ -250,7 +250,7 @@ const tbs_function_reflection_t *ts_mir_admit_builtin(
   }
 
   memset(&reflected, 0, sizeof(reflected));
-  if (!tbs_find_builtin_reflection(name, &c->ts_ctx->env, &reflected) ||
+  if (!toad_find_builtin_reflection(name, &c->ts_ctx->env, &reflected) ||
       !cmeta_function_desc_valid(&reflected.function) ||
       reflected.invoke == NULL)
     return NULL;

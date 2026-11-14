@@ -1,11 +1,11 @@
 /**
  * @file nash.c
- * @brief TurboScript-only normal-form game helpers inspired by Nashpy.
+ * @brief Toad-only normal-form game helpers inspired by Nashpy.
  */
 
-#include <turboscript/module.h>
+#include <toad/module.h>
 #include "fin.h"
-#include <turboscript/simd.h>
+#include <toad/simd.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -86,10 +86,10 @@ static size_t nash_rng_choice_weighted(nash_rng_t *rng, const double *weights, s
   return n - 1;
 }
 
-static int parse_game_args(size_t argc, tbs_value_t *args, nash_game_t *game) {
+static int parse_game_args(size_t argc, toad_value_t *args, nash_game_t *game) {
   if (!game || argc < 4) return -1;
-  if (args[0].type != TBS_VAL_VECTOR || args[1].type != TBS_VAL_VECTOR ||
-      args[2].type != TBS_VAL_NUMBER || args[3].type != TBS_VAL_NUMBER)
+  if (args[0].type != TOAD_VAL_VECTOR || args[1].type != TOAD_VAL_VECTOR ||
+      args[2].type != TOAD_VAL_NUMBER || args[3].type != TOAD_VAL_NUMBER)
     return -1;
 
   size_t n_rows = (size_t)args[2].data.number;
@@ -420,16 +420,16 @@ static int verify_equilibrium(const nash_game_t *game,
   return 0;
 }
 
-static int equilibrium_exists(const tbs_value_t *list,
+static int equilibrium_exists(const toad_value_t *list,
                               const double *row_strategy,
                               const double *col_strategy,
                               double tol) {
-  if (!list || list->type != TBS_VAL_LIST) return 0;
+  if (!list || list->type != TOAD_VAL_LIST) return 0;
   for (size_t idx = 0; idx < list->data.list.count; idx++) {
-    tbs_value_t item = list->data.list.items[idx];
-    tbs_value_t row_vec = tbs_map_get(&item, "row_strategy");
-    tbs_value_t col_vec = tbs_map_get(&item, "col_strategy");
-    if (row_vec.type != TBS_VAL_VECTOR || col_vec.type != TBS_VAL_VECTOR) continue;
+    toad_value_t item = list->data.list.items[idx];
+    toad_value_t row_vec = toad_map_get(&item, "row_strategy");
+    toad_value_t col_vec = toad_map_get(&item, "col_strategy");
+    if (row_vec.type != TOAD_VAL_VECTOR || col_vec.type != TOAD_VAL_VECTOR) continue;
     if (row_vec.data.vector.size == 0 || col_vec.data.vector.size == 0) continue;
 
     {
@@ -453,34 +453,34 @@ static int equilibrium_exists(const tbs_value_t *list,
   return 0;
 }
 
-static tbs_value_t make_equilibrium_map(const double *row_strategy,
+static toad_value_t make_equilibrium_map(const double *row_strategy,
                                            const double *col_strategy,
                                            size_t n_rows,
                                            size_t n_cols,
                                            double row_payoff,
                                            double col_payoff,
                                            mem_pool_t *arena) {
-  tbs_value_t eq = tbs_val_map();
+  toad_value_t eq = toad_val_map();
   double *row_copy = MEM_ALLOC_ARRAY(arena, double, n_rows);
   double *col_copy = MEM_ALLOC_ARRAY(arena, double, n_cols);
-  if (!row_copy || !col_copy) return tbs_val_num(NAN);
+  if (!row_copy || !col_copy) return toad_val_num(NAN);
   memcpy(row_copy, row_strategy, n_rows * sizeof(double));
   memcpy(col_copy, col_strategy, n_cols * sizeof(double));
-  tbs_map_set(&eq, "row_strategy", tbs_val_vec(row_copy, n_rows));
-  tbs_map_set(&eq, "col_strategy", tbs_val_vec(col_copy, n_cols));
-  tbs_map_set(&eq, "row_payoff", tbs_val_num(row_payoff));
-  tbs_map_set(&eq, "col_payoff", tbs_val_num(col_payoff));
+  toad_map_set(&eq, "row_strategy", toad_val_vec(row_copy, n_rows));
+  toad_map_set(&eq, "col_strategy", toad_val_vec(col_copy, n_cols));
+  toad_map_set(&eq, "row_payoff", toad_val_num(row_payoff));
+  toad_map_set(&eq, "col_payoff", toad_val_num(col_payoff));
   return eq;
 }
 
-static tbs_value_t clone_equilibrium_map(const tbs_value_t *eq, mem_pool_t *arena) {
-  tbs_value_t row_vec = tbs_map_get(eq, "row_strategy");
-  tbs_value_t col_vec = tbs_map_get(eq, "col_strategy");
-  tbs_value_t row_payoff = tbs_map_get(eq, "row_payoff");
-  tbs_value_t col_payoff = tbs_map_get(eq, "col_payoff");
+static toad_value_t clone_equilibrium_map(const toad_value_t *eq, mem_pool_t *arena) {
+  toad_value_t row_vec = toad_map_get(eq, "row_strategy");
+  toad_value_t col_vec = toad_map_get(eq, "col_strategy");
+  toad_value_t row_payoff = toad_map_get(eq, "row_payoff");
+  toad_value_t col_payoff = toad_map_get(eq, "col_payoff");
 
-  if (row_vec.type != TBS_VAL_VECTOR || col_vec.type != TBS_VAL_VECTOR) {
-    return tbs_val_num(NAN);
+  if (row_vec.type != TOAD_VAL_VECTOR || col_vec.type != TOAD_VAL_VECTOR) {
+    return toad_val_num(NAN);
   }
 
   return make_equilibrium_map(row_vec.data.vector.data, col_vec.data.vector.data,
@@ -488,8 +488,8 @@ static tbs_value_t clone_equilibrium_map(const tbs_value_t *eq, mem_pool_t *aren
                               row_payoff.data.number, col_payoff.data.number, arena);
 }
 
-static tbs_value_t enumerate_equilibria(const nash_game_t *game, double tol, mem_pool_t *arena) {
-  tbs_value_t equilibria = tbs_val_list_empty();
+static toad_value_t enumerate_equilibria(const nash_game_t *game, double tol, mem_pool_t *arena) {
+  toad_value_t equilibria = toad_val_list_empty();
   size_t max_support = (game->n_rows < game->n_cols) ? game->n_rows : game->n_cols;
   size_t *row_support = MEM_ALLOC_ARRAY(arena, size_t, max_support);
   size_t *col_support = MEM_ALLOC_ARRAY(arena, size_t, max_support);
@@ -500,7 +500,7 @@ static tbs_value_t enumerate_equilibria(const nash_game_t *game, double tol, mem
   double *out = MEM_ALLOC_ARRAY(arena, double, max_support);
 
   if (!row_support || !col_support || !row_strategy || !col_strategy || !mat || !rhs || !out) {
-    return tbs_val_num(NAN);
+    return toad_val_num(NAN);
   }
 
   for (size_t k = 1; k <= max_support; k++) {
@@ -519,23 +519,23 @@ static tbs_value_t enumerate_equilibria(const nash_game_t *game, double tol, mem
           continue;
         }
         if (!equilibrium_exists(&equilibria, row_strategy, col_strategy, 1e-5)) {
-          tbs_value_t eq = make_equilibrium_map(row_strategy, col_strategy,
+          toad_value_t eq = make_equilibrium_map(row_strategy, col_strategy,
                                                    game->n_rows, game->n_cols,
                                                    row_payoff, col_payoff, arena);
-          if (eq.type != TBS_VAL_MAP) {
-            tbs_map_free(&equilibria);
-            return tbs_val_num(NAN);
+          if (eq.type != TOAD_VAL_MAP) {
+            toad_map_free(&equilibria);
+            return toad_val_num(NAN);
           }
-          tbs_list_push(&equilibria, eq);
+          toad_list_push(&equilibria, eq);
         }
       } while (next_combination(col_support, k, game->n_cols));
     } while (next_combination(row_support, k, game->n_rows));
   }
 
   {
-    tbs_value_t result = tbs_val_map();
-    tbs_map_set(&result, "equilibria", equilibria);
-    tbs_map_set(&result, "count", tbs_val_num((double)equilibria.data.list.count));
+    toad_value_t result = toad_val_map();
+    toad_map_set(&result, "equilibria", equilibria);
+    toad_map_set(&result, "count", toad_val_num((double)equilibria.data.list.count));
     return result;
   }
 }
@@ -764,7 +764,7 @@ static int lemke_howson_tableau(const nash_game_t *game,
   size_t max_steps = (game->n_rows + game->n_cols) * (game->n_rows + game->n_cols + 8);
 
   if (!col_transpose) return -1;
-  tbs_transpose(game->col_payoffs, game->n_rows, game->n_cols, col_transpose);
+  toad_transpose(game->col_payoffs, game->n_rows, game->n_cols, col_transpose);
 
   if (tableau_init(&col_tableau, game->row_payoffs, game->n_rows, game->n_cols, 1, lexicographic, arena) != 0)
     return -1;
@@ -792,9 +792,9 @@ static int lemke_howson_tableau(const nash_game_t *game,
   return 0;
 }
 
-static int parse_square_matrix_arg(const tbs_value_t *arg, size_t n, const double **out) {
+static int parse_square_matrix_arg(const toad_value_t *arg, size_t n, const double **out) {
   if (!arg || !out) return -1;
-  if (arg->type != TBS_VAL_VECTOR) return -1;
+  if (arg->type != TOAD_VAL_VECTOR) return -1;
   if (arg->data.vector.size != n * n) return -1;
   *out = arg->data.vector.data;
   return 0;
@@ -867,14 +867,14 @@ static void decode_strategy_index(size_t index, size_t base, size_t state_count,
   }
 }
 
-static tbs_value_t make_action_history_list(const size_t *history, size_t n, mem_pool_t *arena) {
-  tbs_value_t *items = MEM_ALLOC_ARRAY(arena, tbs_value_t, n);
-  if (!items && n > 0) return tbs_val_num(NAN);
-  for (size_t i = 0; i < n; i++) items[i] = tbs_val_num((double)history[i]);
-  return tbs_val_list_ex(items, n, 0);
+static toad_value_t make_action_history_list(const size_t *history, size_t n, mem_pool_t *arena) {
+  toad_value_t *items = MEM_ALLOC_ARRAY(arena, toad_value_t, n);
+  if (!items && n > 0) return toad_val_num(NAN);
+  for (size_t i = 0; i < n; i++) items[i] = toad_val_num((double)history[i]);
+  return toad_val_list_ex(items, n, 0);
 }
 
-static tbs_value_t make_population_list(const size_t *population, size_t n, mem_pool_t *arena) {
+static toad_value_t make_population_list(const size_t *population, size_t n, mem_pool_t *arena) {
   return make_action_history_list(population, n, arena);
 }
 
@@ -1017,11 +1017,11 @@ static void nash_rng_dirichlet_ones(nash_rng_t *rng, size_t n, double *out) {
   for (size_t i = 0; i < n; i++) out[i] /= total;
 }
 
-static tbs_value_t make_vector_copy(const double *values, size_t n, mem_pool_t *arena) {
+static toad_value_t make_vector_copy(const double *values, size_t n, mem_pool_t *arena) {
   double *copy = MEM_ALLOC_ARRAY(arena, double, n);
-  if (!copy && n > 0) return tbs_val_num(NAN);
+  if (!copy && n > 0) return toad_val_num(NAN);
   if (n > 0) memcpy(copy, values, n * sizeof(double));
-  return tbs_val_vec(copy, n);
+  return toad_val_vec(copy, n);
 }
 
 static void threshold_strategy(double *values, size_t n, double threshold) {
@@ -1046,20 +1046,20 @@ static void absolute_best_strategy(const double *strategy, size_t n, double *out
   }
 }
 
-static size_t support_size(const tbs_value_t *eq, const char *key, double tol) {
-  tbs_value_t vec = tbs_map_get(eq, key);
+static size_t support_size(const toad_value_t *eq, const char *key, double tol) {
+  toad_value_t vec = toad_map_get(eq, key);
   size_t count = 0;
-  if (vec.type != TBS_VAL_VECTOR) return 0;
+  if (vec.type != TOAD_VAL_VECTOR) return 0;
   for (size_t i = 0; i < vec.data.vector.size; i++) {
     if (vec.data.vector.data[i] > tol) count++;
   }
   return count;
 }
 
-static int strategy_lex_less(const tbs_value_t *lhs, const tbs_value_t *rhs, const char *key) {
-  tbs_value_t lhs_vec = tbs_map_get(lhs, key);
-  tbs_value_t rhs_vec = tbs_map_get(rhs, key);
-  if (lhs_vec.type != TBS_VAL_VECTOR || rhs_vec.type != TBS_VAL_VECTOR) return 0;
+static int strategy_lex_less(const toad_value_t *lhs, const toad_value_t *rhs, const char *key) {
+  toad_value_t lhs_vec = toad_map_get(lhs, key);
+  toad_value_t rhs_vec = toad_map_get(rhs, key);
+  if (lhs_vec.type != TOAD_VAL_VECTOR || rhs_vec.type != TOAD_VAL_VECTOR) return 0;
   for (size_t i = 0; i < lhs_vec.data.vector.size && i < rhs_vec.data.vector.size; i++) {
     double delta = lhs_vec.data.vector.data[i] - rhs_vec.data.vector.data[i];
     if (fabs(delta) <= 1e-12) continue;
@@ -1068,20 +1068,20 @@ static int strategy_lex_less(const tbs_value_t *lhs, const tbs_value_t *rhs, con
   return lhs_vec.data.vector.size < rhs_vec.data.vector.size;
 }
 
-static int equilibrium_lex_less(const tbs_value_t *lhs, const tbs_value_t *rhs) {
+static int equilibrium_lex_less(const toad_value_t *lhs, const toad_value_t *rhs) {
   if (strategy_lex_less(lhs, rhs, "row_strategy")) return 1;
   if (strategy_lex_less(rhs, lhs, "row_strategy")) return 0;
   return strategy_lex_less(lhs, rhs, "col_strategy");
 }
 
-static size_t choose_lemke_howson_index(const tbs_value_t *equilibria,
+static size_t choose_lemke_howson_index(const toad_value_t *equilibria,
                                         size_t label,
                                         size_t num_labels) {
   size_t fallback_pure = SIZE_MAX;
   size_t fallback_mixed = SIZE_MAX;
 
   for (size_t i = 0; i < equilibria->data.list.count; i++) {
-    tbs_value_t eq = equilibria->data.list.items[i];
+    toad_value_t eq = equilibria->data.list.items[i];
     size_t row_supp = support_size(&eq, "row_strategy", 1e-9);
     size_t col_supp = support_size(&eq, "col_strategy", 1e-9);
     if (row_supp == 1 && col_supp == 1) {
@@ -1108,13 +1108,13 @@ static size_t choose_lemke_howson_index(const tbs_value_t *equilibria,
   return label % equilibria->data.list.count;
 }
 
-tbs_value_t tbs_nash_game(size_t argc, tbs_value_t *args,
-                                tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_nash_game(size_t argc, toad_value_t *args,
+                                toad_env_t *env, mem_pool_t *arena) {
   (void)env;
   (void)arena;
 
   nash_game_t game;
-  if (parse_game_args(argc, args, &game) != 0) return tbs_val_num(NAN);
+  if (parse_game_args(argc, args, &game) != 0) return toad_val_num(NAN);
 
   double row_min = game.row_payoffs[0];
   double row_max = game.row_payoffs[0];
@@ -1145,47 +1145,47 @@ tbs_value_t tbs_nash_game(size_t argc, tbs_value_t *args,
   }
 
   {
-    tbs_value_t out = tbs_val_map();
-    tbs_map_set(&out, "rows", tbs_val_num((double)game.n_rows));
-    tbs_map_set(&out, "cols", tbs_val_num((double)game.n_cols));
-    tbs_map_set(&out, "zero_sum", tbs_val_num((double)zero_sum));
-    tbs_map_set(&out, "symmetric", tbs_val_num((double)symmetric));
-    tbs_map_set(&out, "row_min", tbs_val_num(row_min));
-    tbs_map_set(&out, "row_max", tbs_val_num(row_max));
-    tbs_map_set(&out, "col_min", tbs_val_num(col_min));
-    tbs_map_set(&out, "col_max", tbs_val_num(col_max));
+    toad_value_t out = toad_val_map();
+    toad_map_set(&out, "rows", toad_val_num((double)game.n_rows));
+    toad_map_set(&out, "cols", toad_val_num((double)game.n_cols));
+    toad_map_set(&out, "zero_sum", toad_val_num((double)zero_sum));
+    toad_map_set(&out, "symmetric", toad_val_num((double)symmetric));
+    toad_map_set(&out, "row_min", toad_val_num(row_min));
+    toad_map_set(&out, "row_max", toad_val_num(row_max));
+    toad_map_set(&out, "col_min", toad_val_num(col_min));
+    toad_map_set(&out, "col_max", toad_val_num(col_max));
     return out;
   }
 }
 
-tbs_value_t tbs_nash_support_enumeration(size_t argc, tbs_value_t *args,
-                                               tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_nash_support_enumeration(size_t argc, toad_value_t *args,
+                                               toad_env_t *env, mem_pool_t *arena) {
   (void)env;
 
   nash_game_t game;
   double tol = 1e-8;
-  if (parse_game_args(argc, args, &game) != 0) return tbs_val_num(NAN);
-  if (argc > 4 && args[4].type == TBS_VAL_NUMBER && args[4].data.number > 0.0) {
+  if (parse_game_args(argc, args, &game) != 0) return toad_val_num(NAN);
+  if (argc > 4 && args[4].type == TOAD_VAL_NUMBER && args[4].data.number > 0.0) {
     tol = args[4].data.number;
   }
   return enumerate_equilibria(&game, tol, arena);
 }
 
-tbs_value_t tbs_nash_vertex_enumeration(size_t argc, tbs_value_t *args,
-                                              tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_nash_vertex_enumeration(size_t argc, toad_value_t *args,
+                                              toad_env_t *env, mem_pool_t *arena) {
   (void)env;
 
   nash_game_t game;
   double tol = 1e-8;
-  if (parse_game_args(argc, args, &game) != 0) return tbs_val_num(NAN);
-  if (argc > 4 && args[4].type == TBS_VAL_NUMBER && args[4].data.number > 0.0) {
+  if (parse_game_args(argc, args, &game) != 0) return toad_val_num(NAN);
+  if (argc > 4 && args[4].type == TOAD_VAL_NUMBER && args[4].data.number > 0.0) {
     tol = args[4].data.number;
   }
   return enumerate_equilibria(&game, tol, arena);
 }
 
-tbs_value_t tbs_nash_lemke_howson(size_t argc, tbs_value_t *args,
-                                        tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_nash_lemke_howson(size_t argc, toad_value_t *args,
+                                        toad_env_t *env, mem_pool_t *arena) {
   (void)env;
 
   nash_game_t game;
@@ -1194,57 +1194,57 @@ tbs_value_t tbs_nash_lemke_howson(size_t argc, tbs_value_t *args,
   double *row_strategy;
   double *col_strategy;
 
-  if (parse_game_args(argc, args, &game) != 0) return tbs_val_num(NAN);
-  if (argc > 4 && args[4].type == TBS_VAL_NUMBER && args[4].data.number >= 0.0) {
+  if (parse_game_args(argc, args, &game) != 0) return toad_val_num(NAN);
+  if (argc > 4 && args[4].type == TOAD_VAL_NUMBER && args[4].data.number >= 0.0) {
     label = (size_t)args[4].data.number;
   }
   num_labels = game.n_rows + game.n_cols;
   row_strategy = MEM_ALLOC_ARRAY(arena, double, game.n_rows);
   col_strategy = MEM_ALLOC_ARRAY(arena, double, game.n_cols);
-  if (!row_strategy || !col_strategy) return tbs_val_num(NAN);
+  if (!row_strategy || !col_strategy) return toad_val_num(NAN);
 
   if (lemke_howson_tableau(&game, label % num_labels, 1, row_strategy, col_strategy, arena) == 0) {
-    tbs_value_t eq = make_equilibrium_map(row_strategy, col_strategy,
+    toad_value_t eq = make_equilibrium_map(row_strategy, col_strategy,
                                              game.n_rows, game.n_cols,
                                              mixed_row_payoff(&game, row_strategy, col_strategy),
                                              mixed_col_payoff(&game, row_strategy, col_strategy),
                                              arena);
-    tbs_map_set(&eq, "label", tbs_val_num((double)(label % num_labels)));
-    tbs_map_set(&eq, "engine", tbs_val_str((vstr){ .data = "tableau", .len = 7 }));
+    toad_map_set(&eq, "label", toad_val_num((double)(label % num_labels)));
+    toad_map_set(&eq, "engine", toad_val_str((vstr){ .data = "tableau", .len = 7 }));
     return eq;
   }
 
   {
-    tbs_value_t result = enumerate_equilibria(&game, 1e-8, arena);
-    tbs_value_t equilibria;
+    toad_value_t result = enumerate_equilibria(&game, 1e-8, arena);
+    toad_value_t equilibria;
     size_t index;
-    if (result.type != TBS_VAL_MAP) return tbs_val_num(NAN);
-    equilibria = tbs_map_get(&result, "equilibria");
-    if (equilibria.type != TBS_VAL_LIST || equilibria.data.list.count == 0) {
-      tbs_map_free(&result);
-      return tbs_val_num(NAN);
+    if (result.type != TOAD_VAL_MAP) return toad_val_num(NAN);
+    equilibria = toad_map_get(&result, "equilibria");
+    if (equilibria.type != TOAD_VAL_LIST || equilibria.data.list.count == 0) {
+      toad_map_free(&result);
+      return toad_val_num(NAN);
     }
     index = choose_lemke_howson_index(&equilibria, label % num_labels, num_labels);
     if (index == SIZE_MAX || index >= equilibria.data.list.count) {
-      tbs_map_free(&result);
-      return tbs_val_num(NAN);
+      toad_map_free(&result);
+      return toad_val_num(NAN);
     }
     {
-      tbs_value_t eq = clone_equilibrium_map(&equilibria.data.list.items[index], arena);
-      tbs_map_set(&eq, "label", tbs_val_num((double)(label % num_labels)));
-      tbs_map_set(&eq, "engine", tbs_val_str((vstr){ .data = "fallback", .len = 8 }));
-      tbs_map_free(&result);
+      toad_value_t eq = clone_equilibrium_map(&equilibria.data.list.items[index], arena);
+      toad_map_set(&eq, "label", toad_val_num((double)(label % num_labels)));
+      toad_map_set(&eq, "engine", toad_val_str((vstr){ .data = "fallback", .len = 8 }));
+      toad_map_free(&result);
       return eq;
     }
   }
 }
 
-tbs_value_t tbs_nash_fictitious_play(size_t argc, tbs_value_t *args,
-                                           tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_nash_fictitious_play(size_t argc, toad_value_t *args,
+                                           toad_env_t *env, mem_pool_t *arena) {
   (void)env;
 
   nash_game_t game;
-  if (parse_game_args(argc, args, &game) != 0) return tbs_val_num(NAN);
+  if (parse_game_args(argc, args, &game) != 0) return toad_val_num(NAN);
 
   {
     size_t iterations = 1000;
@@ -1255,13 +1255,13 @@ tbs_value_t tbs_nash_fictitious_play(size_t argc, tbs_value_t *args,
     double *row_strategy = MEM_ALLOC_ARRAY(arena, double, game.n_rows);
     double *col_strategy = MEM_ALLOC_ARRAY(arena, double, game.n_cols);
 
-    if (argc > 4 && args[4].type == TBS_VAL_NUMBER && args[4].data.number > 0.0) {
+    if (argc > 4 && args[4].type == TOAD_VAL_NUMBER && args[4].data.number > 0.0) {
       iterations = (size_t)args[4].data.number;
     }
 
     if (!row_counts || !col_counts || !row_belief || !col_belief ||
         !row_strategy || !col_strategy) {
-      return tbs_val_num(NAN);
+      return toad_val_num(NAN);
     }
 
     memset(row_counts, 0, game.n_rows * sizeof(double));
@@ -1283,25 +1283,25 @@ tbs_value_t tbs_nash_fictitious_play(size_t argc, tbs_value_t *args,
     belief_from_counts(col_counts, game.n_cols, col_strategy);
 
     {
-      tbs_value_t result = tbs_val_map();
-      tbs_map_set(&result, "row_strategy", tbs_val_vec(row_strategy, game.n_rows));
-      tbs_map_set(&result, "col_strategy", tbs_val_vec(col_strategy, game.n_cols));
-      tbs_map_set(&result, "row_payoff",
-                     tbs_val_num(mixed_row_payoff(&game, row_strategy, col_strategy)));
-      tbs_map_set(&result, "col_payoff",
-                     tbs_val_num(mixed_col_payoff(&game, row_strategy, col_strategy)));
-      tbs_map_set(&result, "iterations", tbs_val_num((double)iterations));
+      toad_value_t result = toad_val_map();
+      toad_map_set(&result, "row_strategy", toad_val_vec(row_strategy, game.n_rows));
+      toad_map_set(&result, "col_strategy", toad_val_vec(col_strategy, game.n_cols));
+      toad_map_set(&result, "row_payoff",
+                     toad_val_num(mixed_row_payoff(&game, row_strategy, col_strategy)));
+      toad_map_set(&result, "col_payoff",
+                     toad_val_num(mixed_col_payoff(&game, row_strategy, col_strategy)));
+      toad_map_set(&result, "iterations", toad_val_num((double)iterations));
       return result;
     }
   }
 }
 
-tbs_value_t tbs_nash_stochastic_fictitious_play(size_t argc, tbs_value_t *args,
-                                                      tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_nash_stochastic_fictitious_play(size_t argc, toad_value_t *args,
+                                                      toad_env_t *env, mem_pool_t *arena) {
   (void)env;
 
   nash_game_t game;
-  if (parse_game_args(argc, args, &game) != 0) return tbs_val_num(NAN);
+  if (parse_game_args(argc, args, &game) != 0) return toad_val_num(NAN);
 
   {
     size_t iterations = 1000;
@@ -1317,19 +1317,19 @@ tbs_value_t tbs_nash_stochastic_fictitious_play(size_t argc, tbs_value_t *args,
     double *col_probs = MEM_ALLOC_ARRAY(arena, double, game.n_cols);
     nash_rng_t rng;
 
-    if (argc > 4 && args[4].type == TBS_VAL_NUMBER && args[4].data.number > 0.0) {
+    if (argc > 4 && args[4].type == TOAD_VAL_NUMBER && args[4].data.number > 0.0) {
       iterations = (size_t)args[4].data.number;
     }
-    if (argc > 5 && args[5].type == TBS_VAL_NUMBER && args[5].data.number > 0.0) {
+    if (argc > 5 && args[5].type == TOAD_VAL_NUMBER && args[5].data.number > 0.0) {
       temperature = args[5].data.number;
     }
-    if (argc > 6 && args[6].type == TBS_VAL_NUMBER && args[6].data.number >= 0.0) {
+    if (argc > 6 && args[6].type == TOAD_VAL_NUMBER && args[6].data.number >= 0.0) {
       seed = (uint64_t)args[6].data.number;
     }
 
     if (!row_counts || !col_counts || !row_belief || !col_belief ||
         !row_strategy || !col_strategy || !row_probs || !col_probs) {
-      return tbs_val_num(NAN);
+      return toad_val_num(NAN);
     }
 
     memset(row_counts, 0, game.n_rows * sizeof(double));
@@ -1353,29 +1353,29 @@ tbs_value_t tbs_nash_stochastic_fictitious_play(size_t argc, tbs_value_t *args,
     belief_from_counts(col_counts, game.n_cols, col_strategy);
 
     {
-      tbs_value_t result = tbs_val_map();
-      tbs_map_set(&result, "row_strategy", tbs_val_vec(row_strategy, game.n_rows));
-      tbs_map_set(&result, "col_strategy", tbs_val_vec(col_strategy, game.n_cols));
-      tbs_map_set(&result, "row_payoff",
-                     tbs_val_num(mixed_row_payoff(&game, row_strategy, col_strategy)));
-      tbs_map_set(&result, "col_payoff",
-                     tbs_val_num(mixed_col_payoff(&game, row_strategy, col_strategy)));
-      tbs_map_set(&result, "iterations", tbs_val_num((double)iterations));
-      tbs_map_set(&result, "temperature", tbs_val_num(temperature));
-      tbs_map_set(&result, "seed", tbs_val_num((double)seed));
+      toad_value_t result = toad_val_map();
+      toad_map_set(&result, "row_strategy", toad_val_vec(row_strategy, game.n_rows));
+      toad_map_set(&result, "col_strategy", toad_val_vec(col_strategy, game.n_cols));
+      toad_map_set(&result, "row_payoff",
+                     toad_val_num(mixed_row_payoff(&game, row_strategy, col_strategy)));
+      toad_map_set(&result, "col_payoff",
+                     toad_val_num(mixed_col_payoff(&game, row_strategy, col_strategy)));
+      toad_map_set(&result, "iterations", toad_val_num((double)iterations));
+      toad_map_set(&result, "temperature", toad_val_num(temperature));
+      toad_map_set(&result, "seed", toad_val_num((double)seed));
       return result;
     }
   }
 }
 
-tbs_value_t tbs_nash_discrete_replicator_dynamics(size_t argc, tbs_value_t *args,
-                                                        tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_nash_discrete_replicator_dynamics(size_t argc, toad_value_t *args,
+                                                        toad_env_t *env, mem_pool_t *arena) {
   (void)env;
 
-  if (argc < 3) return tbs_val_num(NAN);
-  if (args[0].type != TBS_VAL_VECTOR || args[1].type != TBS_VAL_NUMBER ||
-      args[2].type != TBS_VAL_VECTOR) {
-    return tbs_val_num(NAN);
+  if (argc < 3) return toad_val_num(NAN);
+  if (args[0].type != TOAD_VAL_VECTOR || args[1].type != TOAD_VAL_NUMBER ||
+      args[2].type != TOAD_VAL_VECTOR) {
+    return toad_val_num(NAN);
   }
 
   {
@@ -1394,25 +1394,25 @@ tbs_value_t tbs_nash_discrete_replicator_dynamics(size_t argc, tbs_value_t *args
     double *rounded;
     double *errors;
     unsigned char *used;
-    tbs_value_t history = tbs_val_list_empty();
+    toad_value_t history = toad_val_list_empty();
 
     if (n == 0 || args[0].data.vector.size != n * n || args[2].data.vector.size != n) {
-      return tbs_val_num(NAN);
+      return toad_val_num(NAN);
     }
-    if (argc > 3 && args[3].type == TBS_VAL_NUMBER && args[3].data.number > 0.0) {
+    if (argc > 3 && args[3].type == TOAD_VAL_NUMBER && args[3].data.number > 0.0) {
       steps = (size_t)args[3].data.number;
     }
-    if (argc > 4 && args[4].type == TBS_VAL_NUMBER) {
+    if (argc > 4 && args[4].type == TOAD_VAL_NUMBER) {
       quantize = (args[4].data.number != 0.0);
     }
-    if (argc > 5 && args[5].type == TBS_VAL_NUMBER && args[5].data.number > 0.0) {
+    if (argc > 5 && args[5].type == TOAD_VAL_NUMBER && args[5].data.number > 0.0) {
       step_type = (size_t)args[5].data.number;
     }
 
     total_population = simd_sum(initial, n);
-    if (total_population <= 0.0) return tbs_val_num(NAN);
+    if (total_population <= 0.0) return toad_val_num(NAN);
     quantized_total = (size_t)llround(total_population);
-    if (quantized_total == 0) return tbs_val_num(NAN);
+    if (quantized_total == 0) return toad_val_num(NAN);
 
     state = MEM_ALLOC_ARRAY(arena, double, n);
     next = MEM_ALLOC_ARRAY(arena, double, n);
@@ -1422,7 +1422,7 @@ tbs_value_t tbs_nash_discrete_replicator_dynamics(size_t argc, tbs_value_t *args
     errors = MEM_ALLOC_ARRAY(arena, double, n);
     used = MEM_ALLOC_ARRAY(arena, unsigned char, n);
     if (!state || !next || !fitness || !scaled || !rounded || !errors || !used) {
-      return tbs_val_num(NAN);
+      return toad_val_num(NAN);
     }
 
     simd_scale(initial, state, 1.0 / total_population, n);
@@ -1434,7 +1434,7 @@ tbs_value_t tbs_nash_discrete_replicator_dynamics(size_t argc, tbs_value_t *args
       } else {
         rc = discrete_replicator_step_type_2(payoffs, state, n, next, fitness);
       }
-      if (rc != 0) return tbs_val_num(NAN);
+      if (rc != 0) return toad_val_num(NAN);
 
       if (quantize) {
         simd_scale(next, scaled, (double)quantized_total, n);
@@ -1446,27 +1446,27 @@ tbs_value_t tbs_nash_discrete_replicator_dynamics(size_t argc, tbs_value_t *args
 
       {
         double *snapshot = MEM_ALLOC_ARRAY(arena, double, n);
-        if (!snapshot) return tbs_val_num(NAN);
+        if (!snapshot) return toad_val_num(NAN);
         simd_scale(state, snapshot, total_population, n);
-        tbs_list_push(&history, tbs_val_vec(snapshot, n));
+        toad_list_push(&history, toad_val_vec(snapshot, n));
       }
     }
 
     {
-      tbs_value_t out = tbs_val_map();
-      tbs_map_set(&out, "history", history);
-      tbs_map_set(&out, "population", history.data.list.count ? history.data.list.items[history.data.list.count - 1]
+      toad_value_t out = toad_val_map();
+      toad_map_set(&out, "history", history);
+      toad_map_set(&out, "population", history.data.list.count ? history.data.list.items[history.data.list.count - 1]
                                                                  : make_vector_copy(initial, n, arena));
-      tbs_map_set(&out, "steps", tbs_val_num((double)steps));
-      tbs_map_set(&out, "quantized", tbs_val_num((double)quantize));
-      tbs_map_set(&out, "step_type", tbs_val_num((double)step_type));
+      toad_map_set(&out, "steps", toad_val_num((double)steps));
+      toad_map_set(&out, "quantized", toad_val_num((double)quantize));
+      toad_map_set(&out, "step_type", toad_val_num((double)step_type));
       return out;
     }
   }
 }
 
-tbs_value_t tbs_nash_imitation_dynamics(size_t argc, tbs_value_t *args,
-                                              tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_nash_imitation_dynamics(size_t argc, toad_value_t *args,
+                                              toad_env_t *env, mem_pool_t *arena) {
   (void)env;
 
   {
@@ -1485,17 +1485,17 @@ tbs_value_t tbs_nash_imitation_dynamics(size_t argc, tbs_value_t *args,
     double *col_strategy;
     nash_rng_t rng;
 
-    if (parse_game_args(argc, args, &game) != 0) return tbs_val_num(NAN);
-    if (argc > 4 && args[4].type == TBS_VAL_NUMBER && args[4].data.number > 0.0) {
+    if (parse_game_args(argc, args, &game) != 0) return toad_val_num(NAN);
+    if (argc > 4 && args[4].type == TOAD_VAL_NUMBER && args[4].data.number > 0.0) {
       population_size = (size_t)args[4].data.number;
     }
-    if (argc > 5 && args[5].type == TBS_VAL_NUMBER && args[5].data.number > 0.0) {
+    if (argc > 5 && args[5].type == TOAD_VAL_NUMBER && args[5].data.number > 0.0) {
       iterations = (size_t)args[5].data.number;
     }
-    if (argc > 6 && args[6].type == TBS_VAL_NUMBER && args[6].data.number >= 0.0) {
+    if (argc > 6 && args[6].type == TOAD_VAL_NUMBER && args[6].data.number >= 0.0) {
       seed = (uint64_t)args[6].data.number;
     }
-    if (argc > 7 && args[7].type == TBS_VAL_NUMBER) {
+    if (argc > 7 && args[7].type == TOAD_VAL_NUMBER) {
       threshold = args[7].data.number;
     }
 
@@ -1510,7 +1510,7 @@ tbs_value_t tbs_nash_imitation_dynamics(size_t argc, tbs_value_t *args,
     if (!population_a || !population_b || !payoffs_a || !payoffs_b ||
         !raw_row || !raw_col ||
         !row_strategy || !col_strategy) {
-      return tbs_val_num(NAN);
+      return toad_val_num(NAN);
     }
 
     nash_rng_seed(&rng, seed);
@@ -1556,24 +1556,24 @@ tbs_value_t tbs_nash_imitation_dynamics(size_t argc, tbs_value_t *args,
     threshold_strategy(col_strategy, game.n_cols, threshold);
 
     {
-      tbs_value_t out = tbs_val_map();
-      tbs_map_set(&out, "row_strategy", tbs_val_vec(row_strategy, game.n_rows));
-      tbs_map_set(&out, "col_strategy", tbs_val_vec(col_strategy, game.n_cols));
-      tbs_map_set(&out, "raw_row_strategy", tbs_val_vec(raw_row, game.n_rows));
-      tbs_map_set(&out, "raw_col_strategy", tbs_val_vec(raw_col, game.n_cols));
-      tbs_map_set(&out, "row_payoff", tbs_val_num(mixed_row_payoff(&game, raw_row, raw_col)));
-      tbs_map_set(&out, "col_payoff", tbs_val_num(mixed_col_payoff(&game, raw_row, raw_col)));
-      tbs_map_set(&out, "population_size", tbs_val_num((double)population_size));
-      tbs_map_set(&out, "iterations", tbs_val_num((double)iterations));
-      tbs_map_set(&out, "seed", tbs_val_num((double)seed));
-      tbs_map_set(&out, "threshold", tbs_val_num(threshold));
+      toad_value_t out = toad_val_map();
+      toad_map_set(&out, "row_strategy", toad_val_vec(row_strategy, game.n_rows));
+      toad_map_set(&out, "col_strategy", toad_val_vec(col_strategy, game.n_cols));
+      toad_map_set(&out, "raw_row_strategy", toad_val_vec(raw_row, game.n_rows));
+      toad_map_set(&out, "raw_col_strategy", toad_val_vec(raw_col, game.n_cols));
+      toad_map_set(&out, "row_payoff", toad_val_num(mixed_row_payoff(&game, raw_row, raw_col)));
+      toad_map_set(&out, "col_payoff", toad_val_num(mixed_col_payoff(&game, raw_row, raw_col)));
+      toad_map_set(&out, "population_size", toad_val_num((double)population_size));
+      toad_map_set(&out, "iterations", toad_val_num((double)iterations));
+      toad_map_set(&out, "seed", toad_val_num((double)seed));
+      toad_map_set(&out, "threshold", toad_val_num(threshold));
       return out;
     }
   }
 }
 
-tbs_value_t tbs_nash_regret_minimization(size_t argc, tbs_value_t *args,
-                                               tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_nash_regret_minimization(size_t argc, toad_value_t *args,
+                                               toad_env_t *env, mem_pool_t *arena) {
   (void)env;
 
   {
@@ -1589,11 +1589,11 @@ tbs_value_t tbs_nash_regret_minimization(size_t argc, tbs_value_t *args,
     double *row_regrets;
     double *col_regrets;
 
-    if (parse_game_args(argc, args, &game) != 0) return tbs_val_num(NAN);
-    if (argc > 4 && args[4].type == TBS_VAL_NUMBER && args[4].data.number > 0.0) {
+    if (parse_game_args(argc, args, &game) != 0) return toad_val_num(NAN);
+    if (argc > 4 && args[4].type == TOAD_VAL_NUMBER && args[4].data.number > 0.0) {
       learning_rate = args[4].data.number;
     }
-    if (argc > 5 && args[5].type == TBS_VAL_NUMBER && args[5].data.number > 0.0) {
+    if (argc > 5 && args[5].type == TOAD_VAL_NUMBER && args[5].data.number > 0.0) {
       iterations = (size_t)args[5].data.number;
     }
 
@@ -1607,7 +1607,7 @@ tbs_value_t tbs_nash_regret_minimization(size_t argc, tbs_value_t *args,
     col_regrets = MEM_ALLOC_ARRAY(arena, double, game.n_cols);
     if (!row_strategy || !col_strategy || !raw_row || !raw_col ||
         !row_utilities || !col_utilities || !row_regrets || !col_regrets) {
-      return tbs_val_num(NAN);
+      return toad_val_num(NAN);
     }
 
     for (size_t i = 0; i < game.n_rows; i++) raw_row[i] = 1.0 / (double)game.n_rows;
@@ -1639,22 +1639,22 @@ tbs_value_t tbs_nash_regret_minimization(size_t argc, tbs_value_t *args,
     absolute_best_strategy(raw_col, game.n_cols, col_strategy);
 
     {
-      tbs_value_t out = tbs_val_map();
-      tbs_map_set(&out, "row_strategy", tbs_val_vec(row_strategy, game.n_rows));
-      tbs_map_set(&out, "col_strategy", tbs_val_vec(col_strategy, game.n_cols));
-      tbs_map_set(&out, "raw_row_strategy", tbs_val_vec(raw_row, game.n_rows));
-      tbs_map_set(&out, "raw_col_strategy", tbs_val_vec(raw_col, game.n_cols));
-      tbs_map_set(&out, "row_payoff", tbs_val_num(mixed_row_payoff(&game, row_strategy, col_strategy)));
-      tbs_map_set(&out, "col_payoff", tbs_val_num(mixed_col_payoff(&game, row_strategy, col_strategy)));
-      tbs_map_set(&out, "learning_rate", tbs_val_num(learning_rate));
-      tbs_map_set(&out, "iterations", tbs_val_num((double)iterations));
+      toad_value_t out = toad_val_map();
+      toad_map_set(&out, "row_strategy", toad_val_vec(row_strategy, game.n_rows));
+      toad_map_set(&out, "col_strategy", toad_val_vec(col_strategy, game.n_cols));
+      toad_map_set(&out, "raw_row_strategy", toad_val_vec(raw_row, game.n_rows));
+      toad_map_set(&out, "raw_col_strategy", toad_val_vec(raw_col, game.n_cols));
+      toad_map_set(&out, "row_payoff", toad_val_num(mixed_row_payoff(&game, row_strategy, col_strategy)));
+      toad_map_set(&out, "col_payoff", toad_val_num(mixed_col_payoff(&game, row_strategy, col_strategy)));
+      toad_map_set(&out, "learning_rate", toad_val_num(learning_rate));
+      toad_map_set(&out, "iterations", toad_val_num((double)iterations));
       return out;
     }
   }
 }
 
-tbs_value_t tbs_nash_introspection_dynamics(size_t argc, tbs_value_t *args,
-                                                  tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_nash_introspection_dynamics(size_t argc, toad_value_t *args,
+                                                  toad_env_t *env, mem_pool_t *arena) {
   (void)env;
 
   {
@@ -1664,21 +1664,21 @@ tbs_value_t tbs_nash_introspection_dynamics(size_t argc, tbs_value_t *args,
     uint64_t seed = 1;
     size_t row_action;
     size_t col_action;
-    tbs_value_t history = tbs_val_list_empty();
+    toad_value_t history = toad_val_list_empty();
     nash_rng_t rng;
 
-    if (parse_game_args(argc, args, &game) != 0) return tbs_val_num(NAN);
-    if (argc < 6) return tbs_val_num(NAN);
-    if (args[4].type != TBS_VAL_NUMBER || args[5].type != TBS_VAL_NUMBER) return tbs_val_num(NAN);
+    if (parse_game_args(argc, args, &game) != 0) return toad_val_num(NAN);
+    if (argc < 6) return toad_val_num(NAN);
+    if (args[4].type != TOAD_VAL_NUMBER || args[5].type != TOAD_VAL_NUMBER) return toad_val_num(NAN);
     iterations = (size_t)args[4].data.number;
     beta = args[5].data.number;
-    if (argc > 6 && args[6].type == TBS_VAL_NUMBER && args[6].data.number >= 0.0) {
+    if (argc > 6 && args[6].type == TOAD_VAL_NUMBER && args[6].data.number >= 0.0) {
       seed = (uint64_t)args[6].data.number;
     }
 
     nash_rng_seed(&rng, seed);
     if (argc > 7) {
-      if (args[7].type != TBS_VAL_VECTOR || args[7].data.vector.size != 2) return tbs_val_num(NAN);
+      if (args[7].type != TOAD_VAL_VECTOR || args[7].data.vector.size != 2) return toad_val_num(NAN);
       row_action = (size_t)args[7].data.vector.data[0];
       col_action = (size_t)args[7].data.vector.data[1];
     } else {
@@ -1687,11 +1687,11 @@ tbs_value_t tbs_nash_introspection_dynamics(size_t argc, tbs_value_t *args,
     }
 
     for (size_t step = 0; step <= iterations; step++) {
-      tbs_value_t *items = MEM_ALLOC_ARRAY(arena, tbs_value_t, 2);
-      if (!items) return tbs_val_num(NAN);
-      items[0] = tbs_val_num((double)row_action);
-      items[1] = tbs_val_num((double)col_action);
-      tbs_list_push(&history, tbs_val_list_ex(items, 2, 0));
+      toad_value_t *items = MEM_ALLOC_ARRAY(arena, toad_value_t, 2);
+      if (!items) return toad_val_num(NAN);
+      items[0] = toad_val_num((double)row_action);
+      items[1] = toad_val_num((double)col_action);
+      toad_list_push(&history, toad_val_list_ex(items, 2, 0));
 
       if (step == iterations) break;
 
@@ -1724,16 +1724,16 @@ tbs_value_t tbs_nash_introspection_dynamics(size_t argc, tbs_value_t *args,
     }
 
     {
-      tbs_value_t out = tbs_val_map();
-      tbs_map_set(&out, "history", history);
-      tbs_map_set(&out, "steps", tbs_val_num((double)history.data.list.count));
+      toad_value_t out = toad_val_map();
+      toad_map_set(&out, "history", history);
+      toad_map_set(&out, "steps", toad_val_num((double)history.data.list.count));
       return out;
     }
   }
 }
 
-tbs_value_t tbs_nash_repeated_game(size_t argc, tbs_value_t *args,
-                                         tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_nash_repeated_game(size_t argc, toad_value_t *args,
+                                         toad_env_t *env, mem_pool_t *arena) {
   (void)env;
 
   {
@@ -1747,20 +1747,20 @@ tbs_value_t tbs_nash_repeated_game(size_t argc, tbs_value_t *args,
     size_t *row_actions;
     size_t *col_actions;
 
-    if (parse_game_args(argc, args, &game) != 0) return tbs_val_num(NAN);
-    if (argc < 5 || args[4].type != TBS_VAL_NUMBER) return tbs_val_num(NAN);
+    if (parse_game_args(argc, args, &game) != 0) return toad_val_num(NAN);
+    if (argc < 5 || args[4].type != TOAD_VAL_NUMBER) return toad_val_num(NAN);
     repetitions = (size_t)args[4].data.number;
     state_count = repeated_state_count(game.n_rows, game.n_cols, repetitions);
     row_strategy_count = pow_size(game.n_rows, state_count);
     col_strategy_count = pow_size(game.n_cols, state_count);
-    if (row_strategy_count == 0 || col_strategy_count == 0) return tbs_val_num(NAN);
-    if (row_strategy_count > 4096 || col_strategy_count > 4096) return tbs_val_num(NAN);
+    if (row_strategy_count == 0 || col_strategy_count == 0) return toad_val_num(NAN);
+    if (row_strategy_count > 4096 || col_strategy_count > 4096) return toad_val_num(NAN);
 
     row_matrix = MEM_ALLOC_ARRAY(arena, double, row_strategy_count * col_strategy_count);
     col_matrix = MEM_ALLOC_ARRAY(arena, double, row_strategy_count * col_strategy_count);
     row_actions = MEM_ALLOC_ARRAY(arena, size_t, state_count);
     col_actions = MEM_ALLOC_ARRAY(arena, size_t, state_count);
-    if (!row_matrix || !col_matrix || !row_actions || !col_actions) return tbs_val_num(NAN);
+    if (!row_matrix || !col_matrix || !row_actions || !col_actions) return toad_val_num(NAN);
 
     for (size_t r = 0; r < row_strategy_count; r++) {
       decode_strategy_index(r, game.n_rows, state_count, row_actions);
@@ -1791,25 +1791,25 @@ tbs_value_t tbs_nash_repeated_game(size_t argc, tbs_value_t *args,
     }
 
     {
-      tbs_value_t out = tbs_val_map();
-      tbs_map_set(&out, "row_payoffs", tbs_val_vec(row_matrix, row_strategy_count * col_strategy_count));
-      tbs_map_set(&out, "col_payoffs", tbs_val_vec(col_matrix, row_strategy_count * col_strategy_count));
-      tbs_map_set(&out, "rows", tbs_val_num((double)row_strategy_count));
-      tbs_map_set(&out, "cols", tbs_val_num((double)col_strategy_count));
-      tbs_map_set(&out, "states", tbs_val_num((double)state_count));
+      toad_value_t out = toad_val_map();
+      toad_map_set(&out, "row_payoffs", toad_val_vec(row_matrix, row_strategy_count * col_strategy_count));
+      toad_map_set(&out, "col_payoffs", toad_val_vec(col_matrix, row_strategy_count * col_strategy_count));
+      toad_map_set(&out, "rows", toad_val_num((double)row_strategy_count));
+      toad_map_set(&out, "cols", toad_val_num((double)col_strategy_count));
+      toad_map_set(&out, "states", toad_val_num((double)state_count));
       return out;
     }
   }
 }
 
-tbs_value_t tbs_nash_moran_process(size_t argc, tbs_value_t *args,
-                                         tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_nash_moran_process(size_t argc, toad_value_t *args,
+                                         toad_env_t *env, mem_pool_t *arena) {
   (void)env;
 
-  if (argc < 4) return tbs_val_num(NAN);
-  if (args[0].type != TBS_VAL_VECTOR || args[1].type != TBS_VAL_NUMBER ||
-      args[2].type != TBS_VAL_LIST || args[3].type != TBS_VAL_NUMBER) {
-    return tbs_val_num(NAN);
+  if (argc < 4) return toad_val_num(NAN);
+  if (args[0].type != TOAD_VAL_VECTOR || args[1].type != TOAD_VAL_NUMBER ||
+      args[2].type != TOAD_VAL_LIST || args[3].type != TOAD_VAL_NUMBER) {
+    return toad_val_num(NAN);
   }
 
   {
@@ -1826,21 +1826,21 @@ tbs_value_t tbs_nash_moran_process(size_t argc, tbs_value_t *args,
     size_t original_count = 0;
     double *scores;
     double *default_adjacency;
-    tbs_value_t history = tbs_val_list_empty();
+    toad_value_t history = toad_val_list_empty();
     nash_rng_t rng;
 
-    if (n_actions == 0 || args[0].data.vector.size != n_actions * n_actions) return tbs_val_num(NAN);
-    if (argc > 4 && args[4].type == TBS_VAL_NUMBER && args[4].data.number >= 0.0) {
+    if (n_actions == 0 || args[0].data.vector.size != n_actions * n_actions) return toad_val_num(NAN);
+    if (argc > 4 && args[4].type == TOAD_VAL_NUMBER && args[4].data.number >= 0.0) {
       mutation_probability = args[4].data.number;
     }
-    if (argc > 5 && args[5].type == TBS_VAL_NUMBER && args[5].data.number >= 0.0) {
+    if (argc > 5 && args[5].type == TOAD_VAL_NUMBER && args[5].data.number >= 0.0) {
       seed = (uint64_t)args[5].data.number;
     }
-    if (argc > 6 && args[6].type == TBS_VAL_VECTOR &&
+    if (argc > 6 && args[6].type == TOAD_VAL_VECTOR &&
         args[6].data.vector.size == population_size * population_size) {
       replacement = args[6].data.vector.data;
     }
-    if (argc > 7 && args[7].type == TBS_VAL_VECTOR &&
+    if (argc > 7 && args[7].type == TOAD_VAL_VECTOR &&
         args[7].data.vector.size == population_size * population_size) {
       adjacency = args[7].data.vector.data;
     }
@@ -1851,7 +1851,7 @@ tbs_value_t tbs_nash_moran_process(size_t argc, tbs_value_t *args,
     scores = MEM_ALLOC_ARRAY(arena, double, population_size);
     default_adjacency = MEM_ALLOC_ARRAY(arena, double, population_size * population_size);
     if (!population || !next_population || !original_strategies || !scores || !default_adjacency) {
-      return tbs_val_num(NAN);
+      return toad_val_num(NAN);
     }
 
     for (size_t i = 0; i < population_size; i++) population[i] = (size_t)args[2].data.list.items[i].data.number;
@@ -1873,11 +1873,11 @@ tbs_value_t tbs_nash_moran_process(size_t argc, tbs_value_t *args,
 
     nash_rng_seed(&rng, seed);
     for (size_t step = 0; step <= max_steps; step++) {
-      tbs_list_push(&history, make_population_list(population, population_size, arena));
+      toad_list_push(&history, make_population_list(population, population_size, arena));
       if (step == max_steps) break;
       if (mutation_probability <= 0.0 && !population_not_fixed(population, population_size)) break;
       if (moran_scores(args[0].data.vector.data, n_actions, population, population_size, adjacency, scores) != 0) {
-        return tbs_val_num(NAN);
+        return toad_val_num(NAN);
       }
       moran_step(scores, population_size, &rng, population, next_population,
                  original_strategies, original_count, mutation_probability, replacement);
@@ -1885,21 +1885,21 @@ tbs_value_t tbs_nash_moran_process(size_t argc, tbs_value_t *args,
     }
 
     {
-      tbs_value_t out = tbs_val_map();
-      tbs_map_set(&out, "history", history);
-      tbs_map_set(&out, "steps", tbs_val_num((double)history.data.list.count));
+      toad_value_t out = toad_val_map();
+      toad_map_set(&out, "history", history);
+      toad_map_set(&out, "steps", toad_val_num((double)history.data.list.count));
       return out;
     }
   }
 }
 
-tbs_value_t tbs_nash_replicator_mutation(size_t argc, tbs_value_t *args,
-                                               tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_nash_replicator_mutation(size_t argc, toad_value_t *args,
+                                               toad_env_t *env, mem_pool_t *arena) {
   (void)env;
 
-  if (argc < 2) return tbs_val_num(NAN);
-  if (args[0].type != TBS_VAL_VECTOR || args[1].type != TBS_VAL_NUMBER) {
-    return tbs_val_num(NAN);
+  if (argc < 2) return toad_val_num(NAN);
+  if (args[0].type != TOAD_VAL_VECTOR || args[1].type != TOAD_VAL_NUMBER) {
+    return toad_val_num(NAN);
   }
 
   {
@@ -1913,18 +1913,18 @@ tbs_value_t tbs_nash_replicator_mutation(size_t argc, tbs_value_t *args,
     double *fitness;
     double *weighted;
 
-    if (n == 0 || args[0].data.vector.size != n * n) return tbs_val_num(NAN);
-    if (argc > 2 && args[2].type == TBS_VAL_NUMBER && args[2].data.number > 0.0) {
+    if (n == 0 || args[0].data.vector.size != n * n) return toad_val_num(NAN);
+    if (argc > 2 && args[2].type == TOAD_VAL_NUMBER && args[2].data.number > 0.0) {
       steps = (size_t)args[2].data.number;
     }
-    if (argc > 3 && args[3].type == TBS_VAL_NUMBER && args[3].data.number > 0.0) {
+    if (argc > 3 && args[3].type == TOAD_VAL_NUMBER && args[3].data.number > 0.0) {
       dt = args[3].data.number;
     }
     if (argc > 4 && parse_square_matrix_arg(&args[4], n, &mutation_matrix) != 0) {
       mutation_matrix = NULL;
     }
     if (argc > 5) {
-      if (args[5].type != TBS_VAL_VECTOR || args[5].data.vector.size != n) return tbs_val_num(NAN);
+      if (args[5].type != TOAD_VAL_VECTOR || args[5].data.vector.size != n) return toad_val_num(NAN);
       initial = args[5].data.vector.data;
     }
 
@@ -1932,7 +1932,7 @@ tbs_value_t tbs_nash_replicator_mutation(size_t argc, tbs_value_t *args,
     derivative = MEM_ALLOC_ARRAY(arena, double, n);
     fitness = MEM_ALLOC_ARRAY(arena, double, n);
     weighted = MEM_ALLOC_ARRAY(arena, double, n);
-    if (!state || !derivative || !fitness || !weighted) return tbs_val_num(NAN);
+    if (!state || !derivative || !fitness || !weighted) return toad_val_num(NAN);
 
     if (initial) memcpy(state, initial, n * sizeof(double));
     else for (size_t i = 0; i < n; i++) state[i] = 1.0 / (double)n;
@@ -1946,18 +1946,18 @@ tbs_value_t tbs_nash_replicator_mutation(size_t argc, tbs_value_t *args,
     }
 
     {
-      tbs_value_t out = tbs_val_map();
-      tbs_map_set(&out, "strategy", tbs_val_vec(state, n));
-      tbs_map_set(&out, "payoff", tbs_val_num(simd_dot(state, fitness, n)));
-      tbs_map_set(&out, "steps", tbs_val_num((double)steps));
-      tbs_map_set(&out, "dt", tbs_val_num(dt));
+      toad_value_t out = toad_val_map();
+      toad_map_set(&out, "strategy", toad_val_vec(state, n));
+      toad_map_set(&out, "payoff", toad_val_num(simd_dot(state, fitness, n)));
+      toad_map_set(&out, "steps", toad_val_num((double)steps));
+      toad_map_set(&out, "dt", toad_val_num(dt));
       return out;
     }
   }
 }
 
-tbs_value_t tbs_nash_asymmetric_replicator(size_t argc, tbs_value_t *args,
-                                                 tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_nash_asymmetric_replicator(size_t argc, toad_value_t *args,
+                                                 toad_env_t *env, mem_pool_t *arena) {
   (void)env;
 
   {
@@ -1973,19 +1973,19 @@ tbs_value_t tbs_nash_asymmetric_replicator(size_t argc, tbs_value_t *args,
     double *row_fitness;
     double *col_fitness;
 
-    if (parse_game_args(argc, args, &game) != 0) return tbs_val_num(NAN);
-    if (argc > 4 && args[4].type == TBS_VAL_NUMBER && args[4].data.number > 0.0) {
+    if (parse_game_args(argc, args, &game) != 0) return toad_val_num(NAN);
+    if (argc > 4 && args[4].type == TOAD_VAL_NUMBER && args[4].data.number > 0.0) {
       steps = (size_t)args[4].data.number;
     }
-    if (argc > 5 && args[5].type == TBS_VAL_NUMBER && args[5].data.number > 0.0) {
+    if (argc > 5 && args[5].type == TOAD_VAL_NUMBER && args[5].data.number > 0.0) {
       dt = args[5].data.number;
     }
     if (argc > 6) {
-      if (args[6].type != TBS_VAL_VECTOR || args[6].data.vector.size != game.n_rows) return tbs_val_num(NAN);
+      if (args[6].type != TOAD_VAL_VECTOR || args[6].data.vector.size != game.n_rows) return toad_val_num(NAN);
       initial_row = args[6].data.vector.data;
     }
     if (argc > 7) {
-      if (args[7].type != TBS_VAL_VECTOR || args[7].data.vector.size != game.n_cols) return tbs_val_num(NAN);
+      if (args[7].type != TOAD_VAL_VECTOR || args[7].data.vector.size != game.n_cols) return toad_val_num(NAN);
       initial_col = args[7].data.vector.data;
     }
 
@@ -1997,7 +1997,7 @@ tbs_value_t tbs_nash_asymmetric_replicator(size_t argc, tbs_value_t *args,
     col_fitness = MEM_ALLOC_ARRAY(arena, double, game.n_cols);
     if (!row_state || !col_state || !row_derivative || !col_derivative ||
         !row_fitness || !col_fitness) {
-      return tbs_val_num(NAN);
+      return toad_val_num(NAN);
     }
 
     if (initial_row) memcpy(row_state, initial_row, game.n_rows * sizeof(double));
@@ -2018,20 +2018,20 @@ tbs_value_t tbs_nash_asymmetric_replicator(size_t argc, tbs_value_t *args,
     }
 
     {
-      tbs_value_t out = tbs_val_map();
-      tbs_map_set(&out, "row_strategy", tbs_val_vec(row_state, game.n_rows));
-      tbs_map_set(&out, "col_strategy", tbs_val_vec(col_state, game.n_cols));
-      tbs_map_set(&out, "row_payoff", tbs_val_num(mixed_row_payoff(&game, row_state, col_state)));
-      tbs_map_set(&out, "col_payoff", tbs_val_num(mixed_col_payoff(&game, row_state, col_state)));
-      tbs_map_set(&out, "steps", tbs_val_num((double)steps));
-      tbs_map_set(&out, "dt", tbs_val_num(dt));
+      toad_value_t out = toad_val_map();
+      toad_map_set(&out, "row_strategy", toad_val_vec(row_state, game.n_rows));
+      toad_map_set(&out, "col_strategy", toad_val_vec(col_state, game.n_cols));
+      toad_map_set(&out, "row_payoff", toad_val_num(mixed_row_payoff(&game, row_state, col_state)));
+      toad_map_set(&out, "col_payoff", toad_val_num(mixed_col_payoff(&game, row_state, col_state)));
+      toad_map_set(&out, "steps", toad_val_num((double)steps));
+      toad_map_set(&out, "dt", toad_val_num(dt));
       return out;
     }
   }
 }
 
-tbs_value_t tbs_nash_asymmetric_replicator_derivative(size_t argc, tbs_value_t *args,
-                                                            tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_nash_asymmetric_replicator_derivative(size_t argc, toad_value_t *args,
+                                                            toad_env_t *env, mem_pool_t *arena) {
   (void)env;
 
   {
@@ -2043,10 +2043,10 @@ tbs_value_t tbs_nash_asymmetric_replicator_derivative(size_t argc, tbs_value_t *
     const double *row_state;
     const double *col_state;
 
-    if (parse_game_args(argc, args, &game) != 0) return tbs_val_num(NAN);
-    if (argc < 6) return tbs_val_num(NAN);
-    if (args[4].type != TBS_VAL_VECTOR || args[4].data.vector.size != game.n_rows) return tbs_val_num(NAN);
-    if (args[5].type != TBS_VAL_VECTOR || args[5].data.vector.size != game.n_cols) return tbs_val_num(NAN);
+    if (parse_game_args(argc, args, &game) != 0) return toad_val_num(NAN);
+    if (argc < 6) return toad_val_num(NAN);
+    if (args[4].type != TOAD_VAL_VECTOR || args[4].data.vector.size != game.n_rows) return toad_val_num(NAN);
+    if (args[5].type != TOAD_VAL_VECTOR || args[5].data.vector.size != game.n_cols) return toad_val_num(NAN);
     row_state = args[4].data.vector.data;
     col_state = args[5].data.vector.data;
 
@@ -2055,23 +2055,23 @@ tbs_value_t tbs_nash_asymmetric_replicator_derivative(size_t argc, tbs_value_t *
     row_fitness = MEM_ALLOC_ARRAY(arena, double, game.n_rows);
     col_fitness = MEM_ALLOC_ARRAY(arena, double, game.n_cols);
     if (!row_derivative || !col_derivative || !row_fitness || !col_fitness) {
-      return tbs_val_num(NAN);
+      return toad_val_num(NAN);
     }
 
     asymmetric_replicator_derivative(&game, row_state, col_state,
                                      row_derivative, col_derivative,
                                      row_fitness, col_fitness);
     {
-      tbs_value_t out = tbs_val_map();
-      tbs_map_set(&out, "row_derivative", tbs_val_vec(row_derivative, game.n_rows));
-      tbs_map_set(&out, "col_derivative", tbs_val_vec(col_derivative, game.n_cols));
+      toad_value_t out = toad_val_map();
+      toad_map_set(&out, "row_derivative", toad_val_vec(row_derivative, game.n_rows));
+      toad_map_set(&out, "col_derivative", toad_val_vec(col_derivative, game.n_cols));
       return out;
     }
   }
 }
 
-tbs_value_t tbs_nash_replicator(size_t argc, tbs_value_t *args,
-                                      tbs_env_t *env, mem_pool_t *arena) {
+toad_value_t toad_nash_replicator(size_t argc, toad_value_t *args,
+                                      toad_env_t *env, mem_pool_t *arena) {
   (void)env;
 
   {
@@ -2088,12 +2088,12 @@ tbs_value_t tbs_nash_replicator(size_t argc, tbs_value_t *args,
     size_t iter = 0;
     int converged = 0;
 
-    if (parse_game_args(argc, args, &game) != 0) return tbs_val_num(NAN);
-    if (argc > 4 && args[4].type == TBS_VAL_NUMBER && args[4].data.number > 0.0)
+    if (parse_game_args(argc, args, &game) != 0) return toad_val_num(NAN);
+    if (argc > 4 && args[4].type == TOAD_VAL_NUMBER && args[4].data.number > 0.0)
       max_iters = (size_t)args[4].data.number;
-    if (argc > 5 && args[5].type == TBS_VAL_NUMBER && args[5].data.number > 0.0)
+    if (argc > 5 && args[5].type == TOAD_VAL_NUMBER && args[5].data.number > 0.0)
       lr = args[5].data.number;
-    if (argc > 6 && args[6].type == TBS_VAL_NUMBER && args[6].data.number > 0.0)
+    if (argc > 6 && args[6].type == TOAD_VAL_NUMBER && args[6].data.number > 0.0)
       tol = args[6].data.number;
 
     row_strategy = MEM_ALLOC_ARRAY(arena, double, game.n_rows);
@@ -2105,7 +2105,7 @@ tbs_value_t tbs_nash_replicator(size_t argc, tbs_value_t *args,
 
     if (!row_strategy || !col_strategy || !row_prev || !col_prev ||
         !row_rewards || !col_rewards) {
-      return tbs_val_num(NAN);
+      return toad_val_num(NAN);
     }
 
     for (size_t i = 0; i < game.n_rows; i++) row_strategy[i] = 1.0 / (double)game.n_rows;
@@ -2161,15 +2161,15 @@ tbs_value_t tbs_nash_replicator(size_t argc, tbs_value_t *args,
     }
 
     {
-      tbs_value_t out = tbs_val_map();
-      tbs_map_set(&out, "row_strategy", tbs_val_vec(row_strategy, game.n_rows));
-      tbs_map_set(&out, "col_strategy", tbs_val_vec(col_strategy, game.n_cols));
-      tbs_map_set(&out, "row_payoff",
-                     tbs_val_num(mixed_row_payoff(&game, row_strategy, col_strategy)));
-      tbs_map_set(&out, "col_payoff",
-                     tbs_val_num(mixed_col_payoff(&game, row_strategy, col_strategy)));
-      tbs_map_set(&out, "iterations", tbs_val_num((double)(iter + 1)));
-      tbs_map_set(&out, "converged", tbs_val_num((double)converged));
+      toad_value_t out = toad_val_map();
+      toad_map_set(&out, "row_strategy", toad_val_vec(row_strategy, game.n_rows));
+      toad_map_set(&out, "col_strategy", toad_val_vec(col_strategy, game.n_cols));
+      toad_map_set(&out, "row_payoff",
+                     toad_val_num(mixed_row_payoff(&game, row_strategy, col_strategy)));
+      toad_map_set(&out, "col_payoff",
+                     toad_val_num(mixed_col_payoff(&game, row_strategy, col_strategy)));
+      toad_map_set(&out, "iterations", toad_val_num((double)(iter + 1)));
+      toad_map_set(&out, "converged", toad_val_num((double)converged));
       return out;
     }
   }

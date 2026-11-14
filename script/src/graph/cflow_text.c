@@ -9,7 +9,7 @@ static const cmeta_type_traits ts_cflow_line_slice_traits = {
 };
 
 static const cmeta_type_desc ts_cflow_line_slice_desc = {
-    .name = "TurboScript.LineSlice.v1",
+    .name = "Toad.LineSlice.v1",
     .size = sizeof(ts_cflow_line_slice_t),
     .align = _Alignof(ts_cflow_line_slice_t),
     .kind = CMETA_T_OBJECT,

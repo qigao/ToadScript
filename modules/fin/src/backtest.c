@@ -7,7 +7,7 @@
  */
 
 #include "fin.h"
-#include <turboscript/simd.h>
+#include <toad/simd.h>
 #include <math.h>
 #include <string.h>
 
@@ -35,7 +35,7 @@
  * @param trades Output sparse per-bar trade P&L array (length n)
  * @return Number of trades executed
  */
-size_t tbs_bt_backtest(const double *open, const double *close,
+size_t toad_bt_backtest(const double *open, const double *close,
                            const double *signal, size_t n,
                            double cash0, double commission,
                            double *equity, double *trades) {
@@ -114,7 +114,7 @@ size_t tbs_bt_backtest(const double *open, const double *close,
  *   [9] Max loss
  * @return Number of statistics calculated
  */
-size_t tbs_bt_stats(const double *equity, const double *trades, size_t n,
+size_t toad_bt_stats(const double *equity, const double *trades, size_t n,
                         size_t num_trades, double annual, double *out) {
     if (!equity || !out || n == 0) return 0;
 
@@ -215,7 +215,7 @@ size_t tbs_bt_stats(const double *equity, const double *trades, size_t n,
  * @param lambda Market impact parameter (typically 0.1-0.5)
  * @return Slippage cost per share
  */
-double tbs_bt_slippage(double price, double size, double vol,
+double toad_bt_slippage(double price, double size, double vol,
                            double avg_vol, double lambda) {
     if (price < 1e-10 || avg_vol < 1e-10) return 0.0;
     (void)vol;
@@ -240,7 +240,7 @@ double tbs_bt_slippage(double price, double size, double vol,
  * @param slippage Slippage per share
  * @return Total cost
  */
-double tbs_bt_cost(double price, double size, double commission_pct,
+double toad_bt_cost(double price, double size, double commission_pct,
                        double tax_pct, double slippage) {
     double notional = fabs(price * size);
     double commission = notional * commission_pct;

@@ -10,7 +10,7 @@
 #include <string.h>
 
 // TA-Lib Options Pricing
-size_t tbs_ta_bsm_call(const double *S, const double *K, const double *T, const double *r,
+size_t toad_ta_bsm_call(const double *S, const double *K, const double *T, const double *r,
                           const double *sigma, size_t n, double *out) {
   size_t i = 0;
   for (; i < n; ++i) {
@@ -26,7 +26,7 @@ size_t tbs_ta_bsm_call(const double *S, const double *K, const double *T, const 
   return n;
 }
 
-size_t tbs_ta_bsm_put(const double *S, const double *K, const double *T, const double *r,
+size_t toad_ta_bsm_put(const double *S, const double *K, const double *T, const double *r,
                          const double *sigma, size_t n, double *out) {
   for (size_t i = 0; i < n; ++i) {
     if (T[i] <= 0 || sigma[i] <= 0) {
@@ -41,7 +41,7 @@ size_t tbs_ta_bsm_put(const double *S, const double *K, const double *T, const d
   return n;
 }
 
-size_t tbs_ta_bsm_delta_call(const double *S, const double *K, const double *T, const double *r,
+size_t toad_ta_bsm_delta_call(const double *S, const double *K, const double *T, const double *r,
                                 const double *sigma, size_t n, double *out) {
   size_t i = 0;
   for (; i < n; ++i) {
@@ -56,7 +56,7 @@ size_t tbs_ta_bsm_delta_call(const double *S, const double *K, const double *T, 
   return n;
 }
 
-size_t tbs_ta_bsm_delta_put(const double *S, const double *K, const double *T, const double *r,
+size_t toad_ta_bsm_delta_put(const double *S, const double *K, const double *T, const double *r,
                                const double *sigma, size_t n, double *out) {
   size_t i = 0;
   for (; i + 4 <= n; i += 4) {
@@ -101,7 +101,7 @@ size_t tbs_ta_bsm_delta_put(const double *S, const double *K, const double *T, c
   return n;
 }
 
-size_t tbs_ta_bsm_gamma(const double *S, const double *K, const double *T, const double *r,
+size_t toad_ta_bsm_gamma(const double *S, const double *K, const double *T, const double *r,
                            const double *sigma, size_t n, double *out) {
   size_t i = 0;
   for (; i + 4 <= n; i += 4) {
@@ -146,7 +146,7 @@ size_t tbs_ta_bsm_gamma(const double *S, const double *K, const double *T, const
   return n;
 }
 
-size_t tbs_ta_bsm_theta_call(const double *S, const double *K, const double *T, const double *r,
+size_t toad_ta_bsm_theta_call(const double *S, const double *K, const double *T, const double *r,
                                 const double *sigma, size_t n, double *out) {
   size_t i = 0;
   for (; i + 4 <= n; i += 4) {
@@ -197,7 +197,7 @@ size_t tbs_ta_bsm_theta_call(const double *S, const double *K, const double *T, 
   return n;
 }
 
-size_t tbs_ta_bsm_theta_put(const double *S, const double *K, const double *T, const double *r,
+size_t toad_ta_bsm_theta_put(const double *S, const double *K, const double *T, const double *r,
                                const double *sigma, size_t n, double *out) {
   size_t i = 0;
   for (; i + 4 <= n; i += 4) {
@@ -248,7 +248,7 @@ size_t tbs_ta_bsm_theta_put(const double *S, const double *K, const double *T, c
   return n;
 }
 
-size_t tbs_ta_bsm_vega(const double *S, const double *K, const double *T, const double *r,
+size_t toad_ta_bsm_vega(const double *S, const double *K, const double *T, const double *r,
                           const double *sigma, size_t n, double *out) {
   size_t i = 0;
   for (; i + 4 <= n; i += 4) {
@@ -294,7 +294,7 @@ size_t tbs_ta_bsm_vega(const double *S, const double *K, const double *T, const 
   return n;
 }
 
-size_t tbs_ta_bsm_rho_call(const double *S, const double *K, const double *T, const double *r,
+size_t toad_ta_bsm_rho_call(const double *S, const double *K, const double *T, const double *r,
                               const double *sigma, size_t n, double *out) {
   for (size_t i = 0; i < n; ++i) {
     if (T[i] <= 0 || sigma[i] <= 0) {
@@ -309,7 +309,7 @@ size_t tbs_ta_bsm_rho_call(const double *S, const double *K, const double *T, co
   return n;
 }
 
-size_t tbs_ta_bsm_rho_put(const double *S, const double *K, const double *T, const double *r,
+size_t toad_ta_bsm_rho_put(const double *S, const double *K, const double *T, const double *r,
                              const double *sigma, size_t n, double *out) {
   for (size_t i = 0; i < n; ++i) {
     if (T[i] <= 0 || sigma[i] <= 0) {
@@ -324,14 +324,14 @@ size_t tbs_ta_bsm_rho_put(const double *S, const double *K, const double *T, con
   return n;
 }
 
-size_t tbs_ta_bsm_iv_call(const double *price, const double *S, const double *K, const double *T,
+size_t toad_ta_bsm_iv_call(const double *price, const double *S, const double *K, const double *T,
                              const double *r, size_t n, double *out) {
   for (size_t i = 0; i < n; ++i) {
     double v = 0.5;
     for (int iter = 0; iter < 100; ++iter) {
       double c, vega;
-      tbs_ta_bsm_call(&S[i], &K[i], &T[i], &r[i], &v, 1, &c);
-      tbs_ta_bsm_vega(&S[i], &K[i], &T[i], &r[i], &v, 1, &vega);
+      toad_ta_bsm_call(&S[i], &K[i], &T[i], &r[i], &v, 1, &c);
+      toad_ta_bsm_vega(&S[i], &K[i], &T[i], &r[i], &v, 1, &vega);
       double diff = c - price[i];
       if (fabs(diff) < 1e-8 || fabs(vega) < 1e-12)
         break;
@@ -344,14 +344,14 @@ size_t tbs_ta_bsm_iv_call(const double *price, const double *S, const double *K,
   return n;
 }
 
-size_t tbs_ta_bsm_iv_put(const double *price, const double *S, const double *K, const double *T,
+size_t toad_ta_bsm_iv_put(const double *price, const double *S, const double *K, const double *T,
                             const double *r, size_t n, double *out) {
   for (size_t i = 0; i < n; ++i) {
     double v = 0.5;
     for (int iter = 0; iter < 100; ++iter) {
       double p, vega;
-      tbs_ta_bsm_put(&S[i], &K[i], &T[i], &r[i], &v, 1, &p);
-      tbs_ta_bsm_vega(&S[i], &K[i], &T[i], &r[i], &v, 1, &vega);
+      toad_ta_bsm_put(&S[i], &K[i], &T[i], &r[i], &v, 1, &p);
+      toad_ta_bsm_vega(&S[i], &K[i], &T[i], &r[i], &v, 1, &vega);
       double diff = p - price[i];
       if (fabs(diff) < 1e-8 || fabs(vega) < 1e-12)
         break;
@@ -364,7 +364,7 @@ size_t tbs_ta_bsm_iv_put(const double *price, const double *S, const double *K, 
   return n;
 }
 
-size_t tbs_ta_opt_binomial(double S, double K, double T, double r, double sigma, size_t steps,
+size_t toad_ta_opt_binomial(double S, double K, double T, double r, double sigma, size_t steps,
                               int is_call, double *out, mem_pool_t *arena) {
   if (steps == 0 || T <= 0 || sigma <= 0) {
     *out = is_call ? fmax(0, S - K) : fmax(0, K - S);

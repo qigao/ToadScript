@@ -1,5 +1,5 @@
 #include "plugin_databind.h"
-#include <turboscript/plugin_loader.h>
+#include <toad/plugin_loader.h>
 
 #include <data_bind_plugin_catalog.h>
 #include <data_bind_native.h>
@@ -15,7 +15,7 @@
 #define TS_DATABIND_VALUE_DEPTH 32u
 #define TS_DATABIND_MAX_ITEMS 4096u
 
-typedef struct ts_plugin_databind_binding_s {
+typedef struct toad_plugin_databind_binding_s {
   const cmeta_plugin_export *entry;
   cmeta_plugin_function_invoke_fn invoke;
   void *context;
@@ -24,7 +24,7 @@ typedef struct ts_plugin_databind_binding_s {
   DataBindBindingPlan *plan;
   size_t request_param;
   size_t response_param;
-} ts_plugin_databind_binding_t;
+} toad_plugin_databind_binding_t;
 
 typedef struct ts_databind_token_reader_s {
   cserde_token token;
@@ -32,7 +32,7 @@ typedef struct ts_databind_token_reader_s {
 } ts_databind_token_reader_t;
 
 typedef struct ts_databind_value_frame_s {
-  tbs_value_t container;
+  toad_value_t container;
   char *key;
   size_t key_len;
   int is_map;
@@ -40,18 +40,18 @@ typedef struct ts_databind_value_frame_s {
 } ts_databind_value_frame_t;
 
 typedef struct ts_databind_value_writer_s {
-  tbs_env_t *env;
-  tbs_value_t root;
+  toad_env_t *env;
+  toad_value_t root;
   int has_root;
   ts_databind_value_frame_t frames[TS_DATABIND_VALUE_DEPTH];
   size_t depth;
 } ts_databind_value_writer_t;
 
 typedef struct ts_databind_provider_s {
-  tbs_env_t *env;
-  const tbs_value_t *input;
-  tbs_value_t staged;
-  tbs_value_t *result;
+  toad_env_t *env;
+  const toad_value_t *input;
+  toad_value_t staged;
+  toad_value_t *result;
   int has_staged;
   ts_databind_token_reader_t reader;
 } ts_databind_provider_t;
@@ -80,30 +80,30 @@ static const cserde_reader_ops TS_DATABIND_TOKEN_READER_OPS = {
 };
 
 static int ts_databind_token_from_value(
-    tbs_value_t value, cserde_token *out) {
+    toad_value_t value, cserde_token *out) {
   if (!out) return 0;
   memset(out, 0, sizeof(*out));
   switch (value.type) {
-    case TBS_VAL_BOOL:
+    case TOAD_VAL_BOOL:
       out->kind = CSERDE_BOOL;
       out->value.boolean = value.data.boolean != 0;
       return 1;
-    case TBS_VAL_INTEGER:
+    case TOAD_VAL_INTEGER:
       out->kind = CSERDE_SINT;
       out->value.sint = value.data.integer;
       return 1;
-    case TBS_VAL_NUMBER:
+    case TOAD_VAL_NUMBER:
       out->kind = CSERDE_FLOAT;
       out->value.floating = value.data.number;
       return 1;
-    case TBS_VAL_STRING:
+    case TOAD_VAL_STRING:
       out->kind = CSERDE_STRING;
       out->value.slice.data =
           (const unsigned char *)value.data.string.data;
       out->value.slice.size = value.data.string.len;
       out->value.slice.lifetime = CSERDE_VIEW_STABLE;
       return 1;
-    case TBS_VAL_BYTES:
+    case TOAD_VAL_BYTES:
       out->kind = CSERDE_BYTES;
       out->value.slice.data =
           (const unsigned char *)value.data.bytes.data;
@@ -115,38 +115,38 @@ static int ts_databind_token_from_value(
   }
 }
 
-static tbs_value_t ts_databind_null_value(void) {
-  tbs_value_t value = {0};
-  value.type = TBS_VAL_NULL;
+static toad_value_t ts_databind_null_value(void) {
+  toad_value_t value = {0};
+  value.type = TOAD_VAL_NULL;
   return value;
 }
 
 static int ts_databind_value_from_token(
-    const cserde_token *token, tbs_value_t *out) {
+    const cserde_token *token, toad_value_t *out) {
   if (!token || !out) return 0;
   switch (token->kind) {
     case CSERDE_NULL:
       *out = ts_databind_null_value();
       return 1;
     case CSERDE_BOOL:
-      *out = tbs_val_bool(token->value.boolean);
+      *out = toad_val_bool(token->value.boolean);
       return 1;
     case CSERDE_SINT:
-      *out = tbs_val_int(token->value.sint);
+      *out = toad_val_int(token->value.sint);
       return 1;
     case CSERDE_UINT:
       if (token->value.uint > (uint64_t)INT64_MAX) return 0;
-      *out = tbs_val_int((int64_t)token->value.uint);
+      *out = toad_val_int((int64_t)token->value.uint);
       return 1;
     case CSERDE_FLOAT:
-      *out = tbs_val_num(token->value.floating);
+      *out = toad_val_num(token->value.floating);
       return 1;
     case CSERDE_STRING:
-      *out = tbs_val_str(vstr_from_buf(
+      *out = toad_val_str(vstr_from_buf(
           (char *)token->value.slice.data, token->value.slice.size));
       return 1;
     case CSERDE_BYTES:
-      *out = tbs_val_bytes(vstr_from_buf(
+      *out = toad_val_bytes(vstr_from_buf(
           (char *)token->value.slice.data, token->value.slice.size));
       return 1;
     default:
@@ -159,14 +159,14 @@ static void ts_databind_writer_clear(ts_databind_value_writer_t *writer) {
   for (size_t i = 0u; i < writer->depth; ++i) {
     free(writer->frames[i].key);
     writer->frames[i].key = NULL;
-    tbs_value_destroy(&writer->frames[i].container);
+    toad_value_destroy(&writer->frames[i].container);
   }
-  if (writer->has_root) tbs_value_destroy(&writer->root);
+  if (writer->has_root) toad_value_destroy(&writer->root);
   memset(writer, 0, sizeof(*writer));
 }
 
 static int ts_databind_writer_attach(
-    ts_databind_value_writer_t *writer, tbs_value_t *value) {
+    ts_databind_value_writer_t *writer, toad_value_t *value) {
   ts_databind_value_frame_t *frame;
   if (!writer || !value) return 0;
 
@@ -182,7 +182,7 @@ static int ts_databind_writer_attach(
   if (frame->is_map) {
     int ok;
     if (frame->expect_key || !frame->key) return 0;
-    ok = tbs_map_set(&frame->container, frame->key, *value) == 0;
+    ok = toad_map_set(&frame->container, frame->key, *value) == 0;
     free(frame->key);
     frame->key = NULL;
     frame->key_len = 0u;
@@ -190,7 +190,7 @@ static int ts_databind_writer_attach(
     return ok;
   }
 
-  return tbs_list_push(&frame->container, *value) == 0;
+  return toad_list_push(&frame->container, *value) == 0;
 }
 
 static cserde_status ts_databind_writer_write(
@@ -198,7 +198,7 @@ static cserde_status ts_databind_writer_write(
   ts_databind_value_writer_t *writer =
       (ts_databind_value_writer_t *)context;
   ts_databind_value_frame_t *frame;
-  tbs_value_t value;
+  toad_value_t value;
 
   if (!writer || !token || !cserde_token_valid(token))
     return CSERDE_INVALID_ARGUMENT;
@@ -207,14 +207,14 @@ static cserde_status ts_databind_writer_write(
     frame = &writer->frames[writer->depth - 1u];
     if (frame->is_map && frame->expect_key) {
       if (token->kind == CSERDE_MAP_END) {
-        tbs_value_t completed;
+        toad_value_t completed;
         if (frame->key) return CSERDE_INVALID_STATE;
         completed = frame->container;
         frame->container = ts_databind_null_value();
         --writer->depth;
         {
           const int ok = ts_databind_writer_attach(writer, &completed);
-          tbs_value_destroy(&completed);
+          toad_value_destroy(&completed);
           return ok ? CSERDE_OK : CSERDE_SINK_ERROR;
         }
       }
@@ -231,12 +231,12 @@ static cserde_status ts_databind_writer_write(
       return CSERDE_OK;
     }
     if (!frame->is_map && token->kind == CSERDE_ARRAY_END) {
-      tbs_value_t completed = frame->container;
+      toad_value_t completed = frame->container;
       frame->container = ts_databind_null_value();
       --writer->depth;
       {
         const int ok = ts_databind_writer_attach(writer, &completed);
-        tbs_value_destroy(&completed);
+        toad_value_destroy(&completed);
         return ok ? CSERDE_OK : CSERDE_SINK_ERROR;
       }
     }
@@ -251,7 +251,7 @@ static cserde_status ts_databind_writer_write(
     frame->is_map = token->kind == CSERDE_MAP_BEGIN;
     frame->expect_key = frame->is_map;
     frame->container =
-        frame->is_map ? tbs_val_map() : tbs_val_list_empty();
+        frame->is_map ? toad_val_map() : toad_val_list_empty();
     return CSERDE_OK;
   }
 
@@ -262,10 +262,10 @@ static cserde_status ts_databind_writer_write(
   if (!ts_databind_value_from_token(token, &value))
     return CSERDE_UNSUPPORTED;
   if (!ts_databind_writer_attach(writer, &value)) {
-    tbs_value_destroy(&value);
+    toad_value_destroy(&value);
     return CSERDE_SINK_ERROR;
   }
-  tbs_value_destroy(&value);
+  toad_value_destroy(&value);
   return CSERDE_OK;
 }
 
@@ -284,9 +284,9 @@ static const cserde_writer_ops TS_DATABIND_VALUE_WRITER_OPS = {
 };
 
 static int ts_databind_native_value(
-    tbs_env_t *env, const cmeta_data_desc *data,
+    toad_env_t *env, const cmeta_data_desc *data,
     const void *source, size_t source_bytes,
-    tbs_value_t *out) {
+    toad_value_t *out) {
   ts_databind_value_writer_t sink = {0};
   cserde_writer writer = {0};
   DataBindNativeOptions options = DATA_BIND_NATIVE_OPTIONS_INIT;
@@ -345,7 +345,7 @@ static DataBindStatus ts_databind_project_field(
       direction == DATA_BIND_BINDING_INGRESS
           ? DATA_BIND_BINDING_VALUE
           : DATA_BIND_BINDING_RESULT;
-  out->space = "turboscript.plugin";
+  out->space = "toad.plugin";
   out->name = field->name;
   out->ordinal = 0u;
   return DATA_BIND_OK;
@@ -354,7 +354,7 @@ static DataBindStatus ts_databind_project_field(
 static const DataBindBindingProjection TS_DATABIND_PROJECTION = {
     sizeof(DataBindBindingProjection),
     DATA_BIND_BINDING_PLAN_ABI_VERSION,
-    "turboscript.plugin",
+    "toad.plugin",
     NULL,
     ts_databind_project_field
 };
@@ -365,25 +365,25 @@ static DataBindStatus ts_databind_open_input(
     DataBindError *error) {
   ts_databind_provider_t *provider =
       (ts_databind_provider_t *)context;
-  tbs_value_t value;
+  toad_value_t value;
   const char *name;
   (void)error;
 
   if (!provider || !entry || !reader || !state ||
       !provider->input ||
-      !tbs_value_is_object_like(provider->input))
+      !toad_value_is_object_like(provider->input))
     return DATA_BIND_ERR_INVALID_ARG;
 
   name = entry->address.name
              ? entry->address.name
              : entry->schema_field;
-  if (!name || !tbs_map_has(provider->input, name)) {
+  if (!name || !toad_map_has(provider->input, name)) {
     *state = DATA_BIND_VALUE_STATE_ABSENT;
     return DATA_BIND_OK;
   }
 
-  value = tbs_map_get(provider->input, name);
-  if (value.type == TBS_VAL_NULL) {
+  value = toad_map_get(provider->input, name);
+  if (value.type == TOAD_VAL_NULL) {
     *state = DATA_BIND_VALUE_STATE_NULL;
     return DATA_BIND_OK;
   }
@@ -405,10 +405,10 @@ static DataBindStatus ts_databind_begin_output(
   (void)error;
   if (!provider || !provider->result) return DATA_BIND_ERR_INVALID_ARG;
   if (provider->has_staged)
-    tbs_value_destroy(&provider->staged);
-  provider->staged = tbs_val_map();
+    toad_value_destroy(&provider->staged);
+  provider->staged = toad_val_map();
   provider->has_staged = 1;
-  return tbs_value_is_object_like(&provider->staged)
+  return toad_value_is_object_like(&provider->staged)
              ? DATA_BIND_OK : DATA_BIND_ERR_OOM;
 }
 
@@ -418,7 +418,7 @@ static DataBindStatus ts_databind_write_output(
     size_t value_bytes, DataBindError *error) {
   ts_databind_provider_t *provider =
       (ts_databind_provider_t *)context;
-  tbs_value_t converted = ts_databind_null_value();
+  toad_value_t converted = ts_databind_null_value();
   const char *name;
   (void)error;
 
@@ -429,23 +429,23 @@ static DataBindStatus ts_databind_write_output(
   if (!name) return DATA_BIND_ERR_SCHEMA;
 
   if (entry->address.binding_class == DATA_BIND_BINDING_ERROR) {
-    tbs_value_t envelope = tbs_val_map();
-    tbs_value_t type =
-        tbs_val_str(vstr_from_cstr(name));
+    toad_value_t envelope = toad_val_map();
+    toad_value_t type =
+        toad_val_str(vstr_from_cstr(name));
 
     if (state != DATA_BIND_VALUE_STATE_VALUE || !value ||
         !ts_databind_native_value(
             provider->env, entry->data, value, value_bytes,
             &converted) ||
-        tbs_map_set(&envelope, "type", type) != 0 ||
-        tbs_map_set(&envelope, "payload", converted) != 0 ||
-        tbs_map_set(&provider->staged, "error", envelope) != 0) {
-      tbs_value_destroy(&converted);
-      tbs_value_destroy(&envelope);
+        toad_map_set(&envelope, "type", type) != 0 ||
+        toad_map_set(&envelope, "payload", converted) != 0 ||
+        toad_map_set(&provider->staged, "error", envelope) != 0) {
+      toad_value_destroy(&converted);
+      toad_value_destroy(&envelope);
       return DATA_BIND_ERR_RUNTIME;
     }
-    tbs_value_destroy(&converted);
-    tbs_value_destroy(&envelope);
+    toad_value_destroy(&converted);
+    toad_value_destroy(&envelope);
     return DATA_BIND_OK;
   }
 
@@ -463,11 +463,11 @@ static DataBindStatus ts_databind_write_output(
     return DATA_BIND_ERR_TYPE_MISMATCH;
   }
 
-  if (tbs_map_set(&provider->staged, name, converted) != 0) {
-    tbs_value_destroy(&converted);
+  if (toad_map_set(&provider->staged, name, converted) != 0) {
+    toad_value_destroy(&converted);
     return DATA_BIND_ERR_OOM;
   }
-  tbs_value_destroy(&converted);
+  toad_value_destroy(&converted);
   return DATA_BIND_OK;
 }
 
@@ -478,7 +478,7 @@ static DataBindStatus ts_databind_commit_output(
   (void)error;
   if (!provider || !provider->result || !provider->has_staged)
     return DATA_BIND_ERR_INVALID_ARG;
-  tbs_value_destroy(provider->result);
+  toad_value_destroy(provider->result);
   *provider->result = provider->staged;
   provider->staged = ts_databind_null_value();
   provider->has_staged = 0;
@@ -489,7 +489,7 @@ static void ts_databind_abort_output(void *context) {
   ts_databind_provider_t *provider =
       (ts_databind_provider_t *)context;
   if (!provider || !provider->has_staged) return;
-  tbs_value_destroy(&provider->staged);
+  toad_value_destroy(&provider->staged);
   provider->staged = ts_databind_null_value();
   provider->has_staged = 0;
 }
@@ -502,7 +502,7 @@ static const cmeta_type_desc *ts_databind_param_value_type(
 }
 
 static int ts_databind_generated_abi(
-    ts_plugin_databind_binding_t *binding,
+    toad_plugin_databind_binding_t *binding,
     const cmeta_function_abi_desc *abi,
     char *error, size_t error_size) {
   const cmeta_function_desc *function;
@@ -612,18 +612,18 @@ static int ts_databind_generated_abi(
 }
 
 static void ts_databind_binding_clear(
-    ts_plugin_databind_binding_t *binding) {
+    toad_plugin_databind_binding_t *binding) {
   if (!binding) return;
   data_bind_binding_plan_free(binding->plan);
   memset(binding, 0, sizeof(*binding));
 }
 
-void ts_plugin_databind_clear(
-    struct ts_plugin_handle_s *handle) {
-  ts_plugin_databind_binding_t *bindings;
+void toad_plugin_databind_clear(
+    struct toad_plugin_handle_s *handle) {
+  toad_plugin_databind_binding_t *bindings;
   if (!handle) return;
   bindings =
-      (ts_plugin_databind_binding_t *)handle->databind_bindings;
+      (toad_plugin_databind_binding_t *)handle->databind_bindings;
   for (size_t i = 0u; i < handle->databind_binding_count; ++i)
     ts_databind_binding_clear(&bindings[i]);
   free(bindings);
@@ -635,14 +635,14 @@ void ts_plugin_databind_clear(
   }
 }
 
-int ts_plugin_databind_prepare(
-    struct ts_plugin_handle_s *handle,
+int toad_plugin_databind_prepare(
+    struct toad_plugin_handle_s *handle,
     char *error, size_t error_size) {
   const cmeta_plugin_export *catalog_entry = NULL;
   data_bind_plugin_catalog *catalog;
   DataBind *codec = NULL;
   DataBindError bind_error = DATA_BIND_ERROR_INIT;
-  ts_plugin_databind_binding_t *bindings = NULL;
+  toad_plugin_databind_binding_t *bindings = NULL;
   size_t count;
   cmeta_plugin_status plugin_status;
 
@@ -695,7 +695,7 @@ int ts_plugin_databind_prepare(
     return 1;
   }
 
-  bindings = (ts_plugin_databind_binding_t *)calloc(
+  bindings = (toad_plugin_databind_binding_t *)calloc(
       count, sizeof(*bindings));
   if (!bindings) {
     data_bind_free(codec);
@@ -704,7 +704,7 @@ int ts_plugin_databind_prepare(
   }
 
   for (size_t i = 0u; i < count; ++i) {
-    ts_plugin_databind_binding_t *binding = &bindings[i];
+    toad_plugin_databind_binding_t *binding = &bindings[i];
     const cmeta_plugin_export *function_export = NULL;
     DataBindBindingPlanDiagnostic diagnostic =
         DATA_BIND_BINDING_PLAN_DIAGNOSTIC_INIT;
@@ -791,19 +791,19 @@ fail:
   return 0;
 }
 
-size_t ts_plugin_databind_count(
-    const struct ts_plugin_handle_s *handle) {
+size_t toad_plugin_databind_count(
+    const struct toad_plugin_handle_s *handle) {
   return handle ? handle->databind_binding_count : 0u;
 }
 
-void *ts_plugin_databind_find(
-    const struct ts_plugin_handle_s *handle,
+void *toad_plugin_databind_find(
+    const struct toad_plugin_handle_s *handle,
     const char *export_id) {
-  ts_plugin_databind_binding_t *bindings;
+  toad_plugin_databind_binding_t *bindings;
   if (!handle || !export_id || !handle->databind_bindings)
     return NULL;
   bindings =
-      (ts_plugin_databind_binding_t *)handle->databind_bindings;
+      (toad_plugin_databind_binding_t *)handle->databind_bindings;
   for (size_t i = 0u; i < handle->databind_binding_count; ++i) {
     if (bindings[i].operation.export_id &&
         strcmp(bindings[i].operation.export_id, export_id) == 0)
@@ -813,7 +813,7 @@ void *ts_plugin_databind_find(
 }
 
 static void ts_databind_set_env_error(
-    tbs_env_t *env, const char *prefix, const char *detail) {
+    toad_env_t *env, const char *prefix, const char *detail) {
   if (!env) return;
   env->aborted = 1;
   snprintf(
@@ -836,11 +836,11 @@ static int ts_databind_clear_native(
              &diagnostic) == DATA_BIND_OK;
 }
 
-tbs_value_t ts_plugin_databind_call(
-    size_t argc, tbs_value_t *args,
-    tbs_env_t *env, void *user_data) {
-  ts_plugin_databind_binding_t *binding =
-      (ts_plugin_databind_binding_t *)user_data;
+toad_value_t toad_plugin_databind_call(
+    size_t argc, toad_value_t *args,
+    toad_env_t *env, void *user_data) {
+  toad_plugin_databind_binding_t *binding =
+      (toad_plugin_databind_binding_t *)user_data;
   const cmeta_function_desc *function;
   size_t param_count;
   void *request = NULL;
@@ -856,7 +856,7 @@ tbs_value_t ts_plugin_databind_call(
   int request_bound = 0;
   /* Output is allocated transactionally by begin_output after admission.
    * Invalid bindings/arguments must not allocate an unreachable result map. */
-  tbs_value_t result = ts_databind_null_value();
+  toad_value_t result = ts_databind_null_value();
   ts_databind_provider_t provider_state = {0};
   DataBindBindingProvider provider =
       DATA_BIND_BINDING_PROVIDER_INIT;
@@ -876,28 +876,28 @@ tbs_value_t ts_plugin_databind_call(
   if (!binding || !binding->plan || !binding->invoke || !env) {
     ts_databind_set_env_error(
         env, "invalid DataBind Service binding", NULL);
-    return tbs_val_num(0.0);
+    return toad_val_num(0.0);
   }
 
   if (argc != 0u && !args) {
     ts_databind_set_env_error(
         env, "DataBind Service argument storage is missing", NULL);
-    return tbs_val_num(0.0);
+    return toad_val_num(0.0);
   }
 
   if (data_bind_binding_plan_ingress_count(binding->plan) == 0u) {
     if (argc > 1u ||
-        (argc == 1u && !tbs_value_is_object_like(&args[0]))) {
+        (argc == 1u && !toad_value_is_object_like(&args[0]))) {
       ts_databind_set_env_error(
           env, "DataBind Service expects zero fields or one map/object",
           NULL);
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
     }
   } else if (argc != 1u ||
-             !tbs_value_is_object_like(&args[0])) {
+             !toad_value_is_object_like(&args[0])) {
     ts_databind_set_env_error(
         env, "DataBind Service expects one map/object argument", NULL);
-    return tbs_val_num(0.0);
+    return toad_val_num(0.0);
   }
 
   function = binding->native.function;
@@ -1094,8 +1094,8 @@ done:
   free(request);
 
   if (env->aborted) {
-    tbs_value_destroy(&result);
-    return tbs_val_num(0.0);
+    toad_value_destroy(&result);
+    return toad_val_num(0.0);
   }
   return result;
 }

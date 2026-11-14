@@ -1,18 +1,18 @@
 /* =========================================================================
  * Module table and factory
  * ========================================================================= */
-#include <turboscript/engine.h>
+#include <toad/engine.h>
 #include "universe.h"
-#include <turboscript/module.h>
+#include <toad/module.h>
 #include "mod_strategy.h"
 #include "fin.h"
 #include "fin_plugin_functions.h"
-#include <turboscript/simd.h>
+#include <toad/simd.h>
 #include "strategy_optimizer.h"
 #include <math.h>
 #include <stdlib.h>
 
-#define VEC_ARG(args, i) ((args)[i].type == TBS_VAL_VECTOR)
+#define VEC_ARG(args, i) ((args)[i].type == TOAD_VAL_VECTOR)
 #define VEC_DATA(args, i) ((args)[i].data.vector.data)
 
 static int cmp_double_asc(const void *lhs, const void *rhs) {
@@ -31,17 +31,17 @@ static double z_from_conf(double conf) {
   return 1.0;
 }
 
-static tbs_value_t fn_var_hist(size_t argc, tbs_value_t *args, tbs_env_t *env,
+static toad_value_t fn_var_hist(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && VEC_ARG(args, 0) && args[1].type == TBS_VAL_NUMBER) {
+  if (argc == 2 && VEC_ARG(args, 0) && args[1].type == TOAD_VAL_NUMBER) {
     const double *ret = VEC_DATA(args, 0);
     const size_t n = args[0].data.vector.size;
     const double conf = args[1].data.number;
-    if (n == 0) return tbs_val_num(0);
+    if (n == 0) return toad_val_num(0);
 
     double *tmp = MEM_ALLOC_ARRAY(arena, double, n);
-    if (!tmp) return tbs_val_num(0);
+    if (!tmp) return toad_val_num(0);
     for (size_t i = 0; i < n; ++i) tmp[i] = ret[i];
     qsort(tmp, n, sizeof(double), cmp_double_asc);
 
@@ -50,19 +50,19 @@ static tbs_value_t fn_var_hist(size_t argc, tbs_value_t *args, tbs_env_t *env,
     if (idx >= n) idx = n - 1;
     double var = -tmp[idx];
     if (var < 0) var = 0;
-    return tbs_val_num(var);
+    return toad_val_num(var);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_var_param(size_t argc, tbs_value_t *args, tbs_env_t *env,
+static toad_value_t fn_var_param(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc == 2 && VEC_ARG(args, 0) && args[1].type == TBS_VAL_NUMBER) {
+  if (argc == 2 && VEC_ARG(args, 0) && args[1].type == TOAD_VAL_NUMBER) {
     const double *ret = VEC_DATA(args, 0);
     const size_t n = args[0].data.vector.size;
-    if (n < 2) return tbs_val_num(0);
+    if (n < 2) return toad_val_num(0);
 
     double mean = 0.0;
     for (size_t i = 0; i < n; ++i) mean += ret[i];
@@ -77,18 +77,18 @@ static tbs_value_t fn_var_param(size_t argc, tbs_value_t *args, tbs_env_t *env,
 
     double out = z_from_conf(args[1].data.number) * sqrt(var) - mean;
     if (out < 0) out = 0;
-    return tbs_val_num(out);
+    return toad_val_num(out);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_cvar(size_t argc, tbs_value_t *args, tbs_env_t *env,
+static toad_value_t fn_cvar(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
-  if (!(argc == 2 && VEC_ARG(args, 0) && args[1].type == TBS_VAL_NUMBER))
-    return tbs_val_num(0);
+  if (!(argc == 2 && VEC_ARG(args, 0) && args[1].type == TOAD_VAL_NUMBER))
+    return toad_val_num(0);
 
-  tbs_value_t vh = fn_var_hist(argc, args, env, arena);
-  if (vh.type != TBS_VAL_NUMBER || vh.data.number <= 0) return tbs_val_num(0);
+  toad_value_t vh = fn_var_hist(argc, args, env, arena);
+  if (vh.type != TOAD_VAL_NUMBER || vh.data.number <= 0) return toad_val_num(0);
 
   const double var = vh.data.number;
   const double *ret = VEC_DATA(args, 0);
@@ -102,7 +102,7 @@ static tbs_value_t fn_cvar(size_t argc, tbs_value_t *args, tbs_env_t *env,
       cnt++;
     }
   }
-  return tbs_val_num(cnt == 0 ? var : sum / (double)cnt);
+  return toad_val_num(cnt == 0 ? var : sum / (double)cnt);
 }
 
 double ts_fin_kelly(double win_rate, double avg_win, double avg_loss) {
@@ -113,48 +113,48 @@ double ts_fin_kelly(double win_rate, double avg_win, double avg_loss) {
   return win_rate - (1.0 - win_rate) / odds;
 }
 
-static tbs_value_t fn_kelly(size_t argc, tbs_value_t *args, tbs_env_t *env,
+static toad_value_t fn_kelly(size_t argc, toad_value_t *args, toad_env_t *env,
                                mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc == 3 && args[0].type == TBS_VAL_NUMBER &&
-      args[1].type == TBS_VAL_NUMBER &&
-      args[2].type == TBS_VAL_NUMBER) {
-    return tbs_val_num(ts_fin_kelly(
+  if (argc == 3 && args[0].type == TOAD_VAL_NUMBER &&
+      args[1].type == TOAD_VAL_NUMBER &&
+      args[2].type == TOAD_VAL_NUMBER) {
+    return toad_val_num(ts_fin_kelly(
         args[0].data.number,
         args[1].data.number,
         args[2].data.number));
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_drawdown(size_t argc, tbs_value_t *args, tbs_env_t *env,
+static toad_value_t fn_drawdown(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   if (argc == 1 && VEC_ARG(args, 0)) {
     const size_t n = args[0].data.vector.size;
     const double *eq = VEC_DATA(args, 0);
-    if (n == 0) return tbs_val_vec(NULL, 0);
+    if (n == 0) return toad_val_vec(NULL, 0);
 
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
-    if (!out) return tbs_val_num(0);
+    if (!out) return toad_val_num(0);
     double peak = eq[0];
     for (size_t i = 0; i < n; ++i) {
       if (eq[i] > peak) peak = eq[i];
       out[i] = (peak > 0.0) ? (peak - eq[i]) / peak : 0.0;
     }
-    return tbs_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_drawdown_stats(size_t argc, tbs_value_t *args, tbs_env_t *env,
+static toad_value_t fn_drawdown_stats(size_t argc, toad_value_t *args, toad_env_t *env,
                                         mem_pool_t *arena) {
   (void)env;
   if (argc == 1 && VEC_ARG(args, 0)) {
     const size_t n = args[0].data.vector.size;
     const double *eq = VEC_DATA(args, 0);
-    if (n == 0) return tbs_val_num(0);
+    if (n == 0) return toad_val_num(0);
 
     double peak = eq[0];
     double max_dd = 0.0;
@@ -173,15 +173,15 @@ static tbs_value_t fn_drawdown_stats(size_t argc, tbs_value_t *args, tbs_env_t *
     }
 
     double *out = MEM_ALLOC_ARRAY(arena, double, 2);
-    if (!out) return tbs_val_num(0);
+    if (!out) return toad_val_num(0);
     out[0] = max_dd;
     out[1] = (double)max_dur;
-    return tbs_val_vec(out, 2);
+    return toad_val_vec(out, 2);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_pf_min_variance(size_t argc, tbs_value_t *args, tbs_env_t *env,
+static toad_value_t fn_pf_min_variance(size_t argc, toad_value_t *args, toad_env_t *env,
                                          mem_pool_t *arena) {
   (void)env;
   if (argc == 1 && VEC_ARG(args, 0)) {
@@ -190,15 +190,15 @@ static tbs_value_t fn_pf_min_variance(size_t argc, tbs_value_t *args, tbs_env_t 
     const size_t n = (size_t)(sqrt((double)m) + 0.5);
     if (n > 0 && n * n == m) {
       double *weights = MEM_ALLOC_ARRAY(arena, double, n);
-      if (!weights) return tbs_val_num(0);
-      tbs_pf_min_variance(cov, n, weights, arena);
-      return tbs_val_vec(weights, n);
+      if (!weights) return toad_val_num(0);
+      toad_pf_min_variance(cov, n, weights, arena);
+      return toad_val_vec(weights, n);
     }
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static const tbs_func_entry_t strategy_entries[] = {
+static const toad_func_entry_t strategy_entries[] = {
     /* --- Signal setters ------------------------------------------------- */
     {"buy", fn_buy},
     {"sell", fn_sell},
@@ -278,26 +278,26 @@ static const tbs_func_entry_t strategy_entries[] = {
     {"walk_forward", fn_walk_forward},
 
     /* Graph Algorithms (Network Analysis) */
-    {"bellman_ford", tbs_graph_bellman_ford},
-    {"has_negative_cycle", tbs_graph_has_negative_cycle},
-    {"extract_path", tbs_graph_extract_path},
-    {"detect_arbitrage", tbs_graph_detect_arbitrage},
-    {"nash_game", tbs_nash_game},
-    {"nash_support_enumeration", tbs_nash_support_enumeration},
-    {"nash_vertex_enumeration", tbs_nash_vertex_enumeration},
-    {"nash_lemke_howson", tbs_nash_lemke_howson},
-    {"nash_fictitious_play", tbs_nash_fictitious_play},
-    {"nash_stochastic_fictitious_play", tbs_nash_stochastic_fictitious_play},
-    {"nash_discrete_replicator_dynamics", tbs_nash_discrete_replicator_dynamics},
-    {"nash_imitation_dynamics", tbs_nash_imitation_dynamics},
-    {"nash_regret_minimization", tbs_nash_regret_minimization},
-    {"nash_introspection_dynamics", tbs_nash_introspection_dynamics},
-    {"nash_repeated_game", tbs_nash_repeated_game},
-    {"nash_moran_process", tbs_nash_moran_process},
-    {"nash_replicator_mutation", tbs_nash_replicator_mutation},
-    {"nash_asymmetric_replicator", tbs_nash_asymmetric_replicator},
-    {"nash_asymmetric_replicator_derivative", tbs_nash_asymmetric_replicator_derivative},
-    {"nash_replicator", tbs_nash_replicator},
+    {"bellman_ford", toad_graph_bellman_ford},
+    {"has_negative_cycle", toad_graph_has_negative_cycle},
+    {"extract_path", toad_graph_extract_path},
+    {"detect_arbitrage", toad_graph_detect_arbitrage},
+    {"nash_game", toad_nash_game},
+    {"nash_support_enumeration", toad_nash_support_enumeration},
+    {"nash_vertex_enumeration", toad_nash_vertex_enumeration},
+    {"nash_lemke_howson", toad_nash_lemke_howson},
+    {"nash_fictitious_play", toad_nash_fictitious_play},
+    {"nash_stochastic_fictitious_play", toad_nash_stochastic_fictitious_play},
+    {"nash_discrete_replicator_dynamics", toad_nash_discrete_replicator_dynamics},
+    {"nash_imitation_dynamics", toad_nash_imitation_dynamics},
+    {"nash_regret_minimization", toad_nash_regret_minimization},
+    {"nash_introspection_dynamics", toad_nash_introspection_dynamics},
+    {"nash_repeated_game", toad_nash_repeated_game},
+    {"nash_moran_process", toad_nash_moran_process},
+    {"nash_replicator_mutation", toad_nash_replicator_mutation},
+    {"nash_asymmetric_replicator", toad_nash_asymmetric_replicator},
+    {"nash_asymmetric_replicator_derivative", toad_nash_asymmetric_replicator_derivative},
+    {"nash_replicator", toad_nash_replicator},
 
     /* --- Universe (Real) ------------------------------------------------ */
     {"univ_is_active", fn_universe_is_active},
@@ -315,7 +315,7 @@ static const tbs_func_entry_t strategy_entries[] = {
 
 };
 
-static const tbs_module_t strategy_module = {
+static const toad_module_t strategy_module = {
     "strategy", strategy_entries, sizeof(strategy_entries) / sizeof(strategy_entries[0])};
 
-const tbs_module_t *tbs_module_strategy(void) { return &strategy_module; }
+const toad_module_t *toad_module_strategy(void) { return &strategy_module; }

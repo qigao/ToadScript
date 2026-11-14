@@ -1,15 +1,15 @@
-# TurboScript MIR 后端模块化设计
+# Toad MIR 后端模块化设计
 
 > **注**：此文档为模板，在完成 Phase 1.1 重构后迁移到 `src/mir/README.md`
 
 ## 模块总览
 
-MIR 后端负责将 TurboScript AST 转换为 MIR 中间表示，并支持解释执行或 JIT 编译。
+MIR 后端负责将 Toad AST 转换为 MIR 中间表示，并支持解释执行或 JIT 编译。
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     TurboScript Frontend                     │
-│              (exprtk: lexer/parser/validator)                │
+│                     Toad Frontend                     │
+│              (engine: lexer/parser/validator)                │
 └───────────────────────┬─────────────────────────────────────┘
                         │ AST
                         ↓
@@ -46,7 +46,7 @@ MIR 后端负责将 TurboScript AST 转换为 MIR 中间表示，并支持解释
           ┌─────────────┴─────────────┐
           │                           │
     MIR Interpreter              MIR JIT
-    (turbo_script_run)    (turbo_script_run_jit)
+    (toad_script_run)    (toad_script_run_jit)
 ```
 
 ---
@@ -73,7 +73,7 @@ typedef struct {
   loop_frame_t loop_stack[32];     // break/continue 标签栈
   int loop_depth;                  // 循环嵌套深度
   ts_mir_externals_t ext;          // Runtime helper 导入缓存
-  // ... 其他字段见 turbo_script_mir_internal.h
+  // ... 其他字段见 internal.h
 } ts_mir_compiler_t;
 ```
 
@@ -110,22 +110,22 @@ ts_mir_sync_all_dirty_vars(c);
 **主入口函数**：
 ```c
 // 递归 lower AST 节点，返回结果寄存器
-MIR_reg_t ts_mir_lower_node(ts_mir_compiler_t *c, 
-                            exprtk_node_t *node);
+MIR_reg_t ts_mir_lower_node(ts_mir_compiler_t *c,
+                            toad_node_t *node);
 ```
 
 **Lowering 规则示例**：
 
 | AST 节点类型 | MIR 指令 | 说明 |
 |-------------|---------|------|
-| `exprtk_TOKEN_NUMBER` | `MIR_DMOV` | 直接加载常量 |
-| `exprtk_TOKEN_PLUS` | `MIR_DADD` | 数值相加 |
-| `exprtk_TOKEN_MINUS` | `MIR_DSUB` | 数值相减 |
-| `exprtk_TOKEN_MUL` | `MIR_DMUL` | 数值相乘 |
-| `exprtk_TOKEN_DIV` | `MIR_DDIV` | 数值相除 |
-| `exprtk_TOKEN_LT` | `MIR_DLT` → `MIR_BEQ` | 比较跳转 |
-| `exprtk_TOKEN_IDENTIFIER` | `load_var(ctx, "name")` | 从环境加载 |
-| `exprtk_TOKEN_ASSIGN` | `store_var(ctx, "name", val)` | 存储到环境 |
+| `toad_TOKEN_NUMBER` | `MIR_DMOV` | 直接加载常量 |
+| `toad_TOKEN_PLUS` | `MIR_DADD` | 数值相加 |
+| `toad_TOKEN_MINUS` | `MIR_DSUB` | 数值相减 |
+| `toad_TOKEN_MUL` | `MIR_DMUL` | 数值相乘 |
+| `toad_TOKEN_DIV` | `MIR_DDIV` | 数值相除 |
+| `toad_TOKEN_LT` | `MIR_DLT` → `MIR_BEQ` | 比较跳转 |
+| `toad_TOKEN_IDENTIFIER` | `load_var(ctx, "name")` | 从环境加载 |
+| `toad_TOKEN_ASSIGN` | `store_var(ctx, "name", val)` | 存储到环境 |
 
 **优化判定**：
 ```c
@@ -182,7 +182,7 @@ typedef struct {
 } ts_mir_vec_ptr_entry_t;
 
 // 获取或创建向量指针缓存
-MIR_reg_t ts_mir_get_or_add_vec_ptr(ts_mir_compiler_t *c, 
+MIR_reg_t ts_mir_get_or_add_vec_ptr(ts_mir_compiler_t *c,
                                     const char *vec_name);
 ```
 
@@ -203,7 +203,7 @@ for (i = 0; i < 1000000; i += 1) {
 **实现**：
 ```c
 typedef struct {
-  exprtk_instance_t *instance;  // 对象实例
+  toad_instance_t *instance;  // 对象实例
   size_t index;                 // 字段 slot 索引
 } ts_mir_oop_slot_cache_t;
 
@@ -239,13 +239,13 @@ MIR_reg_t ts_mir_oop_cached_field_get(ts_mir_compiler_t *c,
 MIR_reg_t ts_mir_emit_load_var(ts_mir_compiler_t *c, const char *var_name) {
   MIR_reg_t result = new_temp_reg(c);
   MIR_reg_t name_reg = new_temp_preg(c);
-  
+
   // 加载变量名指针
   MIR_append_insn(c->ctx, c->func,
     MIR_new_insn(c->ctx, MIR_MOV,
       MIR_new_reg_op(c->ctx, name_reg),
       MIR_new_ref_op(c->ctx, var_name)));
-  
+
   // 调用 runtime helper
   MIR_append_insn(c->ctx, c->func,
     MIR_new_call_insn(c->ctx, 4,
@@ -253,7 +253,7 @@ MIR_reg_t ts_mir_emit_load_var(ts_mir_compiler_t *c, const char *var_name) {
       MIR_new_reg_op(c->ctx, result),
       MIR_new_reg_op(c->ctx, c->ctx_reg),
       MIR_new_reg_op(c->ctx, name_reg)));
-  
+
   return result;
 }
 ```
@@ -270,10 +270,10 @@ MIR_reg_t ts_mir_emit_load_var(ts_mir_compiler_t *c, const char *var_name) {
 **闭包分析流程**：
 ```c
 ts_closure_analysis_t *ts_analyze_closure(
-  exprtk_node_t *func_body,
-  exprtk_node_t **arg_params,
+  toad_node_t *func_body,
+  toad_node_t **arg_params,
   size_t arg_count,
-  exprtk_env_t *closure_env
+  toad_env_t *closure_env
 );
 
 // 结果：
@@ -296,7 +296,7 @@ bool can_precompile_closure(ts_closure_analysis_t *analysis) {
 ```c
 if (can_precompile_closure(analysis)) {
   // 生成独立 MIR 函数，捕获变量作为额外参数
-  MIR_item_t closure_func = 
+  MIR_item_t closure_func =
     ts_mir_compile_closure_function(c, func_body, analysis);
 } else {
   // 回退到 runtime hook
@@ -327,10 +327,10 @@ struct {
 
 **查找流程**：
 ```c
-void *ts_mir_cache_lookup(turbo_script_ctx_t *ctx, const char *script) {
+void *ts_mir_cache_lookup(toad_script_ctx_t *ctx, const char *script) {
   uint64_t hash = ts_compute_hash(script);
   int slot = hash % TS_JIT_CACHE_SIZE;
-  
+
   if (ctx->jit_cache[slot].hash == hash) {
     // 验证脚本内容（防碰撞）
     if (strcmp(ctx->jit_cache[slot].script, script) == 0) {
@@ -341,7 +341,7 @@ void *ts_mir_cache_lookup(turbo_script_ctx_t *ctx, const char *script) {
       ctx->jit_stats.hash_collision_count++;
     }
   }
-  
+
   ctx->jit_stats.cache_miss_count++;
   return NULL;
 }
@@ -350,17 +350,17 @@ void *ts_mir_cache_lookup(turbo_script_ctx_t *ctx, const char *script) {
 **淘汰策略**：
 ```c
 // 找到最小访问计数的槽位（LRU）
-int ts_mir_cache_find_victim_slot(turbo_script_ctx_t *ctx) {
+int ts_mir_cache_find_victim_slot(toad_script_ctx_t *ctx) {
   int min_slot = 0;
   uint32_t min_count = UINT32_MAX;
-  
+
   for (int i = 0; i < TS_JIT_CACHE_SIZE; i++) {
     if (ctx->jit_cache[i].access_count < min_count) {
       min_count = ctx->jit_cache[i].access_count;
       min_slot = i;
     }
   }
-  
+
   return min_slot;
 }
 ```
@@ -371,7 +371,7 @@ int ts_mir_cache_find_victim_slot(turbo_script_ctx_t *ctx) {
 
 ### 完整编译流程
 ```c
-int turbo_script_compile_mir_jit(turbo_script_ctx_t *ctx, 
+int toad_script_compile_mir_jit(toad_script_ctx_t *ctx,
                                  const char *script) {
   // 1. 检查 JIT 缓存
   void *cached_fn = ts_mir_cache_lookup(ctx, script);
@@ -379,38 +379,38 @@ int turbo_script_compile_mir_jit(turbo_script_ctx_t *ctx,
     ctx->mir_last_fn = cached_fn;
     return 0;
   }
-  
+
   // 2. 解析 AST
-  exprtk_node_t *ast = turbo_script_parse_with_error(ctx, script);
+  toad_node_t *ast = toad_script_parse_with_error(ctx, script);
   if (!ast) return -1;
-  
+
   // 3. 初始化编译器
   ts_mir_compiler_t compiler;
   ts_mir_compiler_init(&compiler, ctx, ast);
-  
+
   // 4. AST Lowering
   MIR_reg_t result_reg = ts_mir_lower_node(&compiler, ast);
-  
+
   // 5. 优化路径应用
   ts_mir_apply_optimizations(&compiler);
-  
+
   // 6. 生成 MIR 模块
   MIR_finish_func(&compiler.ctx);
   MIR_finish_module(&compiler.ctx);
-  
+
   // 7. 加载并链接
   MIR_load_module(compiler.ctx, compiler.module);
   MIR_link(compiler.ctx, MIR_set_gen_interface, NULL);
-  
+
   // 8. JIT 编译为原生代码
   MIR_gen_init(compiler.ctx, 1);
   void *fn_ptr = MIR_gen(compiler.ctx, 0, compiler.func);
   MIR_gen_finish(compiler.ctx);
-  
+
   // 9. 存入缓存
   ts_mir_cache_insert(ctx, script, fn_ptr);
   ctx->mir_last_fn = fn_ptr;
-  
+
   ts_mir_compiler_free(&compiler);
   return 0;
 }
@@ -434,11 +434,11 @@ export TS_JIT_STATS=1
 
 ### 查看 JIT 统计
 ```c
-turbo_script_enable_jit_stats(ctx, 1);
+toad_script_enable_jit_stats(ctx, 1);
 
 // ... 执行脚本 ...
 
-turbo_script_print_jit_stats(ctx, stderr);
+toad_script_print_jit_stats(ctx, stderr);
 // 输出：
 // JIT Statistics:
 //   Compile count: 10
@@ -468,13 +468,13 @@ gdb --args ./your_program
 
 ```bash
 # 快速基准测试（~10秒）
-./bench_turbo_script_mir --quick
+./bench_script_mir --quick
 
 # 完整基准测试（~5分钟）
-./bench_turbo_script_mir --full
+./bench_script_mir --full
 
 # 单项测试
-./bench_turbo_script_mir --test numeric_loop
+./bench_script_mir --test numeric_loop
 ```
 
 ---
@@ -497,12 +497,12 @@ TS_JIT_STATS=1 ./your_program
 A: 优化脚本结构：
 1. **数值密集代码**：使用 `number` 类型，避免类型混合
 2. **避免嵌套闭包**：改用类或数据结构
-3. **预绑定向量**：使用 `ts_bind_vec()` 绑定 double[] 数组
+3. **预绑定向量**：使用 `toad_script_bind_vec()` 绑定 double[] 数组
 4. **缓存对象字段**：重复访问的字段会触发 slot cache
 
 ### Q: JIT 缓存何时失效？
 A: 以下情况会触发缓存清空：
-- 上下文销毁（`turbo_script_free()`）
+- 上下文销毁（`toad_script_free()`）
 - 手动清空（暂未提供 API）
 - 缓存已满触发 LRU 淘汰
 
@@ -510,7 +510,7 @@ A: 以下情况会触发缓存清空：
 
 ## 参考资料
 
-- [TurboScript Architecture](../../docs/ARCHITECTURE.md)
+- [Toad Architecture](../../docs/ARCHITECTURE.md)
 - [JIT Compilation Guide](../../docs/jit-guide.md)
 - [MIR Official Documentation](https://github.com/vnmakarov/mir)
 - [Closure Performance Guide](../../docs/CLOSURE_GUIDE.md)（Phase 2.1 交付）
@@ -522,8 +522,8 @@ A: 以下情况会触发缓存清空：
 ### 添加新优化路径
 1. 在 `mir_optimize.c` 实现识别逻辑
 2. 生成优化后的 MIR 指令
-3. 在 `test/test_turbo_script_mir.c` 添加测试
-4. 在 `bench_turbo_script_mir.c` 添加性能基准
+3. 在 `test/test_script_mir.c` 添加测试
+4. 在 `bench_script_mir.c` 添加性能基准
 
 ### 添加新 Runtime Helper
 1. 在 `mir_runtime.c` 定义 C 函数

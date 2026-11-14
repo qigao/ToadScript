@@ -1,10 +1,10 @@
 /**
  * @file mod_http.c
- * @brief HTTP and WebSocket module: http.* and ws.* for TurboScript.
+ * @brief HTTP and WebSocket module: http.* and ws.* for Toad.
  */
 #include "net_ctx.h"
-#include <turboscript/script.h>
-#include <turboscript/module.h>
+#include <toad/script.h>
+#include <toad/module.h>
 #include <json_parser.h>
 #include <core/tstr.h>
 #include <ctype.h>
@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define NET_ONE ((tbs_value_t){TBS_VAL_NUMBER, .data.number = 1.0})
+#define NET_ONE ((toad_value_t){TOAD_VAL_NUMBER, .data.number = 1.0})
 
 /* == Lifecycle ============================================================ */
 
@@ -116,16 +116,16 @@ void net_ctx_destroy(void *p) {
 
 /* == Helpers ============================================================== */
 
-static tbs_value_t net_null_value(void) {
-  tbs_value_t value;
+static toad_value_t net_null_value(void) {
+  toad_value_t value;
   memset(&value, 0, sizeof(value));
-  value.type = TBS_VAL_NULL;
+  value.type = TOAD_VAL_NULL;
   return value;
 }
 
-static tbs_value_t net_make_string_value(tbs_env_t *env, const char *data, size_t len) {
-  tbs_value_t value;
-  tbs_value_t borrowed = tbs_val_str(vstr_from_buf(data ? data : "", len));
+static toad_value_t net_make_string_value(toad_env_t *env, const char *data, size_t len) {
+  toad_value_t value;
+  toad_value_t borrowed = toad_val_str(vstr_from_buf(data ? data : "", len));
   if (!env || (!data && len != 0)) return NET_ZERO;
   if (len > env->max_external_value_bytes) {
     env->aborted = 1;
@@ -134,12 +134,12 @@ static tbs_value_t net_make_string_value(tbs_env_t *env, const char *data, size_
              env->max_external_value_bytes);
     return NET_ZERO;
   }
-  if (tbs_value_copy_to_env(borrowed, env, &value) != 0)
+  if (toad_value_copy_to_env(borrowed, env, &value) != 0)
     return NET_ZERO;
   return value;
 }
 
-static tbs_value_t copy_response_body(const chttp_response *resp, tbs_env_t *env) {
+static toad_value_t copy_response_body(const chttp_response *resp, toad_env_t *env) {
   if (resp && resp->status_code >= 200 && resp->status_code < 300 && resp->body) {
     return net_make_string_value(env, (const char *)resp->body, resp->body_size);
   }
@@ -240,17 +240,17 @@ static char *net_trim_ascii(char *text) {
   return text;
 }
 
-static int net_truthy_value(const tbs_value_t *value, int *out) {
+static int net_truthy_value(const toad_value_t *value, int *out) {
   if (!value || !out) return 0;
 
   switch (value->type) {
-    case TBS_VAL_NUMBER:
+    case TOAD_VAL_NUMBER:
       *out = value->data.number != 0.0;
       return 1;
-    case TBS_VAL_INTEGER:
+    case TOAD_VAL_INTEGER:
       *out = value->data.integer != 0;
       return 1;
-    case TBS_VAL_STRING: {
+    case TOAD_VAL_STRING: {
       const char *text = value->data.string.data;
       size_t len = value->data.string.len;
       if (len == 4 && tstr_ncasecmp(text, "true", len) == 0) {
@@ -276,7 +276,7 @@ static int net_truthy_value(const tbs_value_t *value, int *out) {
   }
 }
 
-static tbs_value_t net_json_to_tbs_value(http_ud_t *ud, const json_value_t *value) {
+static toad_value_t net_json_to_toad_value(http_ud_t *ud, const json_value_t *value) {
   size_t i;
 
   if (!value) return net_null_value();
@@ -285,29 +285,29 @@ static tbs_value_t net_json_to_tbs_value(http_ud_t *ud, const json_value_t *valu
     case JSON_NULL:
       return net_null_value();
     case JSON_BOOL:
-      return tbs_val_num(json_bool(value) ? 1.0 : 0.0);
+      return toad_val_num(json_bool(value) ? 1.0 : 0.0);
     case JSON_NUMBER:
-      return tbs_val_num(json_number(value));
+      return toad_val_num(json_number(value));
     case JSON_STRING:
       return net_make_string_value(ud->env, json_string(value), json_string_len(value));
     case JSON_ARRAY: {
-      tbs_value_t list = tbs_val_list_empty();
+      toad_value_t list = toad_val_list_empty();
       size_t count = json_array_size(value);
       for (i = 0; i < count; i++) {
-        tbs_value_t item = net_json_to_tbs_value(ud, json_array_get(value, i));
-        (void)tbs_list_push(&list, item);
-        tbs_value_destroy(&item);
+        toad_value_t item = net_json_to_toad_value(ud, json_array_get(value, i));
+        (void)toad_list_push(&list, item);
+        toad_value_destroy(&item);
       }
       return list;
     }
     case JSON_OBJECT: {
-      tbs_value_t map = tbs_val_map();
+      toad_value_t map = toad_val_map();
       size_t count = json_object_size(value);
       for (i = 0; i < count; i++) {
         const char *key = json_object_key(value, i);
-        tbs_value_t item = net_json_to_tbs_value(ud, json_object_value(value, i));
-        tbs_map_set(&map, key ? key : "", item);
-        tbs_value_destroy(&item);
+        toad_value_t item = net_json_to_toad_value(ud, json_object_value(value, i));
+        toad_map_set(&map, key ? key : "", item);
+        toad_value_destroy(&item);
       }
       return map;
     }
@@ -316,18 +316,18 @@ static tbs_value_t net_json_to_tbs_value(http_ud_t *ud, const json_value_t *valu
   }
 }
 
-static tbs_value_t net_response_headers_map(http_ud_t *ud, const chttp_response *resp) {
-  tbs_value_t headers = tbs_val_map();
+static toad_value_t net_response_headers_map(http_ud_t *ud, const chttp_response *resp) {
+  toad_value_t headers = toad_val_map();
   size_t i;
 
   if (!resp || !resp->headers || resp->header_count == 0u) return headers;
   for (i = 0; i < resp->header_count; ++i) {
     const chttp_header *header = &resp->headers[i];
-    tbs_value_t header_value;
+    toad_value_t header_value;
     if (!header->name || !header->value) continue;
     header_value = net_make_string_value(ud->env, header->value, strlen(header->value));
-    tbs_map_set(&headers, header->name, header_value);
-    tbs_value_destroy(&header_value);
+    toad_map_set(&headers, header->name, header_value);
+    toad_value_destroy(&header_value);
   }
   return headers;
 }
@@ -339,8 +339,8 @@ static int net_response_is_json(const chttp_response *resp) {
   return content_type && strstr(content_type, "json") != NULL;
 }
 
-static tbs_value_t net_response_data_value(http_ud_t *ud, const chttp_response *resp) {
-  tbs_value_t value = net_null_value();
+static toad_value_t net_response_data_value(http_ud_t *ud, const chttp_response *resp) {
+  toad_value_t value = net_null_value();
   json_value_t *json = NULL;
 
   if (!resp || !resp->body || !net_response_is_json(resp)) return value;
@@ -349,76 +349,76 @@ static tbs_value_t net_response_data_value(http_ud_t *ud, const chttp_response *
   if (!json)
     return value;
 
-  value = net_json_to_tbs_value(ud, json);
+  value = net_json_to_toad_value(ud, json);
   json_free(json);
   return value;
 }
 
-static tbs_value_t net_error_response_value(http_ud_t *ud, const char *error) {
-  tbs_value_t result = tbs_val_map();
-  tbs_value_t text;
-  tbs_value_t headers;
+static toad_value_t net_error_response_value(http_ud_t *ud, const char *error) {
+  toad_value_t result = toad_val_map();
+  toad_value_t text;
+  toad_value_t headers;
 
-  tbs_map_set(&result, "status", tbs_val_num(0.0));
+  toad_map_set(&result, "status", toad_val_num(0.0));
   text = net_make_string_value(ud->env, "", 0);
-  tbs_map_set(&result, "body", text);
-  tbs_value_destroy(&text);
-  headers = tbs_val_map();
-  tbs_map_set(&result, "headers", headers);
-  tbs_value_destroy(&headers);
-  tbs_map_set(&result, "data", net_null_value());
+  toad_map_set(&result, "body", text);
+  toad_value_destroy(&text);
+  headers = toad_val_map();
+  toad_map_set(&result, "headers", headers);
+  toad_value_destroy(&headers);
+  toad_map_set(&result, "data", net_null_value());
   if (error && error[0]) {
     text = net_make_string_value(ud->env, error, strlen(error));
-    tbs_map_set(&result, "error", text);
-    tbs_value_destroy(&text);
+    toad_map_set(&result, "error", text);
+    toad_value_destroy(&text);
   } else {
-    tbs_map_set(&result, "error", net_null_value());
+    toad_map_set(&result, "error", net_null_value());
   }
 
   return result;
 }
 
-static tbs_value_t net_response_value(http_ud_t *ud, const chttp_response *resp) {
-  tbs_value_t result = tbs_val_map();
-  tbs_value_t body;
-  tbs_value_t error;
-  tbs_value_t headers;
-  tbs_value_t data;
+static toad_value_t net_response_value(http_ud_t *ud, const chttp_response *resp) {
+  toad_value_t result = toad_val_map();
+  toad_value_t body;
+  toad_value_t error;
+  toad_value_t headers;
+  toad_value_t data;
 
-  tbs_map_set(&result, "status", tbs_val_num(resp ? (double)resp->status_code : 0.0));
+  toad_map_set(&result, "status", toad_val_num(resp ? (double)resp->status_code : 0.0));
   body = net_make_string_value(ud->env, resp && resp->body ? (const char *)resp->body : "",
                                resp && resp->body ? resp->body_size : 0u);
-  tbs_map_set(&result, "body", body);
-  tbs_value_destroy(&body);
+  toad_map_set(&result, "body", body);
+  toad_value_destroy(&body);
   headers = net_response_headers_map(ud, resp);
-  tbs_map_set(&result, "headers", headers);
-  tbs_value_destroy(&headers);
+  toad_map_set(&result, "headers", headers);
+  toad_value_destroy(&headers);
   data = net_response_data_value(ud, resp);
-  tbs_map_set(&result, "data", data);
-  tbs_value_destroy(&data);
+  toad_map_set(&result, "data", data);
+  toad_value_destroy(&data);
   (void)error;
-  tbs_map_set(&result, "error", net_null_value());
+  toad_map_set(&result, "error", net_null_value());
 
   return result;
 }
 
 /* == Script functions: HTTP ============================================== */
 
-static int net_build_request_headers(http_ud_t *ud, const tbs_value_t *headers_map,
+static int net_build_request_headers(http_ud_t *ud, const toad_value_t *headers_map,
                                      chttp_header **items_out, size_t *count_out) {
-  tbs_map_iter_t it;
+  toad_map_iter_t it;
   const char *key = NULL;
-  tbs_value_t value;
+  toad_value_t value;
   chttp_header *items;
   size_t count = 0;
   size_t idx = 0;
 
   *items_out = NULL;
   *count_out = 0;
-  if (!headers_map || headers_map->type != TBS_VAL_MAP) return 1;
+  if (!headers_map || headers_map->type != TOAD_VAL_MAP) return 1;
 
-  it = tbs_map_iter_begin(headers_map);
-  while (tbs_map_iter_next(&it, &key, &value)) {
+  it = toad_map_iter_begin(headers_map);
+  while (toad_map_iter_next(&it, &key, &value)) {
     count++;
   }
   if (count == 0) return 1;
@@ -426,10 +426,10 @@ static int net_build_request_headers(http_ud_t *ud, const tbs_value_t *headers_m
   items = mem_alloc(ud->scratch, count * sizeof(*items));
   if (!items) return 0;
 
-  it = tbs_map_iter_begin(headers_map);
-  while (tbs_map_iter_next(&it, &key, &value)) {
+  it = toad_map_iter_begin(headers_map);
+  while (toad_map_iter_next(&it, &key, &value)) {
     char *item_value;
-    if (!key || value.type != TBS_VAL_STRING || key[0] == '\0') return 0;
+    if (!key || value.type != TOAD_VAL_STRING || key[0] == '\0') return 0;
     item_value = net_arena_cstr(ud->scratch, value.data.string);
     if (!item_value) return 0;
     items[idx++] = (chttp_header){.name = key, .value = item_value};
@@ -452,13 +452,13 @@ typedef struct net_http_request_config_s {
 
 #define NET_MAX_EXACT_INTEGER 9007199254740991.0
 
-static int net_positive_i64_value(const tbs_value_t *value, int64_t *out) {
+static int net_positive_i64_value(const toad_value_t *value, int64_t *out) {
   if (!value || !out) return 0;
-  if (value->type == TBS_VAL_INTEGER && value->data.integer > 0) {
+  if (value->type == TOAD_VAL_INTEGER && value->data.integer > 0) {
     *out = value->data.integer;
     return 1;
   }
-  if (value->type == TBS_VAL_NUMBER && isfinite(value->data.number) &&
+  if (value->type == TOAD_VAL_NUMBER && isfinite(value->data.number) &&
       value->data.number >= 1.0 && value->data.number <= NET_MAX_EXACT_INTEGER &&
       floor(value->data.number) == value->data.number) {
     *out = (int64_t)value->data.number;
@@ -467,11 +467,11 @@ static int net_positive_i64_value(const tbs_value_t *value, int64_t *out) {
   return 0;
 }
 
-static int net_http_transport_value(const tbs_value_t *value, chttp_protocol *out) {
+static int net_http_transport_value(const toad_value_t *value, chttp_protocol *out) {
   const char *text;
   size_t len;
 
-  if (!value || !out || value->type != TBS_VAL_STRING) return 0;
+  if (!value || !out || value->type != TOAD_VAL_STRING) return 0;
   text = value->data.string.data;
   len = value->data.string.len;
   if (len == 2 && tstr_ncasecmp(text, "h1", len) == 0) {
@@ -485,58 +485,58 @@ static int net_http_transport_value(const tbs_value_t *value, chttp_protocol *ou
   return 0;
 }
 
-static int net_parse_request_options(http_ud_t *ud, const tbs_value_t *options,
+static int net_parse_request_options(http_ud_t *ud, const toad_value_t *options,
                                      net_http_request_config_t *config) {
-  tbs_value_t value;
+  toad_value_t value;
   int bool_value;
 
   if (!ud || !config) return 0;
   memset(config, 0, sizeof(*config));
   config->protocol = CHTTP_HTTP_1_1;
   if (!options) return 1;
-  if (options->type != TBS_VAL_MAP) return 0;
+  if (options->type != TOAD_VAL_MAP) return 0;
 
-  if (tbs_map_has(options, "timeout")) {
-    value = tbs_map_get(options, "timeout");
+  if (toad_map_has(options, "timeout")) {
+    value = toad_map_get(options, "timeout");
     int64_t timeout_ms;
     if (!net_positive_i64_value(&value, &timeout_ms) || timeout_ms > UINT32_MAX) return 0;
     config->timeout_ms = (uint32_t)timeout_ms;
   }
 
-  if (tbs_map_has(options, "follow_redirects")) {
-    value = tbs_map_get(options, "follow_redirects");
+  if (toad_map_has(options, "follow_redirects")) {
+    value = toad_map_get(options, "follow_redirects");
     if (!net_truthy_value(&value, &bool_value) || bool_value) return 0;
   }
 
-  if (tbs_map_has(options, "transport")) {
-    value = tbs_map_get(options, "transport");
+  if (toad_map_has(options, "transport")) {
+    value = toad_map_get(options, "transport");
     if (!net_http_transport_value(&value, &config->protocol)) return 0;
   }
 
-  if (tbs_map_has(options, "headers")) {
-    value = tbs_map_get(options, "headers");
-    if (value.type == TBS_VAL_MAP &&
+  if (toad_map_has(options, "headers")) {
+    value = toad_map_get(options, "headers");
+    if (value.type == TOAD_VAL_MAP &&
         !net_build_request_headers(ud, &value, &config->headers,
                                    &config->header_count)) {
       return 0;
     }
   }
 
-  if (tbs_map_has(options, "basic_auth")) {
-    value = tbs_map_get(options, "basic_auth");
-    if (value.type == TBS_VAL_MAP) {
-      tbs_value_t user = tbs_map_get(&value, "user");
-      tbs_value_t pass = tbs_map_get(&value, "pass");
-      if (user.type != TBS_VAL_STRING || pass.type != TBS_VAL_STRING) return 0;
+  if (toad_map_has(options, "basic_auth")) {
+    value = toad_map_get(options, "basic_auth");
+    if (value.type == TOAD_VAL_MAP) {
+      toad_value_t user = toad_map_get(&value, "user");
+      toad_value_t pass = toad_map_get(&value, "pass");
+      if (user.type != TOAD_VAL_STRING || pass.type != TOAD_VAL_STRING) return 0;
       config->basic_user = net_arena_cstr(ud->scratch, user.data.string);
       config->basic_pass = net_arena_cstr(ud->scratch, pass.data.string);
       if (!config->basic_user || !config->basic_pass) return 0;
     } else return 0;
   }
 
-  if (tbs_map_has(options, "bearer_token")) {
-    value = tbs_map_get(options, "bearer_token");
-    if (value.type != TBS_VAL_STRING) return 0;
+  if (toad_map_has(options, "bearer_token")) {
+    value = toad_map_get(options, "bearer_token");
+    if (value.type != TOAD_VAL_STRING) return 0;
     config->bearer_token = net_arena_cstr(ud->scratch, value.data.string);
     if (!config->bearer_token) return 0;
   }
@@ -701,9 +701,9 @@ static int net_http_call(chttp_client *client, chttp_method method, const chttp_
   }
 }
 
-static tbs_value_t net_http_request(http_ud_t *ud, chttp_method method, vstr url_sv,
-                                       const vstr *body_sv, const tbs_value_t *options,
-                                       int structured_response, tbs_env_t *env) {
+static toad_value_t net_http_request(http_ud_t *ud, chttp_method method, vstr url_sv,
+                                       const vstr *body_sv, const toad_value_t *options,
+                                       int structured_response, toad_env_t *env) {
   chttp_client *client;
   chttp_response response = {0};
   chttp_error error = {0};
@@ -713,7 +713,7 @@ static tbs_value_t net_http_request(http_ud_t *ud, chttp_method method, vstr url
   char *url;
   const char *body = NULL;
   size_t body_len = 0;
-  tbs_value_t ret = NET_ZERO;
+  toad_value_t ret = NET_ZERO;
   http_ud_t call_ud;
   int status;
 
@@ -769,28 +769,28 @@ static tbs_value_t net_http_request(http_ud_t *ud, chttp_method method, vstr url
   return ret;
 }
 
-static tbs_value_t fn_http_get(size_t argc, tbs_value_t *args, tbs_env_t *env, void *user_data) {
+static toad_value_t fn_http_get(size_t argc, toad_value_t *args, toad_env_t *env, void *user_data) {
   http_ud_t *ud = (http_ud_t *)user_data;
 
-  if (argc == 1 && args[0].type == TBS_VAL_STRING) {
+  if (argc == 1 && args[0].type == TOAD_VAL_STRING) {
     return net_http_request(ud, CHTTP_METHOD_GET, args[0].data.string, NULL, NULL, 0, env);
   }
-  if (argc == 2 && args[0].type == TBS_VAL_STRING && args[1].type == TBS_VAL_MAP) {
+  if (argc == 2 && args[0].type == TOAD_VAL_STRING && args[1].type == TOAD_VAL_MAP) {
     return net_http_request(ud, CHTTP_METHOD_GET, args[0].data.string, NULL, &args[1], 1, env);
   }
 
   return NET_ZERO;
 }
 
-static tbs_value_t fn_http_post(size_t argc, tbs_value_t *args, tbs_env_t *env, void *user_data) {
+static toad_value_t fn_http_post(size_t argc, toad_value_t *args, toad_env_t *env, void *user_data) {
   http_ud_t *ud = (http_ud_t *)user_data;
 
-  if (argc == 2 && args[0].type == TBS_VAL_STRING && args[1].type == TBS_VAL_STRING) {
+  if (argc == 2 && args[0].type == TOAD_VAL_STRING && args[1].type == TOAD_VAL_STRING) {
     return net_http_request(ud, CHTTP_METHOD_POST, args[0].data.string, &args[1].data.string, NULL, 0,
                             env);
   }
-  if (argc == 3 && args[0].type == TBS_VAL_STRING && args[1].type == TBS_VAL_STRING &&
-      args[2].type == TBS_VAL_MAP) {
+  if (argc == 3 && args[0].type == TOAD_VAL_STRING && args[1].type == TOAD_VAL_STRING &&
+      args[2].type == TOAD_VAL_MAP) {
     return net_http_request(ud, CHTTP_METHOD_POST, args[0].data.string, &args[1].data.string, &args[2], 1,
                             env);
   }
@@ -804,7 +804,7 @@ static const void *net_ws_owner(void) {
   return NULL;
 }
 
-static tbs_value_t fn_ws_connect(size_t argc, tbs_value_t *args, tbs_env_t *env,
+static toad_value_t fn_ws_connect(size_t argc, toad_value_t *args, toad_env_t *env,
                                     void *user_data) {
   http_ud_t *ud = (http_ud_t *)user_data;
   const void *owner;
@@ -815,8 +815,8 @@ static tbs_value_t fn_ws_connect(size_t argc, tbs_value_t *args, tbs_env_t *env,
   int status;
   (void)env;
 
-  if (!ud || !ud->ctx || argc < 1u || argc > 2u || args[0].type != TBS_VAL_STRING ||
-      (argc == 2u && args[1].type != TBS_VAL_STRING))
+  if (!ud || !ud->ctx || argc < 1u || argc > 2u || args[0].type != TOAD_VAL_STRING ||
+      (argc == 2u && args[1].type != TOAD_VAL_STRING))
     return NET_ZERO;
   if (argc == 2u) {
     net_set_error(ud->ctx, "CHTTP subprotocol selection is unavailable in this Salts package");
@@ -845,13 +845,13 @@ static tbs_value_t fn_ws_connect(size_t argc, tbs_value_t *args, tbs_env_t *env,
   return NET_ONE;
 }
 
-static tbs_value_t fn_ws_send(size_t argc, tbs_value_t *args, tbs_env_t *env,
+static toad_value_t fn_ws_send(size_t argc, toad_value_t *args, toad_env_t *env,
                                  void *user_data) {
   http_ud_t *ud = (http_ud_t *)user_data;
   chttp_websocket_client *client;
   int status;
   (void)env;
-  if (!ud || !ud->ctx || argc != 1u || args[0].type != TBS_VAL_STRING) return NET_ZERO;
+  if (!ud || !ud->ctx || argc != 1u || args[0].type != TOAD_VAL_STRING) return NET_ZERO;
   client = net_ctx_current_ws_client(ud->ctx, net_ws_owner());
   if (!client) {
     net_set_error(ud->ctx, "ws client not connected");
@@ -867,27 +867,27 @@ static tbs_value_t fn_ws_send(size_t argc, tbs_value_t *args, tbs_env_t *env,
   return NET_ONE;
 }
 
-static void net_ws_release_callback_env(tbs_env_t *callback_env) {
-  if (callback_env) tbs_env_release(callback_env);
+static void net_ws_release_callback_env(toad_env_t *callback_env) {
+  if (callback_env) toad_env_release(callback_env);
 }
 
-static tbs_value_t fn_ws_consume(size_t argc, tbs_value_t *args, tbs_env_t *env,
+static toad_value_t fn_ws_consume(size_t argc, toad_value_t *args, toad_env_t *env,
                                     void *user_data) {
   http_ud_t *ud = (http_ud_t *)user_data;
   chttp_websocket_client *client;
   chttp_websocket_event event = {0};
-  tbs_env_t *callback_env;
-  tbs_value_t message;
-  tbs_value_t result;
+  toad_env_t *callback_env;
+  toad_value_t message;
+  toad_value_t result;
   int64_t timeout_ms;
   int status;
 
   if (!ud || !ud->ctx || !env || argc != 2u ||
-      args[1].type != TBS_VAL_FUNCTION || !net_positive_i64_value(&args[0], &timeout_ms) ||
+      args[1].type != TOAD_VAL_FUNCTION || !net_positive_i64_value(&args[0], &timeout_ms) ||
       timeout_ms > UINT32_MAX)
     return NET_ZERO;
   callback_env = args[1].data.function.closure_env;
-  if (callback_env) tbs_env_retain(callback_env);
+  if (callback_env) toad_env_retain(callback_env);
   client = net_ctx_current_ws_client(ud->ctx, net_ws_owner());
   if (!client) {
     net_set_error(ud->ctx, "ws client not connected");
@@ -909,14 +909,14 @@ static tbs_value_t fn_ws_consume(size_t argc, tbs_value_t *args, tbs_env_t *env,
     net_ws_release_callback_env(callback_env);
     return NET_ZERO;
   }
-  message = tbs_val_str(vstr_from_buf((const char *)event.data, event.size));
-  result = tbs_call_function_value(args[1], 1u, &message, env);
+  message = toad_val_str(vstr_from_buf((const char *)event.data, event.size));
+  result = toad_call_function_value(args[1], 1u, &message, env);
   net_ws_release_callback_env(callback_env);
   net_set_error(ud->ctx, "");
   return result;
 }
 
-static tbs_value_t fn_ws_close(size_t argc, tbs_value_t *args, tbs_env_t *env,
+static toad_value_t fn_ws_close(size_t argc, toad_value_t *args, toad_env_t *env,
                                   void *user_data) {
   http_ud_t *ud = (http_ud_t *)user_data;
   const void *owner;
@@ -938,7 +938,7 @@ static tbs_value_t fn_ws_close(size_t argc, tbs_value_t *args, tbs_env_t *env,
 
 void net_load(void *p, void *e, void *s) {
   net_ctx_t *ctx = (net_ctx_t *)p;
-  tbs_env_t *env = (tbs_env_t *)e;
+  toad_env_t *env = (toad_env_t *)e;
   mem_pool_t *scratch = (mem_pool_t *)s;
   http_ud_t *ud;
 
@@ -951,10 +951,10 @@ void net_load(void *p, void *e, void *s) {
   ud->env = env;
   ud->scratch = scratch;
 
-  tbs_env_register_func(env, "http.get", fn_http_get, ud);
-  tbs_env_register_func(env, "http.post", fn_http_post, ud);
-  tbs_env_register_func(env, "ws.connect", fn_ws_connect, ud);
-  tbs_env_register_func(env, "ws.send", fn_ws_send, ud);
-  tbs_env_register_func(env, "ws.consume", fn_ws_consume, ud);
-  tbs_env_register_func(env, "ws.close", fn_ws_close, ud);
+  toad_env_register_func(env, "http.get", fn_http_get, ud);
+  toad_env_register_func(env, "http.post", fn_http_post, ud);
+  toad_env_register_func(env, "ws.connect", fn_ws_connect, ud);
+  toad_env_register_func(env, "ws.send", fn_ws_send, ud);
+  toad_env_register_func(env, "ws.consume", fn_ws_consume, ud);
+  toad_env_register_func(env, "ws.close", fn_ws_close, ud);
 }

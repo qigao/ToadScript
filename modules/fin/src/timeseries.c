@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <memory/buffer.h>
-#include <turboscript/simd.h>
+#include <toad/simd.h>
 
 /* Standard memory management via MEM_ALLOC_ARRAY from cmeta_buffer.h is used. */
 
@@ -56,7 +56,7 @@ static double dtw_dist(const double *a, const double *b, size_t m, double *cost_
 #undef COST
 }
 
-size_t tbs_ts_diff(const double *data, size_t n, size_t order, double *out, mem_pool_t *arena) {
+size_t toad_ts_diff(const double *data, size_t n, size_t order, double *out, mem_pool_t *arena) {
     if (n <= order) return 0;
     double *tmp = MEM_ALLOC_ARRAY(arena, double, n); memcpy(tmp, data, n * sizeof(double));
     for (size_t o = 0; o < order; ++o) {
@@ -66,7 +66,7 @@ size_t tbs_ts_diff(const double *data, size_t n, size_t order, double *out, mem_
     return n - order;
 }
 
-size_t tbs_ts_autocorr(const double *data, size_t n, size_t max_lag, double *out) {
+size_t toad_ts_autocorr(const double *data, size_t n, size_t max_lag, double *out) {
     if (n < 2 || max_lag >= n) return 0;
     double mean, var;
     simd_mean_variance(data, n, &mean, &var);
@@ -81,11 +81,11 @@ size_t tbs_ts_autocorr(const double *data, size_t n, size_t max_lag, double *out
     return max_lag + 1;
 }
 
-size_t tbs_ts_pacf(const double *data, size_t n, size_t max_lag, double *out, mem_pool_t *arena) {
+size_t toad_ts_pacf(const double *data, size_t n, size_t max_lag, double *out, mem_pool_t *arena) {
     if (n < 2 || max_lag >= n) return 0;
     double *rho = MEM_ALLOC_ARRAY(arena, double, max_lag + 1);
 
-    tbs_ts_autocorr(data, n, max_lag, rho);
+    toad_ts_autocorr(data, n, max_lag, rho);
     out[0] = 1.0; if (max_lag == 0) { return 1; }
     out[1] = rho[1];
     double *phi = MEM_ALLOC_ARRAY(arena, double, (max_lag + 1) * (max_lag + 1));
@@ -104,7 +104,7 @@ size_t tbs_ts_pacf(const double *data, size_t n, size_t max_lag, double *out, me
     return max_lag + 1;
 }
 
-int tbs_ts_adf(const double *data, size_t n, size_t p, double *out, mem_pool_t *arena) {
+int toad_ts_adf(const double *data, size_t n, size_t p, double *out, mem_pool_t *arena) {
     if (!data || !out || !arena || n <= 2 || p >= n - 2) return 0;
     size_t m = n - 1 - p;
     double *dy = MEM_ALLOC_ARRAY(arena, double, m);
@@ -119,7 +119,7 @@ int tbs_ts_adf(const double *data, size_t n, size_t p, double *out, mem_pool_t *
     return 2;
 }
 
-size_t tbs_ts_garch(const double *returns, size_t n, double alpha, double beta, double *out) {
+size_t toad_ts_garch(const double *returns, size_t n, double alpha, double beta, double *out) {
     if (n == 0) return 0;
     double var = 0; for (size_t i = 0; i < n; ++i) var += returns[i] * returns[i];
     var /= (double)n; double omega = var * (1.0 - alpha - beta);
@@ -129,7 +129,7 @@ size_t tbs_ts_garch(const double *returns, size_t n, double alpha, double beta, 
     return n;
 }
 
-double tbs_ts_hurst(const double *data, size_t n, double *out, mem_pool_t *arena) {
+double toad_ts_hurst(const double *data, size_t n, double *out, mem_pool_t *arena) {
     if (n < 8) return 0;
     size_t m = 0; for (size_t k = 4; k <= n / 2; k *= 2) m++;
     double *x = MEM_ALLOC_ARRAY(arena, double, m);
@@ -205,7 +205,7 @@ static double inline_simd_cos(const double *a, const double *b, size_t m) {
     return (norm_a > 0 && norm_b > 0) ? (1.0 - dot / sqrt(norm_a * norm_b)) : 1.0;
 }
 
-size_t tbs_ts_match(const double *data, const double *pattern, size_t n, size_t m, double *out) {
+size_t toad_ts_match(const double *data, const double *pattern, size_t n, size_t m, double *out) {
     if (n < m || m == 0) return 0;
 
     // We compute the squared Euclidean distance between the pattern and each window in data
@@ -220,7 +220,7 @@ size_t tbs_ts_match(const double *data, const double *pattern, size_t n, size_t 
 
     return n - m + 1;
 }
-size_t tbs_ts_match_cosine(const double *data, const double *pattern, size_t n, size_t m, double *out) {
+size_t toad_ts_match_cosine(const double *data, const double *pattern, size_t n, size_t m, double *out) {
     if (n < m || m == 0) return 0;
     for (size_t i = 0; i <= n - m; ++i) {
         out[i] = inline_simd_cos(&data[i], pattern, m);
@@ -229,7 +229,7 @@ size_t tbs_ts_match_cosine(const double *data, const double *pattern, size_t n, 
     return n - m + 1;
 }
 
-size_t tbs_ts_match_normalized(const double *data, const double *pattern, size_t n, size_t m, double *out, mem_pool_t *arena) {
+size_t toad_ts_match_normalized(const double *data, const double *pattern, size_t n, size_t m, double *out, mem_pool_t *arena) {
     if (n < m || m == 0) return 0;
     double *p_norm = (double *)MEM_ALLOC_ARRAY(arena, double, m);
     double *w_norm = (double *)MEM_ALLOC_ARRAY(arena, double, m);
@@ -246,7 +246,7 @@ size_t tbs_ts_match_normalized(const double *data, const double *pattern, size_t
     return n - m + 1;
 }
 
-size_t tbs_ts_match_candle(const double *O, const double *H, const double *L, const double *C,
+size_t toad_ts_match_candle(const double *O, const double *H, const double *L, const double *C,
                             const double *pO, const double *pH, const double *pL, const double *pC,
                             size_t n, size_t m, double *out, mem_pool_t *arena) {
     if (n < m || m == 0) return 0;
@@ -264,7 +264,7 @@ size_t tbs_ts_match_candle(const double *O, const double *H, const double *L, co
     return n - m + 1;
 }
 
-size_t tbs_ts_match_dtw(const double *data, const double *pattern, size_t n, size_t m, double *out, mem_pool_t *arena) {
+size_t toad_ts_match_dtw(const double *data, const double *pattern, size_t n, size_t m, double *out, mem_pool_t *arena) {
     if (n < m || m == 0) return 0;
     double *cost_mat = (double *)MEM_ALLOC_ARRAY(arena, double, (m + 1) * (m + 1));
     if (!cost_mat) return 0;
@@ -276,7 +276,7 @@ size_t tbs_ts_match_dtw(const double *data, const double *pattern, size_t n, siz
     return n - m + 1;
 }
 
-size_t tbs_ts_match_correl(const double *data, const double *pattern, size_t n, size_t m, double *out, mem_pool_t *arena) {
+size_t toad_ts_match_correl(const double *data, const double *pattern, size_t n, size_t m, double *out, mem_pool_t *arena) {
     if (n < m || m == 0) return 0;
     double *p_norm = (double *)MEM_ALLOC_ARRAY(arena, double, m);
     double *w_norm = (double *)MEM_ALLOC_ARRAY(arena, double, m);
@@ -293,7 +293,7 @@ size_t tbs_ts_match_correl(const double *data, const double *pattern, size_t n, 
     return n - m + 1;
 }
 
-size_t tbs_ts_match_returns(const double *data, const double *pattern, size_t n, size_t m, double *out, mem_pool_t *arena) {
+size_t toad_ts_match_returns(const double *data, const double *pattern, size_t n, size_t m, double *out, mem_pool_t *arena) {
     if (n < m || m < 2) return 0;
     double *p_ret = (double *)MEM_ALLOC_ARRAY(arena, double, m - 1);
     double *w_ret = (double *)MEM_ALLOC_ARRAY(arena, double, m - 1);
@@ -323,7 +323,7 @@ static double ts_normal_cdf(double x) {
    out[0] = ADF test statistic on residuals
    out[1] = approximate lower-tail p-value
    out[2] = hedge ratio (beta) */
-size_t tbs_ts_coint(const double *x, const double *y, size_t n, double *out, mem_pool_t *arena) {
+size_t toad_ts_coint(const double *x, const double *y, size_t n, double *out, mem_pool_t *arena) {
     if (n < 10) return 0;
 
     /* Step 1: OLS regression y = beta * x + alpha + epsilon */
@@ -348,7 +348,7 @@ size_t tbs_ts_coint(const double *x, const double *y, size_t n, double *out, mem
 
     /* Step 3: ADF test on residuals */
     double adf_out[2] = {0, 0};
-    if (tbs_ts_adf(resid, n, 1, adf_out, arena) != 2) return 0;
+    if (toad_ts_adf(resid, n, 1, adf_out, arena) != 2) return 0;
 
     out[0] = adf_out[0];  /* test statistic */
     out[1] = ts_normal_cdf(adf_out[0]);  /* approximate one-sided significance */
@@ -357,7 +357,7 @@ size_t tbs_ts_coint(const double *x, const double *y, size_t n, double *out, mem
 }
 
 /* Spread: spread[i] = y[i] - beta * x[i], where beta = OLS slope */
-size_t tbs_ts_spread(const double *x, const double *y, size_t n, double *out, mem_pool_t *arena) {
+size_t toad_ts_spread(const double *x, const double *y, size_t n, double *out, mem_pool_t *arena) {
     (void)arena;
     if (n < 2) return 0;
 

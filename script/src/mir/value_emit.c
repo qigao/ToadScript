@@ -6,7 +6,7 @@ int ts_call_assignment_needs_value_bridge(ts_mir_compiler_t *c, const char *name
                                                  size_t argc) {
   MIR_item_t proto = NULL;
   MIR_item_t import = NULL;
-  tbs_func_t *f = NULL;
+  toad_func_t *f = NULL;
   const char *alias_name = NULL;
 
   if (!c || !name) return 0;
@@ -14,7 +14,7 @@ int ts_call_assignment_needs_value_bridge(ts_mir_compiler_t *c, const char *name
   if (alias_name) name = alias_name;
   if (ts_find_compiled_func(c, name)) return 0;
   if (ts_find_math_dispatch(c, name, argc, &proto, &import)) return 0;
-  if (tbs_find_builtin(name, &c->ts_ctx->env)) return 0;
+  if (toad_find_builtin(name, &c->ts_ctx->env)) return 0;
 
   for (f = c->ts_ctx->env.funcs; f; f = f->next) {
     if (f->name && strcmp(f->name, name) == 0 && !f->is_script) return 0;
@@ -25,7 +25,7 @@ int ts_call_assignment_needs_value_bridge(ts_mir_compiler_t *c, const char *name
 
 MIR_reg_t ts_emit_runtime_call_assign(ts_mir_compiler_t *c, const char *target_name,
                                       const char *name, size_t argc,
-                                      tbs_node_t **arg_nodes) {
+                                      toad_node_t **arg_nodes) {
   MIR_reg_t arg_regs[16];
   argc = ts_compile_call_args(c, argc, arg_nodes, arg_regs);
 
@@ -47,7 +47,7 @@ MIR_reg_t ts_emit_runtime_call_assign(ts_mir_compiler_t *c, const char *target_n
 }
 
 MIR_reg_t ts_emit_call_value_assign(ts_mir_compiler_t *c, const char *target_name,
-                                           const char *name, tbs_node_t *call_node) {
+                                           const char *name, toad_node_t *call_node) {
   MIR_reg_t res = ts_mir_new_temp_reg(c);
   MIR_reg_t target = ts_mir_get_or_create_reg(c, target_name);
 
@@ -70,7 +70,7 @@ MIR_reg_t ts_emit_call_value_assign(ts_mir_compiler_t *c, const char *target_nam
 }
 
 MIR_reg_t ts_emit_value_expr_assign(ts_mir_compiler_t *c, const char *target_name,
-                                           tbs_node_t *expr_node) {
+                                           toad_node_t *expr_node) {
   MIR_reg_t res = ts_mir_new_temp_reg(c);
   MIR_reg_t target = ts_mir_get_or_create_reg(c, target_name);
 
@@ -91,7 +91,7 @@ MIR_reg_t ts_emit_value_expr_assign(ts_mir_compiler_t *c, const char *target_nam
   return target;
 }
 
-static MIR_reg_t ts_emit_value_expr(ts_mir_compiler_t *c, tbs_node_t *expr_node) {
+static MIR_reg_t ts_emit_value_expr(ts_mir_compiler_t *c, toad_node_t *expr_node) {
   MIR_reg_t res = ts_mir_new_temp_reg(c);
 
   ts_emit_sync_to_env(c);
@@ -106,7 +106,7 @@ static MIR_reg_t ts_emit_value_expr(ts_mir_compiler_t *c, tbs_node_t *expr_node)
   return res;
 }
 
-MIR_reg_t ts_emit_await_value(ts_mir_compiler_t *c, tbs_node_t *arg_node) {
+MIR_reg_t ts_emit_await_value(ts_mir_compiler_t *c, toad_node_t *arg_node) {
   MIR_reg_t res = ts_mir_new_temp_reg(c);
 
   ts_emit_sync_to_env(c);
@@ -122,7 +122,7 @@ MIR_reg_t ts_emit_await_value(ts_mir_compiler_t *c, tbs_node_t *arg_node) {
 }
 
 MIR_reg_t ts_emit_await_assign(ts_mir_compiler_t *c, const char *target_name,
-                                      tbs_node_t *arg_node) {
+                                      toad_node_t *arg_node) {
   MIR_reg_t res = ts_mir_new_temp_reg(c);
   MIR_reg_t target = ts_mir_get_or_create_reg(c, target_name);
 
@@ -145,7 +145,7 @@ MIR_reg_t ts_emit_await_assign(ts_mir_compiler_t *c, const char *target_name,
 }
 
 MIR_reg_t ts_emit_function_expr_assign(ts_mir_compiler_t *c, const char *target_name,
-                                              tbs_node_t *node) {
+                                              toad_node_t *node) {
   MIR_reg_t res = ts_mir_new_temp_reg(c);
   MIR_reg_t target = ts_mir_get_or_create_reg(c, target_name);
 
@@ -166,7 +166,7 @@ MIR_reg_t ts_emit_function_expr_assign(ts_mir_compiler_t *c, const char *target_
 }
 
 MIR_reg_t ts_emit_try_catch_assign(ts_mir_compiler_t *c, const char *target_name,
-                                          tbs_node_t *node) {
+                                          toad_node_t *node) {
   MIR_reg_t res = ts_mir_new_temp_reg(c);
   MIR_reg_t target = ts_mir_get_or_create_reg(c, target_name);
 
@@ -207,7 +207,7 @@ MIR_reg_t ts_emit_dynamic_var_assign(ts_mir_compiler_t *c, const char *target_na
   return res;
 }
 
-MIR_reg_t ts_emit_runtime_value_node(ts_mir_compiler_t *c, tbs_node_t *node) {
+MIR_reg_t ts_emit_runtime_value_node(ts_mir_compiler_t *c, toad_node_t *node) {
   if (!node) {
     MIR_reg_t res = ts_mir_new_temp_reg(c);
     MIR_append_insn(
@@ -216,7 +216,7 @@ MIR_reg_t ts_emit_runtime_value_node(ts_mir_compiler_t *c, tbs_node_t *node) {
     return res;
   }
 
-  if ((node->type == TBS_NODE_ASSIGNMENT || node->type == TBS_NODE_CONSTANT_DECL) &&
+  if ((node->type == TOAD_NODE_ASSIGNMENT || node->type == TOAD_NODE_CONSTANT_DECL) &&
       node->data.assignment.name) {
     return ts_emit_value_expr_assign(c, node->data.assignment.name, node);
   }

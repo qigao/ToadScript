@@ -1,5 +1,5 @@
-#ifndef TURBO_SCRIPT_CFLOW_TEXT_H
-#define TURBO_SCRIPT_CFLOW_TEXT_H
+#ifndef TOAD_SCRIPT_CFLOW_TEXT_H
+#define TOAD_SCRIPT_CFLOW_TEXT_H
 
 #include <cflow/graph.h>
 #include <cflow/plan.h>
@@ -16,7 +16,7 @@ extern "C" {
  * Borrowed line slice used by the first text/file CFlow source seam.
  *
  * The slice owns no characters. Its data pointer is valid only while the
- * originating TurboScript string value remains alive. The CMeta descriptor is
+ * originating Toad string value remains alive. The CMeta descriptor is
  * therefore TRIVIAL_COPY/TRIVIAL_DESTROY: CFlow may copy slice descriptors,
  * but never the pointed-to text.
  */
@@ -70,7 +70,7 @@ bool ts_cflow_text_lines_plan_compile(cflow_graph *graph, cflow_plan *plan,
  * Evaluate one line source through the compiled Plan.
  * The returned result owns only copied line-slice descriptors; their data
  * pointers still borrow the originating text and must be consumed before that
- * TurboScript string value is released.
+ * Toad string value is released.
  */
 bool ts_cflow_text_lines_plan_eval(const cflow_plan *plan,
                                    const ts_cflow_text_lines_source_t *source,
@@ -85,4 +85,4 @@ bool ts_cflow_text_lines_plan_count(const cflow_plan *plan,
 }
 #endif
 
-#endif /* TURBO_SCRIPT_CFLOW_TEXT_H */
+#endif /* TOAD_SCRIPT_CFLOW_TEXT_H */

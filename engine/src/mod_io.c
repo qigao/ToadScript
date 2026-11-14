@@ -1,11 +1,11 @@
 /**
- * @file exprtk_mod_io.c
+ * @file toad_mod_io.c
  * @brief IO module: file operations, path utilities, date/time functions.
  *
  * All functions below are exposed in the "io" namespace (global registry).
- * They are always available in any exprtk_env_t, even outside TurboScript.
+ * They are always available in any toad_env_t, even outside Toad.
  */
-#include "exprtk_module.h"
+#include <toad/module.h>
 #include "core/platform.h"
 #include "core/clock.h"
 #include "datetime_parser.h"
@@ -26,11 +26,11 @@ enum { IO_MAX_DIRECTORY_ENTRIES = 10000 };
  * - Mutating/status operations return 0.0 on success and -1.0 on failure.
  * - Data-producing operations keep the legacy "numeric 0 sentinel" on failure.
  */
-static exprtk_value_t io_fail_empty(void) { return exprtk_val_num(0); }
+static toad_value_t io_fail_empty(void) { return toad_val_num(0); }
 
-static exprtk_value_t io_fail_status(void) { return exprtk_val_num(-1); }
+static toad_value_t io_fail_status(void) { return toad_val_num(-1); }
 
-static exprtk_value_t io_bool(int value) { return exprtk_val_num(value ? 1.0 : 0.0); }
+static toad_value_t io_bool(int value) { return toad_val_num(value ? 1.0 : 0.0); }
 
 static int io_parse_fixed_u32(const char *text, size_t offset, size_t width, int *value_out) {
   size_t i = 0;
@@ -101,7 +101,7 @@ static int io_parse_utc_datetime(const char *text, struct tm *tm_info) {
   return 0;
 }
 
-static exprtk_value_t io_make_string_value(mem_pool_t *arena, const char *data, size_t len) {
+static toad_value_t io_make_string_value(mem_pool_t *arena, const char *data, size_t len) {
   char *buf = NULL;
 
   if (!arena)
@@ -115,19 +115,19 @@ static exprtk_value_t io_make_string_value(mem_pool_t *arena, const char *data, 
     memcpy(buf, data, len);
   buf[len] = '\0';
 
-  return exprtk_val_str(vstr_from_buf(buf, len));
+  return toad_val_str(vstr_from_buf(buf, len));
 }
 
-static exprtk_value_t io_format_date_value(size_t argc, exprtk_value_t *args, mem_pool_t *arena,
+static toad_value_t io_format_date_value(size_t argc, toad_value_t *args, mem_pool_t *arena,
                                            int use_utc) {
   time_t t;
   char buf[128];
 
   if ((argc != 1 && argc != 2) ||
-      (args[0].type != EXPRTK_VAL_NUMBER && args[0].type != EXPRTK_VAL_INTEGER))
+      (args[0].type != TOAD_VAL_NUMBER && args[0].type != TOAD_VAL_INTEGER))
     return io_fail_empty();
 
-  t = (time_t)(args[0].type == EXPRTK_VAL_INTEGER ? args[0].data.integer : args[0].data.number);
+  t = (time_t)(args[0].type == TOAD_VAL_INTEGER ? args[0].data.integer : args[0].data.number);
   if (argc == 1) {
     if (datetime_format_rfc822(t, buf, sizeof(buf)) > 0) {
       size_t len = strlen(buf);
@@ -136,7 +136,7 @@ static exprtk_value_t io_format_date_value(size_t argc, exprtk_value_t *args, me
     return io_fail_empty();
   }
 
-  if (args[1].type == EXPRTK_VAL_STRING) {
+  if (args[1].type == TOAD_VAL_STRING) {
     char *fmt = vstr_to_arena(args[1].data.string, arena);
     if (!fmt)
       return io_fail_empty();
@@ -156,17 +156,17 @@ static exprtk_value_t io_format_date_value(size_t argc, exprtk_value_t *args, me
  * ═══════════════════════════════════════════════════════════════════ */
 
 /** read_file(path) → string contents (or 0 on failure) */
-static exprtk_value_t fn_read_file(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_read_file(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_STRING) {
+  if (argc == 1 && args[0].type == TOAD_VAL_STRING) {
     char *path = vstr_to_arena(args[0].data.string, arena);
     if (path) {
       fs_buf_t buf = {0};
       if (fs_read_file(path, &buf) == 0) {
-        exprtk_value_t result = io_make_string_value(arena, buf.base, buf.len);
+        toad_value_t result = io_make_string_value(arena, buf.base, buf.len);
         fs_buf_free(&buf);
-        if (result.type == EXPRTK_VAL_STRING)
+        if (result.type == TOAD_VAL_STRING)
           return result;
       }
     }
@@ -175,26 +175,26 @@ static exprtk_value_t fn_read_file(size_t argc, exprtk_value_t *args, exprtk_env
 }
 
 /** write_file(path, content) → 0 on success */
-static exprtk_value_t fn_write_file(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_write_file(size_t argc, toad_value_t *args, toad_env_t *env,
                                     mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_STRING && args[1].type == EXPRTK_VAL_STRING) {
+  if (argc == 2 && args[0].type == TOAD_VAL_STRING && args[1].type == TOAD_VAL_STRING) {
     char *path = vstr_to_arena(args[0].data.string, arena);
     if (path) {
       fs_buf_t buf;
       buf.base = (char *)args[1].data.string.data;
       buf.len = args[1].data.string.len;
-      return exprtk_val_num((double)fs_write_file(path, &buf));
+      return toad_val_num((double)fs_write_file(path, &buf));
     }
   }
   return io_fail_status();
 }
 
 /** append_file(path, content) → 0 on success */
-static exprtk_value_t fn_append_file(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_append_file(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_STRING && args[1].type == EXPRTK_VAL_STRING) {
+  if (argc == 2 && args[0].type == TOAD_VAL_STRING && args[1].type == TOAD_VAL_STRING) {
     char *path = vstr_to_arena(args[0].data.string, arena);
     if (path) {
       file_t fd = fs_open(
@@ -203,17 +203,17 @@ static exprtk_value_t fn_append_file(size_t argc, exprtk_value_t *args, exprtk_e
         return io_fail_status();
       int res = fs_write(fd, args[1].data.string.data, args[1].data.string.len);
       fs_close(fd);
-      return exprtk_val_num(res >= 0 ? 0.0 : (double)res);
+      return toad_val_num(res >= 0 ? 0.0 : (double)res);
     }
   }
   return io_fail_status();
 }
 
 /** copy_file(src_path, dst_path) → 0 on success */
-static exprtk_value_t fn_copy_file(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_copy_file(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_STRING && args[1].type == EXPRTK_VAL_STRING) {
+  if (argc == 2 && args[0].type == TOAD_VAL_STRING && args[1].type == TOAD_VAL_STRING) {
     char *src_path = vstr_to_arena(args[0].data.string, arena);
     char *dst_path = vstr_to_arena(args[1].data.string, arena);
     if (src_path && dst_path) {
@@ -223,20 +223,20 @@ static exprtk_value_t fn_copy_file(size_t argc, exprtk_value_t *args, exprtk_env
         rc = fs_write_file(dst_path, &buf);
         fs_buf_free(&buf);
       }
-      return exprtk_val_num((double)rc);
+      return toad_val_num((double)rc);
     }
   }
   return io_fail_status();
 }
 
 /** file_truncate(path, length) → 0 on success */
-static exprtk_value_t fn_file_truncate(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_file_truncate(size_t argc, toad_value_t *args, toad_env_t *env,
                                        mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_STRING &&
-      (args[1].type == EXPRTK_VAL_NUMBER || args[1].type == EXPRTK_VAL_INTEGER)) {
+  if (argc == 2 && args[0].type == TOAD_VAL_STRING &&
+      (args[1].type == TOAD_VAL_NUMBER || args[1].type == TOAD_VAL_INTEGER)) {
     char *path = vstr_to_arena(args[0].data.string, arena);
-    int64_t length = args[1].type == EXPRTK_VAL_INTEGER
+    int64_t length = args[1].type == TOAD_VAL_INTEGER
                          ? args[1].data.integer
                          : (int64_t)args[1].data.number;
     if (path && length >= 0) {
@@ -246,7 +246,7 @@ static exprtk_value_t fn_file_truncate(size_t argc, exprtk_value_t *args, exprtk
         return io_fail_status();
       rc = fs_ftruncate(fd, length);
       fs_close(fd);
-      return exprtk_val_num((double)rc);
+      return toad_val_num((double)rc);
     }
   }
   return io_fail_status();
@@ -257,10 +257,10 @@ static exprtk_value_t fn_file_truncate(size_t argc, exprtk_value_t *args, exprtk
  * ═══════════════════════════════════════════════════════════════════ */
 
 /** file_exists(path) → 1.0 or 0.0 */
-static exprtk_value_t fn_file_exists(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_file_exists(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_STRING) {
+  if (argc == 1 && args[0].type == TOAD_VAL_STRING) {
     char *path = vstr_to_arena(args[0].data.string, arena);
     if (path) {
       fs_stat_t st;
@@ -271,25 +271,25 @@ static exprtk_value_t fn_file_exists(size_t argc, exprtk_value_t *args, exprtk_e
 }
 
 /** file_size(path) → size in bytes (or -1 on failure) */
-static exprtk_value_t fn_file_size(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_file_size(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_STRING) {
+  if (argc == 1 && args[0].type == TOAD_VAL_STRING) {
     char *path = vstr_to_arena(args[0].data.string, arena);
     if (path) {
       fs_stat_t st;
       if (fs_stat(path, &st) == 0)
-        return exprtk_val_num((double)st.size);
+        return toad_val_num((double)st.size);
     }
   }
   return io_fail_status();
 }
 
 /** file_stat(path) → vector [size, mtime, is_file, is_dir] (or 0 on failure) */
-static exprtk_value_t fn_file_stat(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_file_stat(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_STRING) {
+  if (argc == 1 && args[0].type == TOAD_VAL_STRING) {
     char *path = vstr_to_arena(args[0].data.string, arena);
     if (path) {
       fs_stat_t st;
@@ -300,7 +300,7 @@ static exprtk_value_t fn_file_stat(size_t argc, exprtk_value_t *args, exprtk_env
           out[1] = (double)(st.mtime / 1000000ULL); /* µs → seconds */
           out[2] = st.is_file ? 1.0 : 0.0;
           out[3] = st.is_directory ? 1.0 : 0.0;
-          return exprtk_val_vec(out, 4);
+          return toad_val_vec(out, 4);
         }
       }
     }
@@ -309,10 +309,10 @@ static exprtk_value_t fn_file_stat(size_t argc, exprtk_value_t *args, exprtk_env
 }
 
 /** is_file(path) → 1.0 if regular file, else 0.0 */
-static exprtk_value_t fn_is_file(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_is_file(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_STRING) {
+  if (argc == 1 && args[0].type == TOAD_VAL_STRING) {
     char *path = vstr_to_arena(args[0].data.string, arena);
     if (path) {
       fs_stat_t st;
@@ -324,10 +324,10 @@ static exprtk_value_t fn_is_file(size_t argc, exprtk_value_t *args, exprtk_env_t
 }
 
 /** is_dir(path) → 1.0 if directory, else 0.0 */
-static exprtk_value_t fn_is_dir(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_is_dir(size_t argc, toad_value_t *args, toad_env_t *env,
                                 mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_STRING) {
+  if (argc == 1 && args[0].type == TOAD_VAL_STRING) {
     char *path = vstr_to_arena(args[0].data.string, arena);
     if (path) {
       fs_stat_t st;
@@ -343,26 +343,26 @@ static exprtk_value_t fn_is_dir(size_t argc, exprtk_value_t *args, exprtk_env_t 
  * ═══════════════════════════════════════════════════════════════════ */
 
 /** file_remove(path) → 0 on success */
-static exprtk_value_t fn_file_remove(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_file_remove(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_STRING) {
+  if (argc == 1 && args[0].type == TOAD_VAL_STRING) {
     char *path = vstr_to_arena(args[0].data.string, arena);
     if (path)
-      return exprtk_val_num((double)fs_unlink(path));
+      return toad_val_num((double)fs_unlink(path));
   }
   return io_fail_status();
 }
 
 /** file_rename(old_path, new_path) → 0 on success */
-static exprtk_value_t fn_file_rename(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_file_rename(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_STRING && args[1].type == EXPRTK_VAL_STRING) {
+  if (argc == 2 && args[0].type == TOAD_VAL_STRING && args[1].type == TOAD_VAL_STRING) {
     char *old_path = vstr_to_arena(args[0].data.string, arena);
     char *new_path = vstr_to_arena(args[1].data.string, arena);
     if (old_path && new_path)
-      return exprtk_val_num((double)fs_rename(old_path, new_path));
+      return toad_val_num((double)fs_rename(old_path, new_path));
   }
   return io_fail_status();
 }
@@ -372,27 +372,27 @@ static exprtk_value_t fn_file_rename(size_t argc, exprtk_value_t *args, exprtk_e
  * ═══════════════════════════════════════════════════════════════════ */
 
 /** mkdir(path) → 0 on success */
-static exprtk_value_t fn_mkdir(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mkdir(size_t argc, toad_value_t *args, toad_env_t *env,
                                mem_pool_t *arena) {
   (void)env;
-  if (argc >= 1 && args[0].type == EXPRTK_VAL_STRING) {
+  if (argc >= 1 && args[0].type == TOAD_VAL_STRING) {
     char *path = vstr_to_arena(args[0].data.string, arena);
     if (path) {
-      int mode = (argc >= 2 && args[1].type == EXPRTK_VAL_NUMBER) ? (int)args[1].data.number : 0755;
-      return exprtk_val_num((double)fs_mkdir(path, mode));
+      int mode = (argc >= 2 && args[1].type == TOAD_VAL_NUMBER) ? (int)args[1].data.number : 0755;
+      return toad_val_num((double)fs_mkdir(path, mode));
     }
   }
   return io_fail_status();
 }
 
 /** rmdir(path) → 0 on success */
-static exprtk_value_t fn_rmdir(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_rmdir(size_t argc, toad_value_t *args, toad_env_t *env,
                                mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_STRING) {
+  if (argc == 1 && args[0].type == TOAD_VAL_STRING) {
     char *path = vstr_to_arena(args[0].data.string, arena);
     if (path)
-      return exprtk_val_num((double)fs_rmdir(path));
+      return toad_val_num((double)fs_rmdir(path));
   }
   return io_fail_status();
 }
@@ -493,32 +493,32 @@ static int io_rmdir_recursive_path(const char *path) {
 }
 
 /** mkdir_recursive(path [, mode]) → 0 on success */
-static exprtk_value_t fn_mkdir_recursive(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mkdir_recursive(size_t argc, toad_value_t *args, toad_env_t *env,
                                          mem_pool_t *arena) {
   (void)env;
-  if (argc >= 1 && args[0].type == EXPRTK_VAL_STRING) {
+  if (argc >= 1 && args[0].type == TOAD_VAL_STRING) {
     char *path = vstr_to_arena(args[0].data.string, arena);
-    int mode = (argc >= 2 && args[1].type == EXPRTK_VAL_NUMBER) ? (int)args[1].data.number : 0755;
+    int mode = (argc >= 2 && args[1].type == TOAD_VAL_NUMBER) ? (int)args[1].data.number : 0755;
     if (path)
-      return exprtk_val_num((double)io_mkdir_recursive_path(path, mode));
+      return toad_val_num((double)io_mkdir_recursive_path(path, mode));
   }
   return io_fail_status();
 }
 
 /** rmdir_recursive(path) → 0 on success */
-static exprtk_value_t fn_rmdir_recursive(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_rmdir_recursive(size_t argc, toad_value_t *args, toad_env_t *env,
                                          mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_STRING) {
+  if (argc == 1 && args[0].type == TOAD_VAL_STRING) {
     char *path = vstr_to_arena(args[0].data.string, arena);
     if (path)
-      return exprtk_val_num((double)io_rmdir_recursive_path(path));
+      return toad_val_num((double)io_rmdir_recursive_path(path));
   }
   return io_fail_status();
 }
 
 /** tmpdir() → temporary directory path string */
-static exprtk_value_t fn_tmpdir(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_tmpdir(size_t argc, toad_value_t *args, toad_env_t *env,
                                 mem_pool_t *arena) {
   (void)argc;
   (void)args;
@@ -532,11 +532,11 @@ static exprtk_value_t fn_tmpdir(size_t argc, exprtk_value_t *args, exprtk_env_t 
 }
 
 /** listdir(path) → list of string (directory entries) */
-static exprtk_value_t fn_listdir(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_listdir(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
 
-  if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
+  if (argc != 1 || args[0].type != TOAD_VAL_STRING)
     return io_fail_empty();
 
   char *path = vstr_to_arena(args[0].data.string, arena);
@@ -547,7 +547,7 @@ static exprtk_value_t fn_listdir(size_t argc, exprtk_value_t *args, exprtk_env_t
   if (fs_opendir(path, &dir) != 0)
     return io_fail_empty();
 
-  exprtk_value_t *entries = MEM_ALLOC_ARRAY(arena, exprtk_value_t, IO_MAX_DIRECTORY_ENTRIES);
+  toad_value_t *entries = MEM_ALLOC_ARRAY(arena, toad_value_t, IO_MAX_DIRECTORY_ENTRIES);
   if (!entries) {
     fs_closedir(dir);
     return io_fail_empty();
@@ -567,7 +567,7 @@ static exprtk_value_t fn_listdir(size_t argc, exprtk_value_t *args, exprtk_env_t
   if (read_result < 0 || close_result != 0)
     return io_fail_empty();
 
-  return exprtk_val_list_ex(entries, count, 0);
+  return toad_val_list_ex(entries, count, 0);
 }
 
 static size_t io_glob_dir_prefix_len(const char *pattern) {
@@ -582,7 +582,7 @@ static size_t io_glob_dir_prefix_len(const char *pattern) {
   return last;
 }
 
-static exprtk_value_t io_glob_make_path(mem_pool_t *arena, const char *prefix,
+static toad_value_t io_glob_make_path(mem_pool_t *arena, const char *prefix,
                                         size_t prefix_len, const char *name) {
   char path[SALTS_FS_MAX_PATH * 2];
   size_t name_len = name ? strlen(name) : 0;
@@ -599,18 +599,18 @@ static exprtk_value_t io_glob_make_path(mem_pool_t *arena, const char *prefix,
 }
 
 /** glob(pattern) → list of matching paths */
-static exprtk_value_t fn_glob(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_glob(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
 
-  if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
+  if (argc != 1 || args[0].type != TOAD_VAL_STRING)
     return io_fail_empty();
 
   char *pattern = vstr_to_arena(args[0].data.string, arena);
   if (!pattern)
     return io_fail_empty();
 
-  exprtk_value_t *entries = MEM_ALLOC_ARRAY(arena, exprtk_value_t, IO_MAX_DIRECTORY_ENTRIES);
+  toad_value_t *entries = MEM_ALLOC_ARRAY(arena, toad_value_t, IO_MAX_DIRECTORY_ENTRIES);
   if (!entries)
     return io_fail_empty();
 
@@ -621,7 +621,7 @@ static exprtk_value_t fn_glob(size_t argc, exprtk_value_t *args, exprtk_env_t *e
   struct _finddata_t fileinfo;
   intptr_t handle = _findfirst(pattern, &fileinfo);
   if (handle == -1)
-    return exprtk_val_list_ex(entries, 0, 0);
+    return toad_val_list_ex(entries, 0, 0);
 
   do {
     if (strcmp(fileinfo.name, ".") == 0 || strcmp(fileinfo.name, "..") == 0)
@@ -648,7 +648,7 @@ static exprtk_value_t fn_glob(size_t argc, exprtk_value_t *args, exprtk_env_t *e
 
   DIR *dir_handle = opendir(dir);
   if (!dir_handle)
-    return exprtk_val_list_ex(entries, 0, 0);
+    return toad_val_list_ex(entries, 0, 0);
 
   struct dirent *entry;
   while ((entry = readdir(dir_handle)) != NULL) {
@@ -664,7 +664,7 @@ static exprtk_value_t fn_glob(size_t argc, exprtk_value_t *args, exprtk_env_t *e
   closedir(dir_handle);
 #endif
 
-  return exprtk_val_list_ex(entries, count, 0);
+  return toad_val_list_ex(entries, count, 0);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -672,10 +672,10 @@ static exprtk_value_t fn_glob(size_t argc, exprtk_value_t *args, exprtk_env_t *e
  * ═══════════════════════════════════════════════════════════════════ */
 
 /** path_join(base, relative) → joined path string */
-static exprtk_value_t fn_path_join(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_path_join(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_STRING && args[1].type == EXPRTK_VAL_STRING) {
+  if (argc == 2 && args[0].type == TOAD_VAL_STRING && args[1].type == TOAD_VAL_STRING) {
     char *base = vstr_to_arena(args[0].data.string, arena);
     char *rel = vstr_to_arena(args[1].data.string, arena);
     if (base && rel) {
@@ -690,10 +690,10 @@ static exprtk_value_t fn_path_join(size_t argc, exprtk_value_t *args, exprtk_env
 }
 
 /** path_dirname(path) → directory component string */
-static exprtk_value_t fn_path_dirname(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_path_dirname(size_t argc, toad_value_t *args, toad_env_t *env,
                                       mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_STRING) {
+  if (argc == 1 && args[0].type == TOAD_VAL_STRING) {
     char *path = vstr_to_arena(args[0].data.string, arena);
     if (path) {
       char buf[SALTS_FS_MAX_PATH];
@@ -707,10 +707,10 @@ static exprtk_value_t fn_path_dirname(size_t argc, exprtk_value_t *args, exprtk_
 }
 
 /** path_basename(path) → filename component string */
-static exprtk_value_t fn_path_basename(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_path_basename(size_t argc, toad_value_t *args, toad_env_t *env,
                                        mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_STRING) {
+  if (argc == 1 && args[0].type == TOAD_VAL_STRING) {
     char *path = vstr_to_arena(args[0].data.string, arena);
     if (path) {
       char buf[SALTS_FS_MAX_PATH];
@@ -724,10 +724,10 @@ static exprtk_value_t fn_path_basename(size_t argc, exprtk_value_t *args, exprtk
 }
 
 /** path_is_absolute(path) → 1.0 or 0.0 */
-static exprtk_value_t fn_path_is_absolute(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_path_is_absolute(size_t argc, toad_value_t *args, toad_env_t *env,
                                           mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_STRING) {
+  if (argc == 1 && args[0].type == TOAD_VAL_STRING) {
     char *path = vstr_to_arena(args[0].data.string, arena);
     if (path)
       return io_bool(fs_path_is_absolute(path));
@@ -740,162 +740,162 @@ static exprtk_value_t fn_path_is_absolute(size_t argc, exprtk_value_t *args, exp
  * ═══════════════════════════════════════════════════════════════════ */
 
 /** now() → Unix timestamp (seconds) */
-static exprtk_value_t fn_now(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_now(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)argc;
   (void)args;
   (void)env;
   (void)arena;
-  return exprtk_val_num((double)time(NULL));
+  return toad_val_num((double)time(NULL));
 }
 
 /** date(str) → Unix timestamp (seconds) */
-static exprtk_value_t fn_date(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_date(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_STRING) {
+  if (argc == 1 && args[0].type == TOAD_VAL_STRING) {
   datetime_t dt;
     char *ds = vstr_to_arena(args[0].data.string, arena);
     if (ds) {
       if (datetime_parse(ds, args[0].data.string.len, &dt) == 0)
-        return exprtk_val_num((double)datetime_to_time(&dt));
+        return toad_val_num((double)datetime_to_time(&dt));
     }
   }
   return io_fail_empty();
 }
 
 /** date_utc(str) → Unix timestamp (seconds, UTC parse) */
-static exprtk_value_t fn_date_utc(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_date_utc(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_STRING) {
+  if (argc == 1 && args[0].type == TOAD_VAL_STRING) {
     struct tm tm_info;
     char *ds = vstr_to_arena(args[0].data.string, arena);
     if (ds && io_parse_utc_datetime(ds, &tm_info) == 0) {
       time_t t = time_from_utc(&tm_info);
       if (t != (time_t)-1)
-        return exprtk_val_num((double)t);
+        return toad_val_num((double)t);
     }
   }
   return io_fail_empty();
 }
 
 /** format_date(timestamp [, fmt]) → formatted date string */
-static exprtk_value_t fn_format_date(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_format_date(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
   (void)env;
   return io_format_date_value(argc, args, arena, 0);
 }
 
 /** format_date_utc(timestamp [, fmt]) → formatted date string using UTC */
-static exprtk_value_t fn_format_date_utc(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_format_date_utc(size_t argc, toad_value_t *args, toad_env_t *env,
                                          mem_pool_t *arena) {
   (void)env;
   return io_format_date_value(argc, args, arena, 1);
 }
 
 /** date_add(timestamp, days [, hours] [, minutes] [, seconds]) → new timestamp */
-static exprtk_value_t fn_date_add(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_date_add(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  
+
   if (argc < 2 || argc > 5)
     return io_fail_empty();
-  
-  if (args[0].type != EXPRTK_VAL_NUMBER && args[0].type != EXPRTK_VAL_INTEGER)
+
+  if (args[0].type != TOAD_VAL_NUMBER && args[0].type != TOAD_VAL_INTEGER)
     return io_fail_empty();
-  
-  time_t timestamp = (time_t)(args[0].type == EXPRTK_VAL_INTEGER ? 
+
+  time_t timestamp = (time_t)(args[0].type == TOAD_VAL_INTEGER ?
                               args[0].data.integer : args[0].data.number);
-  
+
   double days = 0.0, hours = 0.0, minutes = 0.0, seconds = 0.0;
-  
+
   /* Parse arguments */
-  if (args[1].type == EXPRTK_VAL_NUMBER)
+  if (args[1].type == TOAD_VAL_NUMBER)
     days = args[1].data.number;
-  else if (args[1].type == EXPRTK_VAL_INTEGER)
+  else if (args[1].type == TOAD_VAL_INTEGER)
     days = (double)args[1].data.integer;
   else
     return io_fail_empty();
-  
+
   if (argc >= 3) {
-    if (args[2].type == EXPRTK_VAL_NUMBER)
+    if (args[2].type == TOAD_VAL_NUMBER)
       hours = args[2].data.number;
-    else if (args[2].type == EXPRTK_VAL_INTEGER)
+    else if (args[2].type == TOAD_VAL_INTEGER)
       hours = (double)args[2].data.integer;
     else
       return io_fail_empty();
   }
-  
+
   if (argc >= 4) {
-    if (args[3].type == EXPRTK_VAL_NUMBER)
+    if (args[3].type == TOAD_VAL_NUMBER)
       minutes = args[3].data.number;
-    else if (args[3].type == EXPRTK_VAL_INTEGER)
+    else if (args[3].type == TOAD_VAL_INTEGER)
       minutes = (double)args[3].data.integer;
     else
       return io_fail_empty();
   }
-  
+
   if (argc >= 5) {
-    if (args[4].type == EXPRTK_VAL_NUMBER)
+    if (args[4].type == TOAD_VAL_NUMBER)
       seconds = args[4].data.number;
-    else if (args[4].type == EXPRTK_VAL_INTEGER)
+    else if (args[4].type == TOAD_VAL_INTEGER)
       seconds = (double)args[4].data.integer;
     else
       return io_fail_empty();
   }
-  
+
   /* Calculate new timestamp */
   double total_seconds = (days * 86400.0) + (hours * 3600.0) + (minutes * 60.0) + seconds;
   time_t result = timestamp + (time_t)total_seconds;
-  
-  return exprtk_val_num((double)result);
+
+  return toad_val_num((double)result);
 }
 
 /** date_diff(timestamp1, timestamp2) → difference in seconds */
-static exprtk_value_t fn_date_diff(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_date_diff(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  
+
   if (argc != 2)
     return io_fail_empty();
-  
-  if ((args[0].type != EXPRTK_VAL_NUMBER && args[0].type != EXPRTK_VAL_INTEGER) ||
-      (args[1].type != EXPRTK_VAL_NUMBER && args[1].type != EXPRTK_VAL_INTEGER))
+
+  if ((args[0].type != TOAD_VAL_NUMBER && args[0].type != TOAD_VAL_INTEGER) ||
+      (args[1].type != TOAD_VAL_NUMBER && args[1].type != TOAD_VAL_INTEGER))
     return io_fail_empty();
-  
-  time_t ts1 = (time_t)(args[0].type == EXPRTK_VAL_INTEGER ? 
+
+  time_t ts1 = (time_t)(args[0].type == TOAD_VAL_INTEGER ?
                         args[0].data.integer : args[0].data.number);
-  time_t ts2 = (time_t)(args[1].type == EXPRTK_VAL_INTEGER ? 
+  time_t ts2 = (time_t)(args[1].type == TOAD_VAL_INTEGER ?
                         args[1].data.integer : args[1].data.number);
-  
-  return exprtk_val_num((double)(ts1 - ts2));
+
+  return toad_val_num((double)(ts1 - ts2));
 }
 
 /** date_components(timestamp) → vector [year, month, day, hour, minute, second, weekday] */
-static exprtk_value_t fn_date_components(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_date_components(size_t argc, toad_value_t *args, toad_env_t *env,
                                         mem_pool_t *arena) {
   (void)env;
-  
+
   if (argc != 1)
     return io_fail_empty();
-  
-  if (args[0].type != EXPRTK_VAL_NUMBER && args[0].type != EXPRTK_VAL_INTEGER)
+
+  if (args[0].type != TOAD_VAL_NUMBER && args[0].type != TOAD_VAL_INTEGER)
     return io_fail_empty();
-  
-  time_t timestamp = (time_t)(args[0].type == EXPRTK_VAL_INTEGER ? 
+
+  time_t timestamp = (time_t)(args[0].type == TOAD_VAL_INTEGER ?
                               args[0].data.integer : args[0].data.number);
-  
+
   struct tm tm_info;
   if (time_local(timestamp, &tm_info) != 0)
     return io_fail_empty();
-  
+
   double *out = MEM_ALLOC_ARRAY(arena, double, 7);
   if (!out)
     return io_fail_empty();
-  
+
   out[0] = (double)(tm_info.tm_year + 1900);  /* year */
   out[1] = (double)(tm_info.tm_mon + 1);      /* month (1-12) */
   out[2] = (double)tm_info.tm_mday;           /* day */
@@ -903,126 +903,126 @@ static exprtk_value_t fn_date_components(size_t argc, exprtk_value_t *args, expr
   out[4] = (double)tm_info.tm_min;            /* minute */
   out[5] = (double)tm_info.tm_sec;            /* second */
   out[6] = (double)tm_info.tm_wday;           /* weekday (0=Sunday) */
-  
-  return exprtk_val_vec(out, 7);
+
+  return toad_val_vec(out, 7);
 }
 
 /** date_from_parts(year, month, day [, hour] [, minute] [, second]) → timestamp */
-static exprtk_value_t fn_date_from_parts(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_date_from_parts(size_t argc, toad_value_t *args, toad_env_t *env,
                                          mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  
+
   if (argc < 3 || argc > 6)
     return io_fail_empty();
-  
+
   struct tm tm_info = {0};
-  
+
   /* Year */
-  if (args[0].type == EXPRTK_VAL_NUMBER)
+  if (args[0].type == TOAD_VAL_NUMBER)
     tm_info.tm_year = (int)args[0].data.number - 1900;
-  else if (args[0].type == EXPRTK_VAL_INTEGER)
+  else if (args[0].type == TOAD_VAL_INTEGER)
     tm_info.tm_year = (int)args[0].data.integer - 1900;
   else
     return io_fail_empty();
-  
+
   /* Month */
-  if (args[1].type == EXPRTK_VAL_NUMBER)
+  if (args[1].type == TOAD_VAL_NUMBER)
     tm_info.tm_mon = (int)args[1].data.number - 1;
-  else if (args[1].type == EXPRTK_VAL_INTEGER)
+  else if (args[1].type == TOAD_VAL_INTEGER)
     tm_info.tm_mon = (int)args[1].data.integer - 1;
   else
     return io_fail_empty();
-  
+
   /* Day */
-  if (args[2].type == EXPRTK_VAL_NUMBER)
+  if (args[2].type == TOAD_VAL_NUMBER)
     tm_info.tm_mday = (int)args[2].data.number;
-  else if (args[2].type == EXPRTK_VAL_INTEGER)
+  else if (args[2].type == TOAD_VAL_INTEGER)
     tm_info.tm_mday = (int)args[2].data.integer;
   else
     return io_fail_empty();
-  
+
   /* Hour (optional) */
   if (argc >= 4) {
-    if (args[3].type == EXPRTK_VAL_NUMBER)
+    if (args[3].type == TOAD_VAL_NUMBER)
       tm_info.tm_hour = (int)args[3].data.number;
-    else if (args[3].type == EXPRTK_VAL_INTEGER)
+    else if (args[3].type == TOAD_VAL_INTEGER)
       tm_info.tm_hour = (int)args[3].data.integer;
     else
       return io_fail_empty();
   }
-  
+
   /* Minute (optional) */
   if (argc >= 5) {
-    if (args[4].type == EXPRTK_VAL_NUMBER)
+    if (args[4].type == TOAD_VAL_NUMBER)
       tm_info.tm_min = (int)args[4].data.number;
-    else if (args[4].type == EXPRTK_VAL_INTEGER)
+    else if (args[4].type == TOAD_VAL_INTEGER)
       tm_info.tm_min = (int)args[4].data.integer;
     else
       return io_fail_empty();
   }
-  
+
   /* Second (optional) */
   if (argc >= 6) {
-    if (args[5].type == EXPRTK_VAL_NUMBER)
+    if (args[5].type == TOAD_VAL_NUMBER)
       tm_info.tm_sec = (int)args[5].data.number;
-    else if (args[5].type == EXPRTK_VAL_INTEGER)
+    else if (args[5].type == TOAD_VAL_INTEGER)
       tm_info.tm_sec = (int)args[5].data.integer;
     else
       return io_fail_empty();
   }
-  
+
   tm_info.tm_isdst = -1;  /* Auto-detect DST */
-  
+
   time_t timestamp = time_from_local(&tm_info);
   if (timestamp == (time_t)-1)
     return io_fail_empty();
-  
-  return exprtk_val_num((double)timestamp);
+
+  return toad_val_num((double)timestamp);
 }
 
 /** weekday(timestamp) → day of week (0=Sunday, 6=Saturday) */
-static exprtk_value_t fn_weekday(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_weekday(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  
+
   if (argc != 1)
     return io_fail_empty();
-  
-  if (args[0].type != EXPRTK_VAL_NUMBER && args[0].type != EXPRTK_VAL_INTEGER)
+
+  if (args[0].type != TOAD_VAL_NUMBER && args[0].type != TOAD_VAL_INTEGER)
     return io_fail_empty();
-  
-  time_t timestamp = (time_t)(args[0].type == EXPRTK_VAL_INTEGER ? 
+
+  time_t timestamp = (time_t)(args[0].type == TOAD_VAL_INTEGER ?
                               args[0].data.integer : args[0].data.number);
-  
+
   struct tm tm_info;
   if (time_local(timestamp, &tm_info) != 0)
     return io_fail_empty();
-  
-  return exprtk_val_num((double)tm_info.tm_wday);
+
+  return toad_val_num((double)tm_info.tm_wday);
 }
 
 /** year_day(timestamp) → day of year (1-366) */
-static exprtk_value_t fn_year_day(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_year_day(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  
+
   if (argc != 1)
     return io_fail_empty();
-  
-  if (args[0].type != EXPRTK_VAL_NUMBER && args[0].type != EXPRTK_VAL_INTEGER)
+
+  if (args[0].type != TOAD_VAL_NUMBER && args[0].type != TOAD_VAL_INTEGER)
     return io_fail_empty();
-  
-  time_t timestamp = (time_t)(args[0].type == EXPRTK_VAL_INTEGER ? 
+
+  time_t timestamp = (time_t)(args[0].type == TOAD_VAL_INTEGER ?
                               args[0].data.integer : args[0].data.number);
-  
+
   struct tm tm_info;
   if (time_local(timestamp, &tm_info) != 0)
     return io_fail_empty();
-  
-  return exprtk_val_num((double)(tm_info.tm_yday + 1));
+
+  return toad_val_num((double)(tm_info.tm_yday + 1));
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -1030,58 +1030,58 @@ static exprtk_value_t fn_year_day(size_t argc, exprtk_value_t *args, exprtk_env_
  * ═══════════════════════════════════════════════════════════════════ */
 
 /** os_name() → "windows", "linux", "macos", or "unknown" */
-static exprtk_value_t fn_os_name(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_os_name(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)argc;
   (void)args;
   (void)env;
   (void)arena;
 #ifdef _WIN32
-  return exprtk_val_str(vstr_from_cstr("windows"));
+  return toad_val_str(vstr_from_cstr("windows"));
 #elif defined(__APPLE__)
-  return exprtk_val_str(vstr_from_cstr("macos"));
+  return toad_val_str(vstr_from_cstr("macos"));
 #elif defined(__linux__)
-  return exprtk_val_str(vstr_from_cstr("linux"));
+  return toad_val_str(vstr_from_cstr("linux"));
 #else
-  return exprtk_val_str(vstr_from_cstr("unknown"));
+  return toad_val_str(vstr_from_cstr("unknown"));
 #endif
 }
 
 /** pid() → current process ID */
-static exprtk_value_t fn_pid(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_pid(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)argc;
   (void)args;
   (void)env;
   (void)arena;
-  return exprtk_val_num((double)process_id());
+  return toad_val_num((double)process_id());
 }
 
 /** uptime_ms() → milliseconds since process start */
-static exprtk_value_t fn_uptime_ms(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_uptime_ms(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)argc;
   (void)args;
   (void)env;
   (void)arena;
-  return exprtk_val_num((double)uptime_ms());
+  return toad_val_num((double)uptime_ms());
 }
 
 /** monotonic_ms() → monotonic clock in milliseconds (never goes backward) */
-static exprtk_value_t fn_monotonic_ms(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_monotonic_ms(size_t argc, toad_value_t *args, toad_env_t *env,
                                       mem_pool_t *arena) {
   (void)argc;
   (void)args;
   (void)env;
   (void)arena;
-  return exprtk_val_num((double)monotonic_ms());
+  return toad_val_num((double)monotonic_ms());
 }
 
 /* ═══════════════════════════════════════════════════════════════════
  * Module Descriptor  (entries MUST be sorted alphabetically)
  * ═══════════════════════════════════════════════════════════════════ */
 
-static const exprtk_func_entry_t io_entries[] = {
+static const toad_func_entry_t io_entries[] = {
     {"append_file", fn_append_file},
     {"copy_file", fn_copy_file},
     {"date", fn_date},
@@ -1122,7 +1122,7 @@ static const exprtk_func_entry_t io_entries[] = {
     {"year_day", fn_year_day},
 };
 
-static const exprtk_module_t io_module = {"io", io_entries,
+static const toad_module_t io_module = {"io", io_entries,
                                           sizeof(io_entries) / sizeof(io_entries[0])};
 
-const exprtk_module_t *exprtk_module_io(void) { return &io_module; }
+const toad_module_t *toad_module_io(void) { return &io_module; }

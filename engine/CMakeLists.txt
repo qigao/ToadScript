@@ -1,72 +1,74 @@
-set(TARGET_NAME exprtk)
+set(TARGET_NAME toad_engine)
 
 # =============================================================================
 # re2c Generated Files
 # =============================================================================
 
-set(exprtk_LEXER_RE ${CMAKE_CURRENT_SOURCE_DIR}/parser/exprtk_lexer.re)
-set(exprtk_LEXER_GEN ${CMAKE_CURRENT_BINARY_DIR}/exprtk_lexer_gen.c)
+set(engine_LEXER_RE ${CMAKE_CURRENT_SOURCE_DIR}/parser/lexer.re)
+set(engine_LEXER_GEN ${CMAKE_CURRENT_BINARY_DIR}/lexer_gen.c)
 
 add_custom_command(
-  OUTPUT ${exprtk_LEXER_GEN}
-  COMMAND ${RE2C_EXECUTABLE} -o ${exprtk_LEXER_GEN} ${exprtk_LEXER_RE}
-  DEPENDS ${exprtk_LEXER_RE} ${RE2C_EXECUTABLE}
-  COMMENT "Generating exprtk lexer with re2c"
+  OUTPUT ${engine_LEXER_GEN}
+  COMMAND ${RE2C_EXECUTABLE} -o ${engine_LEXER_GEN} ${engine_LEXER_RE}
+  DEPENDS ${engine_LEXER_RE} ${RE2C_EXECUTABLE}
+  COMMENT "Generating Toad engine lexer with re2c"
   VERBATIM)
 
 # =============================================================================
 # Lemon Generated Files
 # =============================================================================
 
-set(exprtk_GRAMMAR_Y ${CMAKE_CURRENT_SOURCE_DIR}/parser/exprtk_grammar.y)
-set(exprtk_GRAMMAR_GEN ${CMAKE_CURRENT_BINARY_DIR}/exprtk_grammar_gen.c)
-set(exprtk_GRAMMAR_H ${CMAKE_CURRENT_BINARY_DIR}/exprtk_grammar_gen.h)
+set(engine_GRAMMAR_Y ${CMAKE_CURRENT_SOURCE_DIR}/parser/grammar.y)
+set(engine_GRAMMAR_GEN ${CMAKE_CURRENT_BINARY_DIR}/toad/detail/grammar_gen.c)
+set(engine_GRAMMAR_H ${CMAKE_CURRENT_BINARY_DIR}/toad/detail/grammar_gen.h)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/toad/detail)
 
 add_custom_command(
-  OUTPUT ${exprtk_GRAMMAR_GEN} ${exprtk_GRAMMAR_H}
-  COMMAND ${CMAKE_COMMAND} -E copy ${exprtk_GRAMMAR_Y}
-          ${CMAKE_CURRENT_BINARY_DIR}/exprtk_grammar_gen.y
+  OUTPUT ${engine_GRAMMAR_GEN} ${engine_GRAMMAR_H}
+  COMMAND ${CMAKE_COMMAND} -E copy ${engine_GRAMMAR_Y}
+          ${CMAKE_CURRENT_BINARY_DIR}/toad/detail/grammar_gen.y
   COMMAND ${LEMON_EXECUTABLE} -T${LEMPAR}
-          ${CMAKE_CURRENT_BINARY_DIR}/exprtk_grammar_gen.y
-  DEPENDS ${exprtk_GRAMMAR_Y} ${LEMON_DEPENDS} ${LEMPAR}
-  COMMENT "Generating exprtk parser with lemon"
+          ${CMAKE_CURRENT_BINARY_DIR}/toad/detail/grammar_gen.y
+  DEPENDS ${engine_GRAMMAR_Y} ${LEMON_DEPENDS} ${LEMPAR}
+  COMMENT "Generating Toad engine parser with lemon"
   VERBATIM)
 
 # =============================================================================
-# Static frontend/runtime embedded by TurboScript and plugin binaries
+# Static frontend/runtime embedded by Toad and plugin binaries
 # =============================================================================
 cmake_add_source(SOURCE_FILES RECURSE PATTERNS "*.c*" "*.h*")
-set(EXPRTK_SYNTAX_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/src/grammar/exprtk_parser.c)
-list(REMOVE_ITEM SOURCE_FILES ${EXPRTK_SYNTAX_SOURCE})
+set(ENGINE_SYNTAX_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/src/grammar/parser.c)
+list(REMOVE_ITEM SOURCE_FILES ${ENGINE_SYNTAX_SOURCE})
 
 add_library(
-  exprtk_syntax STATIC
-  ${EXPRTK_SYNTAX_SOURCE}
-  ${exprtk_LEXER_GEN}
-  ${exprtk_GRAMMAR_GEN}
-  ${exprtk_LEXER_RE}
-  ${exprtk_GRAMMAR_Y}
-  ${exprtk_GRAMMAR_H})
+  toad_syntax STATIC
+  ${ENGINE_SYNTAX_SOURCE}
+  ${engine_LEXER_GEN}
+  ${engine_GRAMMAR_GEN}
+  ${engine_LEXER_RE}
+  ${engine_GRAMMAR_Y}
+  ${engine_GRAMMAR_H})
 
 cmake_config_target(
-  exprtk_syntax
+  toad_syntax
   ALIAS
-  TurboScript::ExprTkSyntax
+  Toad::Syntax
   FOLDER
-  "exprtk"
+  "engine"
   EXPORT_NAME
-  ExprTkSyntax)
+  Syntax)
 
 target_include_directories(
-  exprtk_syntax
+  toad_syntax
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
          $<INSTALL_INTERFACE:include>
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/parser ${CMAKE_CURRENT_BINARY_DIR}
           ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-target_link_libraries(exprtk_syntax PUBLIC Salts::Core Salts::DataBind Salts::DateTimeParser CMeta::CMeta)
+target_link_libraries(toad_syntax PUBLIC Salts::Core Salts::DataBind Salts::DateTimeParser CMeta::CMeta)
 if(UNIX)
-  target_link_libraries(exprtk_syntax PRIVATE m)
+  target_link_libraries(toad_syntax PRIVATE m)
 endif()
 
 add_library(
@@ -76,11 +78,11 @@ add_library(
 cmake_config_target(
   ${TARGET_NAME}
   ALIAS
-  TurboScript::ExprTk
+  Toad::Engine
   FOLDER
-  "exprtk"
+  "engine"
   EXPORT_NAME
-  ExprTk)
+  Engine)
 
 target_include_directories(
   ${TARGET_NAME}
@@ -95,7 +97,7 @@ target_include_directories(${TARGET_NAME} PRIVATE ${SIMDE_INCLUDE_DIRS})
 
 target_link_libraries(
   ${TARGET_NAME}
-  PUBLIC TurboScript::ExprTkSyntax Salts::Core Salts::DataBind Salts::DateTimeParser CMeta::CMeta CMeta::PluginABI
+  PUBLIC Toad::Syntax Salts::Core Salts::DataBind Salts::DateTimeParser CMeta::CMeta CMeta::PluginABI
   PRIVATE CMeta::CSTL Salts::Mustache miniblas_linalg)
 
 # Enable AVX/AVX2 for SIMD optimizations
@@ -116,7 +118,7 @@ set_target_properties(
 
 # Install headers
 cmake_install_headers(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/)
-install(FILES ${exprtk_GRAMMAR_H} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(FILES ${engine_GRAMMAR_H} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/toad/detail)
 
 if(BUILD_TESTS OR BUILD_BENCHMARK)
   add_subdirectory(test)

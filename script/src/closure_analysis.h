@@ -1,7 +1,7 @@
-#ifndef TURBO_SCRIPT_CLOSURE_ANALYSIS_H
-#define TURBO_SCRIPT_CLOSURE_ANALYSIS_H
+#ifndef TOAD_SCRIPT_CLOSURE_ANALYSIS_H
+#define TOAD_SCRIPT_CLOSURE_ANALYSIS_H
 
-#include <turboscript/types.h>
+#include <toad/types.h>
 #include <stddef.h>
 
 #ifdef __cplusplus
@@ -34,11 +34,11 @@ typedef struct {
  * - 支持简单闭包（1-10个捕获变量，单层捕获）预编译
  * - 嵌套闭包标记为不可预编译，由 MIR runtime hook 执行
  */
-ts_closure_analysis_t *ts_analyze_closure(tbs_node_t *func_body,
-                                          tbs_node_t **arg_params,
+ts_closure_analysis_t *ts_analyze_closure(toad_node_t *func_body,
+                                          toad_node_t **arg_params,
                                           size_t arg_count,
-                                          tbs_env_t *closure_env,
-                                          tbs_node_t *outer_scope);
+                                          toad_env_t *closure_env,
+                                          toad_node_t *outer_scope);
 
 /**
  * @brief 释放闭包分析结果
@@ -49,4 +49,4 @@ void ts_closure_analysis_free(ts_closure_analysis_t *analysis);
 }
 #endif
 
-#endif // TURBO_SCRIPT_CLOSURE_ANALYSIS_H
+#endif // TOAD_SCRIPT_CLOSURE_ANALYSIS_H

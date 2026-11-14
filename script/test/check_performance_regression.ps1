@@ -1,4 +1,4 @@
-# Performance regression check script for TurboScript JIT (PowerShell)
+# Performance regression check script for Toad JIT (PowerShell)
 
 param(
     [string]$BuildDir = "..\..\build",
@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BuildPath = Join-Path $ScriptDir $BuildDir | Resolve-Path
-$BenchExec = Join-Path $BuildPath "bin\Release\bench_turbo_script_mir.exe"
+$BenchExec = Join-Path $BuildPath "bin\Release\bench_script_mir.exe"
 
 # Colors
 function Write-ColorOutput {
@@ -22,7 +22,7 @@ function Write-ColorOutput {
 }
 
 Write-Host "========================================"
-Write-Host "TurboScript JIT Performance Regression Check"
+Write-Host "Toad JIT Performance Regression Check"
 Write-Host "========================================"
 Write-Host ""
 
@@ -31,7 +31,7 @@ if (-not (Test-Path $BenchExec)) {
     Write-ColorOutput "Error: Benchmark executable not found at $BenchExec" "Red"
     Write-Host "Please build the project first:"
     Write-Host "  cd build"
-    Write-Host "  cmake --build . --config Release --target bench_turbo_script_mir"
+    Write-Host "  cmake --build . --config Release --target bench_script_mir"
     exit 1
 }
 
@@ -98,9 +98,9 @@ $BaselineFile = Join-Path $ScriptDir "performance_baseline.txt"
 if (Test-Path $BaselineFile) {
     Write-Host "Comparing with baseline..."
     $BaselineAvg = [double](Get-Content $BaselineFile)
-    
+
     $Ratio = [math]::Round($AvgSpeedup / $BaselineAvg, 2)
-    
+
     if ($Ratio -lt $RegressionThreshold) {
         Write-ColorOutput "❌ REGRESSION DETECTED!" "Red"
         Write-Host "   Current average ($AvgSpeedup) is ${Ratio}x of baseline ($BaselineAvg)"
@@ -127,14 +127,14 @@ if (-not $Regression) {
     Write-ColorOutput "✗ Performance regression detected!" "Red"
     Write-Host ""
     Write-Host "Possible causes:"
-    Write-Host "  1. Unsupported nodes or helper paths in hot code (check test_turbo_script_mir)"
+    Write-Host "  1. Unsupported nodes or helper paths in hot code (check test_script_mir)"
     Write-Host "  2. Compilation overhead increased"
     Write-Host "  3. MIR backend regression"
     Write-Host "  4. System load (try running again)"
     Write-Host ""
     Write-Host "Debugging steps:"
-    Write-Host "  1. Run: .\test_turbo_script_mir.exe"
-    Write-Host "  2. Check: git diff HEAD~1 turbo_script\src\turbo_script_mir.c"
+    Write-Host "  1. Run: .\test_script_mir.exe"
+    Write-Host "  2. Check: git diff HEAD~1 toad_script\src\mir.c"
     Write-Host "  3. Profile: Use Visual Studio Profiler"
     exit 1
 }

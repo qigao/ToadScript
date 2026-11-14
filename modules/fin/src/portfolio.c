@@ -11,7 +11,7 @@
  */
 
 #include "fin.h"
-#include <turboscript/simd.h>
+#include <toad/simd.h>
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
@@ -133,7 +133,7 @@ static double quadratic_form_row_major(const double *mat, const double *vec, siz
  * Risk Parity
  * ========================================================================= */
 
-double tbs_pf_risk_parity(const double *cov, size_t n, double *weights, mem_pool_t *arena) {
+double toad_pf_risk_parity(const double *cov, size_t n, double *weights, mem_pool_t *arena) {
     if (!cov || !weights || n == 0) return 0.0;
 
     double sum = 0.0;
@@ -194,7 +194,7 @@ static void target_blend_weights(const double *mu, size_t n, double target, doub
  * @param out Output covariance matrix (na × na, row-major)
  * @param arena Memory arena
  */
-void tbs_pf_cov_matrix(const double *returns, size_t na, size_t np,
+void toad_pf_cov_matrix(const double *returns, size_t na, size_t np,
                            double *out, mem_pool_t *arena) {
     if (!returns || !out || na == 0 || np == 0) return;
 
@@ -245,7 +245,7 @@ void tbs_pf_cov_matrix(const double *returns, size_t na, size_t np,
  * @param arena Memory arena
  * @return Portfolio variance
  */
-double tbs_pf_min_variance(const double *cov, size_t n, double *weights, mem_pool_t *arena) {
+double toad_pf_min_variance(const double *cov, size_t n, double *weights, mem_pool_t *arena) {
     if (!cov || !weights || n == 0) return 0.0;
 
     /* Allocate working memory */
@@ -303,7 +303,7 @@ double tbs_pf_min_variance(const double *cov, size_t n, double *weights, mem_poo
  * @param arena Memory arena
  * @return Sharpe ratio
  */
-double tbs_pf_max_sharpe(const double *mu, const double *cov, size_t n,
+double toad_pf_max_sharpe(const double *mu, const double *cov, size_t n,
                              double rf, double *weights, mem_pool_t *arena) {
     if (!mu || !cov || !weights || n == 0) return 0.0;
 
@@ -370,7 +370,7 @@ double tbs_pf_max_sharpe(const double *mu, const double *cov, size_t n,
  * @param arena Memory arena
  * @return Portfolio variance
  */
-double tbs_pf_markowitz(const double *mu, const double *cov, size_t n,
+double toad_pf_markowitz(const double *mu, const double *cov, size_t n,
                             double target, double *weights, mem_pool_t *arena) {
     if (!mu || !cov || !weights || n == 0) return 0.0;
     if (n == 1) {

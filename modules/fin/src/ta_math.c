@@ -3,7 +3,7 @@
  * @brief Technical Analysis internal math and calculation helpers.
  */
 
-#include <turboscript/simd.h>
+#include <toad/simd.h>
 #include "ta.h"
 #include <math.h>
 #include <stdlib.h>

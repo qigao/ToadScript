@@ -1,23 +1,23 @@
 #include "tinytest.h"
-#include <turboscript/script.h>
+#include <toad/script.h>
 #include <threads/threads.h>
 
-static void wait_for_tasks(turbo_script_ctx_t *ctx) {
-  for (int i = 0; i < 200 && turbo_script_task_active_count(ctx); ++i)
+static void wait_for_tasks(toad_script_ctx_t *ctx) {
+  for (int i = 0; i < 200 && toad_script_task_active_count(ctx); ++i)
     sleep_ms(5);
 }
 
-suite("TurboScript Executor tasks") {
+suite("Toad Executor tasks") {
   it("runs without a host coroutine context") {
-    turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_BARE);
+    toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
     check_not_null(ctx);
     if (!ctx) return;
     check_equal(
-        turbo_script_run(ctx,
+        toad_script_run(ctx,
                          "id = task.spawn(() => { task.sleep(10); return 7; });"),
         0);
     wait_for_tasks(ctx);
-    check_equal(turbo_script_task_active_count(ctx), (size_t)0);
-    turbo_script_free(ctx);
+    check_equal(toad_script_task_active_count(ctx), (size_t)0);
+    toad_script_free(ctx);
   }
 }

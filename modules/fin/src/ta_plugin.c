@@ -1,3 +1,3 @@
-#include "ts_plugin.h"
-const exprtk_module_t *exprtk_module_ta(void);
-TS_PLUGIN_MODULE(ta, exprtk_module_ta)
+#include <toad/plugin.h>
+const toad_module_t *toad_module_ta(void);
+TOAD_PLUGIN_MODULE(ta, toad_module_ta)

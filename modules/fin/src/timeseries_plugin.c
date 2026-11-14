@@ -1,6 +1,5 @@
-#include "ts_plugin.h"
+#include <toad/plugin.h>
 
-const exprtk_module_t *exprtk_module_timeseries(void);
+const toad_module_t *toad_module_timeseries(void);
 
-TS_PLUGIN_MODULE(ts, exprtk_module_timeseries)
-
+TOAD_PLUGIN_MODULE(ts, toad_module_timeseries)

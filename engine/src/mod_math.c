@@ -1,12 +1,12 @@
 /**
  * @file math.c
- * @brief Core Math implementation and TurboScript Math Module.
- * Consolidates pure math functions and ExprTk module registration.
+ * @brief Core Math implementation and Toad Math Module.
+ * Consolidates pure math functions and Engine module registration.
  */
 
-#include "exprtk_module.h"
-#include "simd_helpers.h"
-#include "exprtk_internal.h"
+#include <toad/module.h>
+#include <toad/simd.h>
+#include "internal.h"
 #include "linalg.h"
 #include "memory/buffer.h"
 #include <math.h>
@@ -18,12 +18,12 @@
 
 static const double TS_MATH_PI = 3.141592653589793238462643383279502884;
 
-static int math_is_number(exprtk_value_t v) {
-  return v.type == EXPRTK_VAL_NUMBER || v.type == EXPRTK_VAL_INTEGER;
+static int math_is_number(toad_value_t v) {
+  return v.type == TOAD_VAL_NUMBER || v.type == TOAD_VAL_INTEGER;
 }
 
-static double math_number_value(exprtk_value_t v) {
-  return v.type == EXPRTK_VAL_INTEGER ? (double)v.data.integer : v.data.number;
+static double math_number_value(toad_value_t v) {
+  return v.type == TOAD_VAL_INTEGER ? (double)v.data.integer : v.data.number;
 }
 
 typedef enum {
@@ -42,13 +42,13 @@ typedef enum {
   MATH_MATRIX_AXIS_ROW = 1
 } math_matrix_axis_t;
 
-static int math_string_equals(exprtk_value_t v, const char *s) {
+static int math_string_equals(toad_value_t v, const char *s) {
   size_t len = strlen(s);
-  return v.type == EXPRTK_VAL_STRING && v.data.string.len == len &&
+  return v.type == TOAD_VAL_STRING && v.data.string.len == len &&
          memcmp(v.data.string.data, s, len) == 0;
 }
 
-static int math_matrix_layout_arg(exprtk_value_t v, math_matrix_layout_t *layout) {
+static int math_matrix_layout_arg(toad_value_t v, math_matrix_layout_t *layout) {
   if (math_is_number(v)) {
     *layout = fabs(math_number_value(v)) > 1e-9 ? MATH_MATRIX_ROW_MAJOR : MATH_MATRIX_COL_MAJOR;
     return 1;
@@ -64,7 +64,7 @@ static int math_matrix_layout_arg(exprtk_value_t v, math_matrix_layout_t *layout
   return 0;
 }
 
-static int math_matrix_axis_arg(exprtk_value_t v, math_matrix_axis_t *axis) {
+static int math_matrix_axis_arg(toad_value_t v, math_matrix_axis_t *axis) {
   if (math_string_equals(v, "col") || math_string_equals(v, "cols") ||
       math_string_equals(v, "column") || math_string_equals(v, "columns") ||
       math_string_equals(v, "0")) {
@@ -90,7 +90,7 @@ static int math_matrix_axis_arg(exprtk_value_t v, math_matrix_axis_t *axis) {
   return 0;
 }
 
-static int math_matrix_norm_kind_arg(exprtk_value_t v, math_matrix_norm_kind_t *kind) {
+static int math_matrix_norm_kind_arg(toad_value_t v, math_matrix_norm_kind_t *kind) {
   if (math_string_equals(v, "fro") || math_string_equals(v, "frob") ||
       math_string_equals(v, "frobenius")) {
     *kind = MATH_MATRIX_NORM_FROBENIUS;
@@ -163,26 +163,26 @@ static void math_row_major_to_double_matrix(const double *src, size_t rows, size
       dst[r + c * rows] = src[r * cols + c];
 }
 
-static exprtk_value_t math_vec_from_float_matrix(mem_pool_t *arena, const float *src,
+static toad_value_t math_vec_from_float_matrix(mem_pool_t *arena, const float *src,
                                                  size_t rows, size_t cols,
                                                  math_matrix_layout_t layout) {
   double *out = MEM_ALLOC_ARRAY(arena, double, rows * cols);
-  if (!out) return exprtk_val_num(0);
+  if (!out) return toad_val_num(0);
   math_float_to_double_matrix(src, rows, cols, layout, out);
-  return exprtk_val_vec(out, rows * cols);
+  return toad_val_vec(out, rows * cols);
 }
 
-static exprtk_value_t math_matmul_backend(const double *lhs, const double *rhs, size_t rows,
+static toad_value_t math_matmul_backend(const double *lhs, const double *rhs, size_t rows,
                                           size_t inner, size_t cols, float alpha, float beta,
                                           math_matrix_layout_t layout, mem_pool_t *arena) {
   if (!lhs || !rhs || !arena || rows == 0 || inner == 0 || cols == 0 ||
       rows > (size_t)INT_MAX || inner > (size_t)INT_MAX || cols > (size_t)INT_MAX)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   float *a = (float *)mem_alloc(arena, rows * inner * sizeof(float));
   float *b = (float *)mem_alloc(arena, inner * cols * sizeof(float));
   float *c = (float *)mem_alloc(arena, rows * cols * sizeof(float));
-  if (!a || !b || !c) return exprtk_val_num(0);
+  if (!a || !b || !c) return toad_val_num(0);
 
   math_double_to_float_matrix(lhs, rows, inner, layout, a);
   math_double_to_float_matrix(rhs, inner, cols, layout, b);
@@ -191,11 +191,11 @@ static exprtk_value_t math_matmul_backend(const double *lhs, const double *rhs, 
   return math_vec_from_float_matrix(arena, c, rows, cols, layout);
 }
 
-static int math_matrix_dims_from_args(size_t argc, exprtk_value_t *args, size_t min_argc,
+static int math_matrix_dims_from_args(size_t argc, toad_value_t *args, size_t min_argc,
                                       size_t *rows, size_t *cols,
                                       math_matrix_layout_t *layout) {
   if ((argc != min_argc && argc != min_argc + 1) ||
-      args[0].type != EXPRTK_VAL_VECTOR || !math_is_number(args[1]) ||
+      args[0].type != TOAD_VAL_VECTOR || !math_is_number(args[1]) ||
       !math_is_number(args[2]))
     return 0;
   *layout = MATH_MATRIX_COL_MAJOR;
@@ -331,16 +331,16 @@ static int math_symmetric_eigenvalues_jacobi(double *a, size_t n, double *eigenv
 }
 
 /* ========================================================================= */
-/* 2. TurboScript Module Wrappers                                           */
+/* 2. Toad Module Wrappers                                           */
 /* ========================================================================= */
 
 /* ========================================================================= */
-/* 2. TurboScript Module Wrappers                                           */
+/* 2. Toad Module Wrappers                                           */
 /* ========================================================================= */
 
-static exprtk_value_t fn_integrate(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_integrate(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
-  if ((argc == 3 || argc == 4) && args[0].type == EXPRTK_VAL_STRING) {
+  if ((argc == 3 || argc == 4) && args[0].type == TOAD_VAL_STRING) {
     char f_name[256];
     size_t len = args[0].data.string.len;
     if (len > 255)
@@ -359,28 +359,28 @@ static exprtk_value_t fn_integrate(size_t argc, exprtk_value_t *args, exprtk_env
     double h = (b - a) / n;
     double sum = 0;
 
-    exprtk_value_t vx_a = exprtk_val_num(a);
-    exprtk_value_t vx_b = exprtk_val_num(b);
-    exprtk_value_t v_a = exprtk_call_internal(f_name, 1, &vx_a, env);
-    exprtk_value_t v_b = exprtk_call_internal(f_name, 1, &vx_b, env);
+    toad_value_t vx_a = toad_val_num(a);
+    toad_value_t vx_b = toad_val_num(b);
+    toad_value_t v_a = toad_call_internal(f_name, 1, &vx_a, env);
+    toad_value_t v_b = toad_call_internal(f_name, 1, &vx_b, env);
     sum = v_a.data.number + v_b.data.number;
 
     for (int i = 1; i < n; ++i) {
-      if (env && (env->aborted || env->flow != exprtk_FLOW_NORMAL))
+      if (env && (env->aborted || env->flow != toad_FLOW_NORMAL))
         break;
       double x = a + i * h;
-      exprtk_value_t vx_val = exprtk_val_num(x);
-      exprtk_value_t v_x = exprtk_call_internal(f_name, 1, &vx_val, env);
+      toad_value_t vx_val = toad_val_num(x);
+      toad_value_t v_x = toad_call_internal(f_name, 1, &vx_val, env);
       sum += (i % 2 == 0 ? 2.0 : 4.0) * v_x.data.number;
     }
-    return exprtk_val_num((h / 3.0) * sum);
+    return toad_val_num((h / 3.0) * sum);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_derivative(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_derivative(size_t argc, toad_value_t *args, toad_env_t *env,
                                     mem_pool_t *arena) {
-  if ((argc == 2 || argc == 3) && args[0].type == EXPRTK_VAL_STRING) {
+  if ((argc == 2 || argc == 3) && args[0].type == TOAD_VAL_STRING) {
     char f_name[256];
     size_t len = args[0].data.string.len;
     if (len > 255)
@@ -391,144 +391,144 @@ static exprtk_value_t fn_derivative(size_t argc, exprtk_value_t *args, exprtk_en
     double x = args[1].data.number;
     double h = (argc == 3) ? args[2].data.number : 1e-6;
 
-    exprtk_value_t v1_arg = exprtk_val_num(x + h);
-    exprtk_value_t v2_arg = exprtk_val_num(x - h);
-    exprtk_value_t v1 = exprtk_call_internal(f_name, 1, &v1_arg, env);
-    exprtk_value_t v2 = exprtk_call_internal(f_name, 1, &v2_arg, env);
+    toad_value_t v1_arg = toad_val_num(x + h);
+    toad_value_t v2_arg = toad_val_num(x - h);
+    toad_value_t v1 = toad_call_internal(f_name, 1, &v1_arg, env);
+    toad_value_t v2 = toad_call_internal(f_name, 1, &v2_arg, env);
 
-    return exprtk_val_num((v1.data.number - v2.data.number) / (2.0 * h));
+    return toad_val_num((v1.data.number - v2.data.number) / (2.0 * h));
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_det2(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_det2(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR && args[0].data.vector.size >= 4)
-    return exprtk_val_num(exprtk_det2(args[0].data.vector.data));
-  return exprtk_val_num(0);
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR && args[0].data.vector.size >= 4)
+    return toad_val_num(toad_det2(args[0].data.vector.data));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_det3(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_det3(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR && args[0].data.vector.size >= 9)
-    return exprtk_val_num(exprtk_det3(args[0].data.vector.data));
-  return exprtk_val_num(0);
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR && args[0].data.vector.size >= 9)
+    return toad_val_num(toad_det3(args[0].data.vector.data));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_inv2(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_inv2(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR && args[0].data.vector.size >= 4) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR && args[0].data.vector.size >= 4) {
     double *res = MEM_ALLOC_ARRAY(arena, double, 4);
-    if (res && exprtk_inv2(args[0].data.vector.data, res))
-      return exprtk_val_vec(res, 4);
+    if (res && toad_inv2(args[0].data.vector.data, res))
+      return toad_val_vec(res, 4);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_inv3(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_inv3(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR && args[0].data.vector.size >= 9) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR && args[0].data.vector.size >= 9) {
     double *res = MEM_ALLOC_ARRAY(arena, double, 9);
-    if (res && exprtk_inv3(args[0].data.vector.data, res))
-      return exprtk_val_vec(res, 9);
+    if (res && toad_inv3(args[0].data.vector.data, res))
+      return toad_val_vec(res, 9);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_matmul(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_matmul(size_t argc, toad_value_t *args, toad_env_t *env,
                                 mem_pool_t *arena) {
   (void)env;
-  if ((argc != 5 && argc != 6) || args[0].type != EXPRTK_VAL_VECTOR ||
-      args[1].type != EXPRTK_VAL_VECTOR ||
+  if ((argc != 5 && argc != 6) || args[0].type != TOAD_VAL_VECTOR ||
+      args[1].type != TOAD_VAL_VECTOR ||
       !math_is_number(args[2]) || !math_is_number(args[3]) || !math_is_number(args[4]))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 6 && !math_matrix_layout_arg(args[5], &layout)) return exprtk_val_num(0);
+  if (argc == 6 && !math_matrix_layout_arg(args[5], &layout)) return toad_val_num(0);
 
   size_t rows = (size_t)math_number_value(args[2]);
   size_t inner = (size_t)math_number_value(args[3]);
   size_t cols = (size_t)math_number_value(args[4]);
   if (args[0].data.vector.size < rows * inner || args[1].data.vector.size < inner * cols)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   return math_matmul_backend(args[0].data.vector.data, args[1].data.vector.data, rows, inner,
                              cols, 1.0f, 0.0f, layout, arena);
 }
 
-static exprtk_value_t fn_mat_eye(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_eye(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
-  if ((argc != 1 && argc != 2) || !math_is_number(args[0])) return exprtk_val_num(0);
+  if ((argc != 1 && argc != 2) || !math_is_number(args[0])) return toad_val_num(0);
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 2 && !math_matrix_layout_arg(args[1], &layout)) return exprtk_val_num(0);
+  if (argc == 2 && !math_matrix_layout_arg(args[1], &layout)) return toad_val_num(0);
   size_t n = (size_t)math_number_value(args[0]);
-  if (n == 0 || n > (size_t)INT_MAX) return exprtk_val_num(0);
+  if (n == 0 || n > (size_t)INT_MAX) return toad_val_num(0);
   float *tmp = (float *)mem_alloc(arena, n * n * sizeof(float));
-  if (!tmp) return exprtk_val_num(0);
+  if (!tmp) return toad_val_num(0);
   mateye(tmp, (int)n);
   return math_vec_from_float_matrix(arena, tmp, n, n, layout);
 }
 
-static exprtk_value_t fn_mat_zeros(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_zeros(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
   if ((argc != 2 && argc != 3) || !math_is_number(args[0]) || !math_is_number(args[1]))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return exprtk_val_num(0);
+  if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return toad_val_num(0);
   (void)layout;
 
   size_t rows = (size_t)math_number_value(args[0]);
   size_t cols = (size_t)math_number_value(args[1]);
   if (rows == 0 || cols == 0 || rows > (size_t)INT_MAX || cols > (size_t)INT_MAX)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   double *out = MEM_ALLOC_ARRAY(arena, double, rows * cols);
-  if (!out) return exprtk_val_num(0);
+  if (!out) return toad_val_num(0);
   memset(out, 0, rows * cols * sizeof(double));
-  return exprtk_val_vec(out, rows * cols);
+  return toad_val_vec(out, rows * cols);
 }
 
-static exprtk_value_t fn_eig2(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_eig2(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena);
 
-static exprtk_value_t fn_mat_full(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_full(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   if ((argc != 3 && argc != 4) || !math_is_number(args[0]) || !math_is_number(args[1]) ||
       !math_is_number(args[2]))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 4 && !math_matrix_layout_arg(args[3], &layout)) return exprtk_val_num(0);
+  if (argc == 4 && !math_matrix_layout_arg(args[3], &layout)) return toad_val_num(0);
   (void)layout;
 
   size_t rows = (size_t)math_number_value(args[0]);
   size_t cols = (size_t)math_number_value(args[1]);
   if (rows == 0 || cols == 0 || rows > (size_t)INT_MAX || cols > (size_t)INT_MAX)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   double value = math_number_value(args[2]);
   double *out = MEM_ALLOC_ARRAY(arena, double, rows * cols);
-  if (!out) return exprtk_val_num(0);
+  if (!out) return toad_val_num(0);
   for (size_t i = 0; i < rows * cols; ++i)
     out[i] = value;
-  return exprtk_val_vec(out, rows * cols);
+  return toad_val_vec(out, rows * cols);
 }
 
-static exprtk_value_t fn_mat_ones(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_ones(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
-  if (argc != 2 && argc != 3) return exprtk_val_num(0);
-  exprtk_value_t full_args[4];
+  if (argc != 2 && argc != 3) return toad_val_num(0);
+  toad_value_t full_args[4];
   full_args[0] = args[0];
   full_args[1] = args[1];
-  full_args[2] = exprtk_val_num(1.0);
+  full_args[2] = toad_val_num(1.0);
   if (argc == 3) full_args[3] = args[2];
   return fn_mat_full(argc + 1, full_args, env, arena);
 }
@@ -539,27 +539,27 @@ typedef enum {
   MATH_MATRIX_EWISE_MUL = 2
 } math_matrix_ewise_op_t;
 
-static exprtk_value_t math_mat_ewise_binary(size_t argc, exprtk_value_t *args,
+static toad_value_t math_mat_ewise_binary(size_t argc, toad_value_t *args,
                                             mem_pool_t *arena,
                                             math_matrix_ewise_op_t op) {
-  if ((argc != 4 && argc != 5) || args[0].type != EXPRTK_VAL_VECTOR ||
-      args[1].type != EXPRTK_VAL_VECTOR || !math_is_number(args[2]) ||
+  if ((argc != 4 && argc != 5) || args[0].type != TOAD_VAL_VECTOR ||
+      args[1].type != TOAD_VAL_VECTOR || !math_is_number(args[2]) ||
       !math_is_number(args[3]))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 5 && !math_matrix_layout_arg(args[4], &layout)) return exprtk_val_num(0);
+  if (argc == 5 && !math_matrix_layout_arg(args[4], &layout)) return toad_val_num(0);
   (void)layout;
 
   size_t rows = (size_t)math_number_value(args[2]);
   size_t cols = (size_t)math_number_value(args[3]);
   if (rows == 0 || cols == 0 || rows > (size_t)INT_MAX || cols > (size_t)INT_MAX ||
       args[0].data.vector.size < rows * cols || args[1].data.vector.size < rows * cols)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   size_t n = rows * cols;
   double *out = MEM_ALLOC_ARRAY(arena, double, n);
-  if (!out) return exprtk_val_num(0);
+  if (!out) return toad_val_num(0);
   double *a = args[0].data.vector.data;
   double *b = args[1].data.vector.data;
   if (op == MATH_MATRIX_EWISE_ADD) {
@@ -569,70 +569,70 @@ static exprtk_value_t math_mat_ewise_binary(size_t argc, exprtk_value_t *args,
   } else {
     simd_mul(a, b, out, n);
   }
-  return exprtk_val_vec(out, n);
+  return toad_val_vec(out, n);
 }
 
-static exprtk_value_t fn_mat_add(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_add(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
   return math_mat_ewise_binary(argc, args, arena, MATH_MATRIX_EWISE_ADD);
 }
 
-static exprtk_value_t fn_mat_sub(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_sub(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
   return math_mat_ewise_binary(argc, args, arena, MATH_MATRIX_EWISE_SUB);
 }
 
-static exprtk_value_t fn_mat_hadamard(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_hadamard(size_t argc, toad_value_t *args, toad_env_t *env,
                                       mem_pool_t *arena) {
   (void)env;
   return math_mat_ewise_binary(argc, args, arena, MATH_MATRIX_EWISE_MUL);
 }
 
-static exprtk_value_t fn_mat_scale(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_scale(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
-  if ((argc != 4 && argc != 5) || args[0].type != EXPRTK_VAL_VECTOR ||
+  if ((argc != 4 && argc != 5) || args[0].type != TOAD_VAL_VECTOR ||
       !math_is_number(args[1]) || !math_is_number(args[2]) || !math_is_number(args[3]))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 5 && !math_matrix_layout_arg(args[4], &layout)) return exprtk_val_num(0);
+  if (argc == 5 && !math_matrix_layout_arg(args[4], &layout)) return toad_val_num(0);
   (void)layout;
 
   size_t rows = (size_t)math_number_value(args[1]);
   size_t cols = (size_t)math_number_value(args[2]);
   if (rows == 0 || cols == 0 || rows > (size_t)INT_MAX || cols > (size_t)INT_MAX ||
       args[0].data.vector.size < rows * cols)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   size_t n = rows * cols;
   double *out = MEM_ALLOC_ARRAY(arena, double, n);
-  if (!out) return exprtk_val_num(0);
+  if (!out) return toad_val_num(0);
   simd_scale(args[0].data.vector.data, out, math_number_value(args[3]), n);
-  return exprtk_val_vec(out, n);
+  return toad_val_vec(out, n);
 }
 
-static exprtk_value_t fn_mat_gemm(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_gemm(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   if ((argc != 5 && argc != 6 && argc != 7 && argc != 8) ||
-      args[0].type != EXPRTK_VAL_VECTOR ||
-      args[1].type != EXPRTK_VAL_VECTOR || !math_is_number(args[2]) ||
+      args[0].type != TOAD_VAL_VECTOR ||
+      args[1].type != TOAD_VAL_VECTOR || !math_is_number(args[2]) ||
       !math_is_number(args[3]) || !math_is_number(args[4]))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
   float alpha = 1.0f;
   float beta = 0.0f;
   if (argc == 6) {
-    if (!math_matrix_layout_arg(args[5], &layout)) return exprtk_val_num(0);
+    if (!math_matrix_layout_arg(args[5], &layout)) return toad_val_num(0);
   } else if (argc == 7 || argc == 8) {
-    if (!math_is_number(args[5]) || !math_is_number(args[6])) return exprtk_val_num(0);
+    if (!math_is_number(args[5]) || !math_is_number(args[6])) return toad_val_num(0);
     alpha = (float)math_number_value(args[5]);
     beta = (float)math_number_value(args[6]);
-    if (argc == 8 && !math_matrix_layout_arg(args[7], &layout)) return exprtk_val_num(0);
+    if (argc == 8 && !math_matrix_layout_arg(args[7], &layout)) return toad_val_num(0);
   }
 
   size_t rows = (size_t)math_number_value(args[2]);
@@ -640,108 +640,108 @@ static exprtk_value_t fn_mat_gemm(size_t argc, exprtk_value_t *args, exprtk_env_
   size_t cols = (size_t)math_number_value(args[4]);
   if (rows == 0 || inner == 0 || cols == 0 || rows > (size_t)INT_MAX ||
       inner > (size_t)INT_MAX || cols > (size_t)INT_MAX)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   if (args[0].data.vector.size < rows * inner || args[1].data.vector.size < inner * cols)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   return math_matmul_backend(args[0].data.vector.data, args[1].data.vector.data, rows, inner,
                              cols, alpha, beta, layout, arena);
 }
 
-static exprtk_value_t fn_mat_cholesky(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_cholesky(size_t argc, toad_value_t *args, toad_env_t *env,
                                       mem_pool_t *arena) {
   (void)env;
-  if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_VECTOR || !math_is_number(args[1]))
-    return exprtk_val_num(0);
+  if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_VECTOR || !math_is_number(args[1]))
+    return toad_val_num(0);
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return exprtk_val_num(0);
+  if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return toad_val_num(0);
   size_t n = (size_t)math_number_value(args[1]);
   if (n == 0 || n > (size_t)INT_MAX || args[0].data.vector.size < n * n)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   float *a = (float *)mem_alloc(arena, n * n * sizeof(float));
-  if (!a) return exprtk_val_num(0);
+  if (!a) return toad_val_num(0);
   math_double_to_float_matrix(args[0].data.vector.data, n, n, layout, a);
-  if (cholesky(a, (int)n, 0) != 0) return exprtk_val_num(0);
+  if (cholesky(a, (int)n, 0) != 0) return toad_val_num(0);
   return math_vec_from_float_matrix(arena, a, n, n, layout);
 }
 
-static exprtk_value_t fn_mat_solve_tri(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_solve_tri(size_t argc, toad_value_t *args, toad_env_t *env,
                                        mem_pool_t *arena) {
   (void)env;
-  if ((argc != 4 && argc != 5 && argc != 6) || args[0].type != EXPRTK_VAL_VECTOR ||
-      args[1].type != EXPRTK_VAL_VECTOR || !math_is_number(args[2]) ||
+  if ((argc != 4 && argc != 5 && argc != 6) || args[0].type != TOAD_VAL_VECTOR ||
+      args[1].type != TOAD_VAL_VECTOR || !math_is_number(args[2]) ||
       !math_is_number(args[3]))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   size_t n = (size_t)math_number_value(args[2]);
   size_t cols = (size_t)math_number_value(args[3]);
   int transpose = 0;
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
   if (argc == 5) {
-    if (!math_matrix_layout_arg(args[4], &layout)) return exprtk_val_num(0);
+    if (!math_matrix_layout_arg(args[4], &layout)) return toad_val_num(0);
   } else if (argc == 6) {
     if (!math_is_number(args[4]) || !math_matrix_layout_arg(args[5], &layout))
-      return exprtk_val_num(0);
+      return toad_val_num(0);
     transpose = fabs(math_number_value(args[4])) > 1e-9;
   }
   if (n == 0 || cols == 0 || n > (size_t)INT_MAX || cols > (size_t)INT_MAX ||
       args[0].data.vector.size < n * n || args[1].data.vector.size < n * cols)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   float *l = (float *)mem_alloc(arena, n * n * sizeof(float));
   float *b = (float *)mem_alloc(arena, n * cols * sizeof(float));
-  if (!l || !b) return exprtk_val_num(0);
+  if (!l || !b) return toad_val_num(0);
   math_double_to_float_matrix(args[0].data.vector.data, n, n, layout, l);
   math_double_to_float_matrix(args[1].data.vector.data, n, cols, layout, b);
   trisolve(l, b, (int)n, (int)cols, transpose ? "T" : "N");
   return math_vec_from_float_matrix(arena, b, n, cols, layout);
 }
 
-static exprtk_value_t fn_mat_udu(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_udu(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
-  if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_VECTOR || !math_is_number(args[1]))
-    return exprtk_val_num(0);
+  if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_VECTOR || !math_is_number(args[1]))
+    return toad_val_num(0);
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return exprtk_val_num(0);
+  if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return toad_val_num(0);
   size_t n = (size_t)math_number_value(args[1]);
   if (n == 0 || n > (size_t)INT_MAX || args[0].data.vector.size < n * n)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   float *a = (float *)mem_alloc(arena, n * n * sizeof(float));
   float *u = (float *)mem_alloc(arena, n * n * sizeof(float));
   float *d = (float *)mem_alloc(arena, n * sizeof(float));
-  if (!a || !u || !d) return exprtk_val_num(0);
+  if (!a || !u || !d) return toad_val_num(0);
   math_double_to_float_matrix(args[0].data.vector.data, n, n, layout, a);
-  if (udu(a, u, d, (int)n) != 0) return exprtk_val_num(0);
+  if (udu(a, u, d, (int)n) != 0) return toad_val_num(0);
 
-  exprtk_value_t u_vec = math_vec_from_float_matrix(arena, u, n, n, layout);
-  if (u_vec.type != EXPRTK_VAL_VECTOR) return exprtk_val_num(0);
+  toad_value_t u_vec = math_vec_from_float_matrix(arena, u, n, n, layout);
+  if (u_vec.type != TOAD_VAL_VECTOR) return toad_val_num(0);
   double *d_out = MEM_ALLOC_ARRAY(arena, double, n);
-  if (!d_out) return exprtk_val_num(0);
+  if (!d_out) return toad_val_num(0);
   for (size_t i = 0; i < n; ++i) d_out[i] = (double)d[i];
-  exprtk_value_t d_vec = exprtk_val_vec(d_out, n);
+  toad_value_t d_vec = toad_val_vec(d_out, n);
 
-  exprtk_value_t list = exprtk_val_list_empty();
-  exprtk_list_push(&list, u_vec);
-  exprtk_list_push(&list, d_vec);
+  toad_value_t list = toad_val_list_empty();
+  toad_list_push(&list, u_vec);
+  toad_list_push(&list, d_vec);
   return list;
 }
 
-static exprtk_value_t fn_mat_shape(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_shape(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
   size_t rows = 0;
   size_t cols = 0;
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
   if (!math_matrix_dims_from_args(argc, args, 3, &rows, &cols, &layout))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   (void)layout;
   double *shape = MEM_ALLOC_ARRAY(arena, double, 2);
-  if (!shape) return exprtk_val_num(0);
+  if (!shape) return toad_val_num(0);
   shape[0] = (double)rows;
   shape[1] = (double)cols;
-  return exprtk_val_vec(shape, 2);
+  return toad_val_vec(shape, 2);
 }
 
-static exprtk_value_t fn_mat_info(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_info(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   (void)arena;
@@ -749,21 +749,21 @@ static exprtk_value_t fn_mat_info(size_t argc, exprtk_value_t *args, exprtk_env_
   size_t cols = 0;
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
   if (!math_matrix_dims_from_args(argc, args, 3, &rows, &cols, &layout))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
-  exprtk_value_t info = exprtk_val_map();
-  exprtk_map_set(&info, "rows", exprtk_val_num((double)rows));
-  exprtk_map_set(&info, "cols", exprtk_val_num((double)cols));
-  exprtk_map_set(&info, "size", exprtk_val_num((double)(rows * cols)));
-  exprtk_map_set(&info, "layout", exprtk_val_num((double)layout));
-  exprtk_map_set(&info, "order",
-                 exprtk_val_str(vstr_from_cstr(layout == MATH_MATRIX_ROW_MAJOR ? "row" : "col")));
-  exprtk_map_set(&info, "dtype", exprtk_val_str(vstr_from_cstr("f64")));
-  exprtk_map_set(&info, "backend_dtype", exprtk_val_str(vstr_from_cstr("f32")));
+  toad_value_t info = toad_val_map();
+  toad_map_set(&info, "rows", toad_val_num((double)rows));
+  toad_map_set(&info, "cols", toad_val_num((double)cols));
+  toad_map_set(&info, "size", toad_val_num((double)(rows * cols)));
+  toad_map_set(&info, "layout", toad_val_num((double)layout));
+  toad_map_set(&info, "order",
+                 toad_val_str(vstr_from_cstr(layout == MATH_MATRIX_ROW_MAJOR ? "row" : "col")));
+  toad_map_set(&info, "dtype", toad_val_str(vstr_from_cstr("f64")));
+  toad_map_set(&info, "backend_dtype", toad_val_str(vstr_from_cstr("f32")));
   return info;
 }
 
-static exprtk_value_t fn_mat_rows(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_rows(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   (void)arena;
@@ -771,13 +771,13 @@ static exprtk_value_t fn_mat_rows(size_t argc, exprtk_value_t *args, exprtk_env_
   size_t cols = 0;
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
   if (!math_matrix_dims_from_args(argc, args, 3, &rows, &cols, &layout))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   (void)cols;
   (void)layout;
-  return exprtk_val_num((double)rows);
+  return toad_val_num((double)rows);
 }
 
-static exprtk_value_t fn_mat_cols(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_cols(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   (void)arena;
@@ -785,55 +785,55 @@ static exprtk_value_t fn_mat_cols(size_t argc, exprtk_value_t *args, exprtk_env_
   size_t cols = 0;
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
   if (!math_matrix_dims_from_args(argc, args, 3, &rows, &cols, &layout))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   (void)rows;
   (void)layout;
-  return exprtk_val_num((double)cols);
+  return toad_val_num((double)cols);
 }
 
-static exprtk_value_t fn_mat_inv(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_inv(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
-  if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_VECTOR || !math_is_number(args[1]))
-    return exprtk_val_num(0);
+  if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_VECTOR || !math_is_number(args[1]))
+    return toad_val_num(0);
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return exprtk_val_num(0);
+  if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return toad_val_num(0);
   size_t n = (size_t)math_number_value(args[1]);
-  if (n == 0 || args[0].data.vector.size < n * n) return exprtk_val_num(0);
+  if (n == 0 || args[0].data.vector.size < n * n) return toad_val_num(0);
   double *row = MEM_ALLOC_ARRAY(arena, double, n * n);
   double *out = MEM_ALLOC_ARRAY(arena, double, n * n);
-  if (!row || !out) return exprtk_val_num(0);
+  if (!row || !out) return toad_val_num(0);
   math_double_to_row_major_matrix(args[0].data.vector.data, n, n, layout, row);
-  if (!gauss_jordan_invert(row, n, arena)) return exprtk_val_num(0);
+  if (!gauss_jordan_invert(row, n, arena)) return toad_val_num(0);
   math_row_major_to_double_matrix(row, n, n, layout, out);
-  return exprtk_val_vec(out, n * n);
+  return toad_val_vec(out, n * n);
 }
 
-static exprtk_value_t fn_mat_solve(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_solve(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
-  if ((argc != 4 && argc != 5) || args[0].type != EXPRTK_VAL_VECTOR ||
-      args[1].type != EXPRTK_VAL_VECTOR || !math_is_number(args[2]) ||
+  if ((argc != 4 && argc != 5) || args[0].type != TOAD_VAL_VECTOR ||
+      args[1].type != TOAD_VAL_VECTOR || !math_is_number(args[2]) ||
       !math_is_number(args[3]))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 5 && !math_matrix_layout_arg(args[4], &layout)) return exprtk_val_num(0);
+  if (argc == 5 && !math_matrix_layout_arg(args[4], &layout)) return toad_val_num(0);
   size_t n = (size_t)math_number_value(args[2]);
   size_t cols = (size_t)math_number_value(args[3]);
   if (n == 0 || cols == 0 || args[0].data.vector.size < n * n ||
       args[1].data.vector.size < n * cols)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   double *a = MEM_ALLOC_ARRAY(arena, double, n * n);
   double *b = MEM_ALLOC_ARRAY(arena, double, n * cols);
   double *x_row = MEM_ALLOC_ARRAY(arena, double, n * cols);
   double *out = MEM_ALLOC_ARRAY(arena, double, n * cols);
-  if (!a || !b || !x_row || !out) return exprtk_val_num(0);
+  if (!a || !b || !x_row || !out) return toad_val_num(0);
 
   math_double_to_row_major_matrix(args[0].data.vector.data, n, n, layout, a);
   math_double_to_row_major_matrix(args[1].data.vector.data, n, cols, layout, b);
-  if (!gauss_jordan_invert(a, n, arena)) return exprtk_val_num(0);
+  if (!gauss_jordan_invert(a, n, arena)) return toad_val_num(0);
 
   for (size_t r = 0; r < n; ++r) {
     for (size_t c = 0; c < cols; ++c) {
@@ -844,23 +844,23 @@ static exprtk_value_t fn_mat_solve(size_t argc, exprtk_value_t *args, exprtk_env
     }
   }
   math_row_major_to_double_matrix(x_row, n, cols, layout, out);
-  return exprtk_val_vec(out, n * cols);
+  return toad_val_vec(out, n * cols);
 }
 
-static exprtk_value_t fn_mat_det(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_det(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
-  if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_VECTOR || !math_is_number(args[1]))
-    return exprtk_val_num(0);
+  if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_VECTOR || !math_is_number(args[1]))
+    return toad_val_num(0);
 
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return exprtk_val_num(0);
+  if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return toad_val_num(0);
   size_t n = (size_t)math_number_value(args[1]);
   if (n == 0 || n > (size_t)INT_MAX || args[0].data.vector.size < n * n)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   double *a = MEM_ALLOC_ARRAY(arena, double, n * n);
-  if (!a) return exprtk_val_num(0);
+  if (!a) return toad_val_num(0);
   math_double_to_row_major_matrix(args[0].data.vector.data, n, n, layout, a);
 
   double det = 1.0;
@@ -875,7 +875,7 @@ static exprtk_value_t fn_mat_det(size_t argc, exprtk_value_t *args, exprtk_env_t
         pivot_abs = v;
       }
     }
-    if (pivot_abs < 1e-12) return exprtk_val_num(0);
+    if (pivot_abs < 1e-12) return toad_val_num(0);
 
     if (pivot != i) {
       for (size_t c = 0; c < n; ++c) {
@@ -896,44 +896,44 @@ static exprtk_value_t fn_mat_det(size_t argc, exprtk_value_t *args, exprtk_env_t
     }
   }
 
-  return exprtk_val_num(sign < 0 ? -det : det);
+  return toad_val_num(sign < 0 ? -det : det);
 }
 
-static exprtk_value_t fn_mat_norm(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_norm(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
-  if ((argc < 3 || argc > 5) || args[0].type != EXPRTK_VAL_VECTOR ||
+  if ((argc < 3 || argc > 5) || args[0].type != TOAD_VAL_VECTOR ||
       !math_is_number(args[1]) || !math_is_number(args[2]))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   size_t rows = (size_t)math_number_value(args[1]);
   size_t cols = (size_t)math_number_value(args[2]);
   if (rows == 0 || cols == 0 || rows > (size_t)INT_MAX || cols > (size_t)INT_MAX ||
       args[0].data.vector.size < rows * cols)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
   math_matrix_norm_kind_t kind = MATH_MATRIX_NORM_FROBENIUS;
   if (argc == 4) {
-    if (args[3].type == EXPRTK_VAL_STRING) {
-      if (!math_matrix_norm_kind_arg(args[3], &kind)) return exprtk_val_num(0);
+    if (args[3].type == TOAD_VAL_STRING) {
+      if (!math_matrix_norm_kind_arg(args[3], &kind)) return toad_val_num(0);
     } else if (!math_matrix_layout_arg(args[3], &layout)) {
-      return exprtk_val_num(0);
+      return toad_val_num(0);
     }
   } else if (argc == 5) {
     if (!math_matrix_norm_kind_arg(args[3], &kind) || !math_matrix_layout_arg(args[4], &layout))
-      return exprtk_val_num(0);
+      return toad_val_num(0);
   }
 
   if (kind == MATH_MATRIX_NORM_FROBENIUS) {
     double sum_sq = 0.0;
     for (size_t i = 0; i < rows * cols; ++i)
       sum_sq += args[0].data.vector.data[i] * args[0].data.vector.data[i];
-    return exprtk_val_num(sqrt(sum_sq));
+    return toad_val_num(sqrt(sum_sq));
   }
 
   double *a = MEM_ALLOC_ARRAY(arena, double, rows * cols);
-  if (!a) return exprtk_val_num(0);
+  if (!a) return toad_val_num(0);
   math_double_to_row_major_matrix(args[0].data.vector.data, rows, cols, layout, a);
 
   double best = 0.0;
@@ -952,10 +952,10 @@ static exprtk_value_t fn_mat_norm(size_t argc, exprtk_value_t *args, exprtk_env_
       if (sum > best) best = sum;
     }
   }
-  return exprtk_val_num(best);
+  return toad_val_num(best);
 }
 
-static exprtk_value_t fn_mat_trace(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_trace(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
   (void)arena;
@@ -963,7 +963,7 @@ static exprtk_value_t fn_mat_trace(size_t argc, exprtk_value_t *args, exprtk_env
   size_t cols = 0;
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
   if (!math_matrix_dims_from_args(argc, args, 3, &rows, &cols, &layout))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   size_t n = rows < cols ? rows : cols;
   double trace = 0.0;
@@ -971,48 +971,48 @@ static exprtk_value_t fn_mat_trace(size_t argc, exprtk_value_t *args, exprtk_env
     size_t index = layout == MATH_MATRIX_ROW_MAJOR ? i * cols + i : i + i * rows;
     trace += args[0].data.vector.data[index];
   }
-  return exprtk_val_num(trace);
+  return toad_val_num(trace);
 }
 
-static exprtk_value_t fn_mat_diag(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_diag(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   size_t rows = 0;
   size_t cols = 0;
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
   if (!math_matrix_dims_from_args(argc, args, 3, &rows, &cols, &layout))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   size_t n = rows < cols ? rows : cols;
   double *diag = MEM_ALLOC_ARRAY(arena, double, n);
-  if (!diag) return exprtk_val_num(0);
+  if (!diag) return toad_val_num(0);
   for (size_t i = 0; i < n; ++i) {
     size_t index = layout == MATH_MATRIX_ROW_MAJOR ? i * cols + i : i + i * rows;
     diag[i] = args[0].data.vector.data[index];
   }
-  return exprtk_val_vec(diag, n);
+  return toad_val_vec(diag, n);
 }
 
-static exprtk_value_t fn_mat_transpose(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_transpose(size_t argc, toad_value_t *args, toad_env_t *env,
                                        mem_pool_t *arena) {
   (void)env;
   size_t rows = 0;
   size_t cols = 0;
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
   if (!math_matrix_dims_from_args(argc, args, 3, &rows, &cols, &layout))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   double *src_row = MEM_ALLOC_ARRAY(arena, double, rows * cols);
   double *dst_row = MEM_ALLOC_ARRAY(arena, double, rows * cols);
   double *out = MEM_ALLOC_ARRAY(arena, double, rows * cols);
-  if (!src_row || !dst_row || !out) return exprtk_val_num(0);
+  if (!src_row || !dst_row || !out) return toad_val_num(0);
 
   math_double_to_row_major_matrix(args[0].data.vector.data, rows, cols, layout, src_row);
   for (size_t r = 0; r < rows; ++r)
     for (size_t c = 0; c < cols; ++c)
       dst_row[c * rows + r] = src_row[r * cols + c];
   math_row_major_to_double_matrix(dst_row, cols, rows, layout, out);
-  return exprtk_val_vec(out, rows * cols);
+  return toad_val_vec(out, rows * cols);
 }
 
 typedef enum {
@@ -1022,10 +1022,10 @@ typedef enum {
   MATH_MATRIX_REDUCE_MAX = 3
 } math_matrix_reduce_op_t;
 
-static int math_matrix_reduce_args(size_t argc, exprtk_value_t *args, size_t *rows,
+static int math_matrix_reduce_args(size_t argc, toad_value_t *args, size_t *rows,
                                    size_t *cols, math_matrix_layout_t *layout,
                                    int *has_axis, math_matrix_axis_t *axis) {
-  if ((argc < 3 || argc > 5) || args[0].type != EXPRTK_VAL_VECTOR ||
+  if ((argc < 3 || argc > 5) || args[0].type != TOAD_VAL_VECTOR ||
       !math_is_number(args[1]) || !math_is_number(args[2]))
     return 0;
 
@@ -1057,7 +1057,7 @@ static double math_matrix_reduce_update(double acc, double value, math_matrix_re
   return value > acc ? value : acc;
 }
 
-static exprtk_value_t math_matrix_reduce(size_t argc, exprtk_value_t *args, mem_pool_t *arena,
+static toad_value_t math_matrix_reduce(size_t argc, toad_value_t *args, mem_pool_t *arena,
                                          math_matrix_reduce_op_t op) {
   size_t rows = 0;
   size_t cols = 0;
@@ -1065,23 +1065,23 @@ static exprtk_value_t math_matrix_reduce(size_t argc, exprtk_value_t *args, mem_
   int has_axis = 0;
   math_matrix_axis_t axis = MATH_MATRIX_AXIS_COL;
   if (!math_matrix_reduce_args(argc, args, &rows, &cols, &layout, &has_axis, &axis))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   const double *data = args[0].data.vector.data;
   if (!has_axis) {
     if (op == MATH_MATRIX_REDUCE_SUM || op == MATH_MATRIX_REDUCE_MEAN) {
       double sum = simd_sum((double *)data, rows * cols);
-      return exprtk_val_num(op == MATH_MATRIX_REDUCE_MEAN ? sum / (double)(rows * cols) : sum);
+      return toad_val_num(op == MATH_MATRIX_REDUCE_MEAN ? sum / (double)(rows * cols) : sum);
     }
     if (op == MATH_MATRIX_REDUCE_MIN)
-      return exprtk_val_num(simd_min((double *)data, rows * cols));
-    return exprtk_val_num(simd_max((double *)data, rows * cols));
+      return toad_val_num(simd_min((double *)data, rows * cols));
+    return toad_val_num(simd_max((double *)data, rows * cols));
   }
 
   size_t out_size = axis == MATH_MATRIX_AXIS_COL ? cols : rows;
   size_t inner = axis == MATH_MATRIX_AXIS_COL ? rows : cols;
   double *out = MEM_ALLOC_ARRAY(arena, double, out_size);
-  if (!out) return exprtk_val_num(0);
+  if (!out) return toad_val_num(0);
 
   for (size_t i = 0; i < out_size; ++i) {
     double acc = 0.0;
@@ -1097,107 +1097,107 @@ static exprtk_value_t math_matrix_reduce(size_t argc, exprtk_value_t *args, mem_
     out[i] = op == MATH_MATRIX_REDUCE_MEAN ? acc / (double)inner : acc;
   }
 
-  return exprtk_val_vec(out, out_size);
+  return toad_val_vec(out, out_size);
 }
 
-static exprtk_value_t fn_mat_sum(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_sum(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
   return math_matrix_reduce(argc, args, arena, MATH_MATRIX_REDUCE_SUM);
 }
 
-static exprtk_value_t fn_mat_mean(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_mean(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   return math_matrix_reduce(argc, args, arena, MATH_MATRIX_REDUCE_MEAN);
 }
 
-static exprtk_value_t fn_mat_min(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_min(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
   return math_matrix_reduce(argc, args, arena, MATH_MATRIX_REDUCE_MIN);
 }
 
-static exprtk_value_t fn_mat_max(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_max(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
   return math_matrix_reduce(argc, args, arena, MATH_MATRIX_REDUCE_MAX);
 }
 
-static exprtk_value_t fn_mat_row(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_row(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
-  if ((argc != 4 && argc != 5) || args[0].type != EXPRTK_VAL_VECTOR ||
+  if ((argc != 4 && argc != 5) || args[0].type != TOAD_VAL_VECTOR ||
       !math_is_number(args[1]) || !math_is_number(args[2]) || !math_is_number(args[3]))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   size_t rows = (size_t)math_number_value(args[1]);
   size_t cols = (size_t)math_number_value(args[2]);
   size_t row = (size_t)math_number_value(args[3]);
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 5 && !math_matrix_layout_arg(args[4], &layout)) return exprtk_val_num(0);
+  if (argc == 5 && !math_matrix_layout_arg(args[4], &layout)) return toad_val_num(0);
   if (rows == 0 || cols == 0 || row >= rows || rows > (size_t)INT_MAX ||
       cols > (size_t)INT_MAX || args[0].data.vector.size < rows * cols)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   double *out = MEM_ALLOC_ARRAY(arena, double, cols);
-  if (!out) return exprtk_val_num(0);
+  if (!out) return toad_val_num(0);
   for (size_t c = 0; c < cols; ++c)
     out[c] = math_matrix_get(args[0].data.vector.data, rows, cols, layout, row, c);
-  return exprtk_val_vec(out, cols);
+  return toad_val_vec(out, cols);
 }
 
-static exprtk_value_t fn_mat_col(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_col(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
-  if ((argc != 4 && argc != 5) || args[0].type != EXPRTK_VAL_VECTOR ||
+  if ((argc != 4 && argc != 5) || args[0].type != TOAD_VAL_VECTOR ||
       !math_is_number(args[1]) || !math_is_number(args[2]) || !math_is_number(args[3]))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   size_t rows = (size_t)math_number_value(args[1]);
   size_t cols = (size_t)math_number_value(args[2]);
   size_t col = (size_t)math_number_value(args[3]);
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 5 && !math_matrix_layout_arg(args[4], &layout)) return exprtk_val_num(0);
+  if (argc == 5 && !math_matrix_layout_arg(args[4], &layout)) return toad_val_num(0);
   if (rows == 0 || cols == 0 || col >= cols || rows > (size_t)INT_MAX ||
       cols > (size_t)INT_MAX || args[0].data.vector.size < rows * cols)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   double *out = MEM_ALLOC_ARRAY(arena, double, rows);
-  if (!out) return exprtk_val_num(0);
+  if (!out) return toad_val_num(0);
   for (size_t r = 0; r < rows; ++r)
     out[r] = math_matrix_get(args[0].data.vector.data, rows, cols, layout, r, col);
-  return exprtk_val_vec(out, rows);
+  return toad_val_vec(out, rows);
 }
 
-static exprtk_value_t fn_mat_copy(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_copy(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   size_t rows = 0, cols = 0;
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
   if (!math_matrix_dims_from_args(argc, args, 3, &rows, &cols, &layout))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   (void)layout;
   double *out = MEM_ALLOC_ARRAY(arena, double, rows * cols);
-  if (!out) return exprtk_val_num(0);
+  if (!out) return toad_val_num(0);
   memcpy(out, args[0].data.vector.data, rows * cols * sizeof(double));
-  return exprtk_val_vec(out, rows * cols);
+  return toad_val_vec(out, rows * cols);
 }
 
-static exprtk_value_t fn_mat_flatten(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_flatten(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
   return fn_mat_copy(argc, args, env, arena);
 }
 
-static exprtk_value_t fn_mat_reshape(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_reshape(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
   (void)env;
-  if ((argc != 5 && argc != 6) || args[0].type != EXPRTK_VAL_VECTOR ||
+  if ((argc != 5 && argc != 6) || args[0].type != TOAD_VAL_VECTOR ||
       !math_is_number(args[1]) || !math_is_number(args[2]) ||
       !math_is_number(args[3]) || !math_is_number(args[4]))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 6 && !math_matrix_layout_arg(args[5], &layout)) return exprtk_val_num(0);
+  if (argc == 6 && !math_matrix_layout_arg(args[5], &layout)) return toad_val_num(0);
   (void)layout;
   size_t old_rows = (size_t)math_number_value(args[1]);
   size_t old_cols = (size_t)math_number_value(args[2]);
@@ -1206,21 +1206,21 @@ static exprtk_value_t fn_mat_reshape(size_t argc, exprtk_value_t *args, exprtk_e
   if (old_rows == 0 || old_cols == 0 || new_rows == 0 || new_cols == 0 ||
       old_rows * old_cols != new_rows * new_cols ||
       args[0].data.vector.size < old_rows * old_cols)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   double *out = MEM_ALLOC_ARRAY(arena, double, old_rows * old_cols);
-  if (!out) return exprtk_val_num(0);
+  if (!out) return toad_val_num(0);
   memcpy(out, args[0].data.vector.data, old_rows * old_cols * sizeof(double));
-  return exprtk_val_vec(out, old_rows * old_cols);
+  return toad_val_vec(out, old_rows * old_cols);
 }
 
-static exprtk_value_t fn_mat_slice(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_slice(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
-  if ((argc != 7 && argc != 8) || args[0].type != EXPRTK_VAL_VECTOR ||
+  if ((argc != 7 && argc != 8) || args[0].type != TOAD_VAL_VECTOR ||
       !math_is_number(args[1]) || !math_is_number(args[2]) ||
       !math_is_number(args[3]) || !math_is_number(args[4]) ||
       !math_is_number(args[5]) || !math_is_number(args[6]))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   size_t rows = (size_t)math_number_value(args[1]);
   size_t cols = (size_t)math_number_value(args[2]);
   size_t row0 = (size_t)math_number_value(args[3]);
@@ -1228,13 +1228,13 @@ static exprtk_value_t fn_mat_slice(size_t argc, exprtk_value_t *args, exprtk_env
   size_t col0 = (size_t)math_number_value(args[5]);
   size_t col_count = (size_t)math_number_value(args[6]);
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 8 && !math_matrix_layout_arg(args[7], &layout)) return exprtk_val_num(0);
+  if (argc == 8 && !math_matrix_layout_arg(args[7], &layout)) return toad_val_num(0);
   if (rows == 0 || cols == 0 || row_count == 0 || col_count == 0 ||
       row0 + row_count > rows || col0 + col_count > cols ||
       args[0].data.vector.size < rows * cols)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   double *out = MEM_ALLOC_ARRAY(arena, double, row_count * col_count);
-  if (!out) return exprtk_val_num(0);
+  if (!out) return toad_val_num(0);
   for (size_t r = 0; r < row_count; ++r) {
     for (size_t c = 0; c < col_count; ++c) {
       double value = math_matrix_get(args[0].data.vector.data, rows, cols, layout,
@@ -1243,62 +1243,62 @@ static exprtk_value_t fn_mat_slice(size_t argc, exprtk_value_t *args, exprtk_env
       out[index] = value;
     }
   }
-  return exprtk_val_vec(out, row_count * col_count);
+  return toad_val_vec(out, row_count * col_count);
 }
 
-static exprtk_value_t fn_mat_identity(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_identity(size_t argc, toad_value_t *args, toad_env_t *env,
                                       mem_pool_t *arena) {
   return fn_mat_eye(argc, args, env, arena);
 }
 
-static exprtk_value_t fn_mat_eye_like(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_eye_like(size_t argc, toad_value_t *args, toad_env_t *env,
                                       mem_pool_t *arena) {
   (void)env;
   size_t rows = 0, cols = 0;
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
   if (!math_matrix_dims_from_args(argc, args, 3, &rows, &cols, &layout))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   double *out = MEM_ALLOC_ARRAY(arena, double, rows * cols);
-  if (!out) return exprtk_val_num(0);
+  if (!out) return toad_val_num(0);
   memset(out, 0, rows * cols * sizeof(double));
   size_t n = rows < cols ? rows : cols;
   for (size_t i = 0; i < n; ++i) {
     size_t index = layout == MATH_MATRIX_ROW_MAJOR ? i * cols + i : i + i * rows;
     out[index] = 1.0;
   }
-  return exprtk_val_vec(out, rows * cols);
+  return toad_val_vec(out, rows * cols);
 }
 
-static exprtk_value_t fn_mat_dot(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_dot(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env; (void)arena;
-  if (argc != 2 || args[0].type != EXPRTK_VAL_VECTOR || args[1].type != EXPRTK_VAL_VECTOR)
-    return exprtk_val_num(0);
+  if (argc != 2 || args[0].type != TOAD_VAL_VECTOR || args[1].type != TOAD_VAL_VECTOR)
+    return toad_val_num(0);
   if (args[0].data.vector.size != args[1].data.vector.size)
-    return exprtk_val_num(0);
-  return exprtk_val_num(simd_dot(args[0].data.vector.data, args[1].data.vector.data,
+    return toad_val_num(0);
+  return toad_val_num(simd_dot(args[0].data.vector.data, args[1].data.vector.data,
                                  args[0].data.vector.size));
 }
 
-static exprtk_value_t fn_mat_outer(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_outer(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
-  if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_VECTOR ||
-      args[1].type != EXPRTK_VAL_VECTOR)
-    return exprtk_val_num(0);
+  if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_VECTOR ||
+      args[1].type != TOAD_VAL_VECTOR)
+    return toad_val_num(0);
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return exprtk_val_num(0);
+  if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return toad_val_num(0);
   size_t rows = args[0].data.vector.size;
   size_t cols = args[1].data.vector.size;
   double *out = MEM_ALLOC_ARRAY(arena, double, rows * cols);
-  if (!out) return exprtk_val_num(0);
+  if (!out) return toad_val_num(0);
   for (size_t r = 0; r < rows; ++r) {
     for (size_t c = 0; c < cols; ++c) {
       size_t index = layout == MATH_MATRIX_ROW_MAJOR ? r * cols + c : r + c * rows;
       out[index] = args[0].data.vector.data[r] * args[1].data.vector.data[c];
     }
   }
-  return exprtk_val_vec(out, rows * cols);
+  return toad_val_vec(out, rows * cols);
 }
 
 typedef enum {
@@ -1315,23 +1315,23 @@ static double math_matrix_bcast_apply(double a, double b, math_matrix_bcast_op_t
   return fabs(b) < 1e-15 ? 0.0 : a / b;
 }
 
-static exprtk_value_t math_matrix_broadcast(size_t argc, exprtk_value_t *args,
+static toad_value_t math_matrix_broadcast(size_t argc, toad_value_t *args,
                                             mem_pool_t *arena, int by_row,
                                             math_matrix_bcast_op_t op) {
-  if ((argc != 4 && argc != 5) || args[0].type != EXPRTK_VAL_VECTOR ||
-      args[1].type != EXPRTK_VAL_VECTOR || !math_is_number(args[2]) ||
+  if ((argc != 4 && argc != 5) || args[0].type != TOAD_VAL_VECTOR ||
+      args[1].type != TOAD_VAL_VECTOR || !math_is_number(args[2]) ||
       !math_is_number(args[3]))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   size_t rows = (size_t)math_number_value(args[2]);
   size_t cols = (size_t)math_number_value(args[3]);
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 5 && !math_matrix_layout_arg(args[4], &layout)) return exprtk_val_num(0);
+  if (argc == 5 && !math_matrix_layout_arg(args[4], &layout)) return toad_val_num(0);
   size_t expected = by_row ? cols : rows;
   if (rows == 0 || cols == 0 || args[0].data.vector.size < rows * cols ||
       args[1].data.vector.size < expected)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   double *out = MEM_ALLOC_ARRAY(arena, double, rows * cols);
-  if (!out) return exprtk_val_num(0);
+  if (!out) return toad_val_num(0);
   for (size_t r = 0; r < rows; ++r) {
     for (size_t c = 0; c < cols; ++c) {
       size_t index = layout == MATH_MATRIX_ROW_MAJOR ? r * cols + c : r + c * rows;
@@ -1339,11 +1339,11 @@ static exprtk_value_t math_matrix_broadcast(size_t argc, exprtk_value_t *args,
       out[index] = math_matrix_bcast_apply(args[0].data.vector.data[index], b, op);
     }
   }
-  return exprtk_val_vec(out, rows * cols);
+  return toad_val_vec(out, rows * cols);
 }
 
 #define DEFINE_MAT_BCAST_FN(name, by_row, op)                                      \
-static exprtk_value_t name(size_t argc, exprtk_value_t *args, exprtk_env_t *env,   \
+static toad_value_t name(size_t argc, toad_value_t *args, toad_env_t *env,   \
                            mem_pool_t *arena) {                                    \
   (void)env;                                                                       \
   return math_matrix_broadcast(argc, args, arena, by_row, op);                     \
@@ -1388,22 +1388,22 @@ static double math_matrix_stat_vector(const double *values, size_t n, math_matri
   return op == MATH_MATRIX_STAT_STD ? sqrt(var) : var;
 }
 
-static exprtk_value_t math_matrix_stat(size_t argc, exprtk_value_t *args, mem_pool_t *arena,
+static toad_value_t math_matrix_stat(size_t argc, toad_value_t *args, mem_pool_t *arena,
                                        math_matrix_stat_op_t op) {
   size_t rows = 0, cols = 0;
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
   int has_axis = 0;
   math_matrix_axis_t axis = MATH_MATRIX_AXIS_COL;
   if (!math_matrix_reduce_args(argc, args, &rows, &cols, &layout, &has_axis, &axis))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   const double *data = args[0].data.vector.data;
-  if (!has_axis) return exprtk_val_num(math_matrix_stat_vector(data, rows * cols, op));
+  if (!has_axis) return toad_val_num(math_matrix_stat_vector(data, rows * cols, op));
 
   size_t out_size = axis == MATH_MATRIX_AXIS_COL ? cols : rows;
   size_t inner = axis == MATH_MATRIX_AXIS_COL ? rows : cols;
   double *tmp = MEM_ALLOC_ARRAY(arena, double, inner);
   double *out = MEM_ALLOC_ARRAY(arena, double, out_size);
-  if (!tmp || !out) return exprtk_val_num(0);
+  if (!tmp || !out) return toad_val_num(0);
   for (size_t i = 0; i < out_size; ++i) {
     for (size_t j = 0; j < inner; ++j) {
       size_t row = axis == MATH_MATRIX_AXIS_COL ? j : i;
@@ -1412,45 +1412,45 @@ static exprtk_value_t math_matrix_stat(size_t argc, exprtk_value_t *args, mem_po
     }
     out[i] = math_matrix_stat_vector(tmp, inner, op);
   }
-  return exprtk_val_vec(out, out_size);
+  return toad_val_vec(out, out_size);
 }
 
-static exprtk_value_t fn_mat_var(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_var(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
   return math_matrix_stat(argc, args, arena, MATH_MATRIX_STAT_VAR);
 }
 
-static exprtk_value_t fn_mat_std(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_std(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
   return math_matrix_stat(argc, args, arena, MATH_MATRIX_STAT_STD);
 }
 
-static exprtk_value_t fn_mat_argmin(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_argmin(size_t argc, toad_value_t *args, toad_env_t *env,
                                     mem_pool_t *arena) {
   (void)env;
   return math_matrix_stat(argc, args, arena, MATH_MATRIX_STAT_ARGMIN);
 }
 
-static exprtk_value_t fn_mat_argmax(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_argmax(size_t argc, toad_value_t *args, toad_env_t *env,
                                     mem_pool_t *arena) {
   (void)env;
   return math_matrix_stat(argc, args, arena, MATH_MATRIX_STAT_ARGMAX);
 }
 
-static exprtk_value_t fn_linalg_qr(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_linalg_qr(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
   size_t rows = 0, cols = 0;
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
   if (!math_matrix_dims_from_args(argc, args, 3, &rows, &cols, &layout))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   double *a = MEM_ALLOC_ARRAY(arena, double, rows * cols);
   double *q = MEM_ALLOC_ARRAY(arena, double, rows * cols);
   double *rmat = MEM_ALLOC_ARRAY(arena, double, cols * cols);
   double *out_q = MEM_ALLOC_ARRAY(arena, double, rows * cols);
-  if (!a || !q || !rmat || !out_q) return exprtk_val_num(0);
+  if (!a || !q || !rmat || !out_q) return toad_val_num(0);
   math_double_to_row_major_matrix(args[0].data.vector.data, rows, cols, layout, a);
   memset(q, 0, rows * cols * sizeof(double));
   memset(rmat, 0, cols * cols * sizeof(double));
@@ -1469,39 +1469,39 @@ static exprtk_value_t fn_linalg_qr(size_t argc, exprtk_value_t *args, exprtk_env
     for (size_t rr = 0; rr < rows; ++rr)
       norm += q[rr * cols + j] * q[rr * cols + j];
     norm = sqrt(norm);
-    if (norm < 1e-12) return exprtk_val_num(0);
+    if (norm < 1e-12) return toad_val_num(0);
     rmat[j * cols + j] = norm;
     for (size_t rr = 0; rr < rows; ++rr)
       q[rr * cols + j] /= norm;
   }
   math_row_major_to_double_matrix(q, rows, cols, layout, out_q);
   double *out_r = MEM_ALLOC_ARRAY(arena, double, cols * cols);
-  if (!out_r) return exprtk_val_num(0);
+  if (!out_r) return toad_val_num(0);
   math_row_major_to_double_matrix(rmat, cols, cols, layout, out_r);
-  exprtk_value_t list = exprtk_val_list_empty();
-  exprtk_list_push(&list, exprtk_val_vec(out_q, rows * cols));
-  exprtk_list_push(&list, exprtk_val_vec(out_r, cols * cols));
+  toad_value_t list = toad_val_list_empty();
+  toad_list_push(&list, toad_val_vec(out_q, rows * cols));
+  toad_list_push(&list, toad_val_vec(out_r, cols * cols));
   return list;
 }
 
-static exprtk_value_t fn_linalg_pinv(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_linalg_pinv(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
   (void)env;
   size_t rows = 0, cols = 0;
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
   if (!math_matrix_dims_from_args(argc, args, 3, &rows, &cols, &layout))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   if (rows == cols) {
-    exprtk_value_t inv_args[3] = {args[0], exprtk_val_num((double)rows), exprtk_val_num((double)layout)};
+    toad_value_t inv_args[3] = {args[0], toad_val_num((double)rows), toad_val_num((double)layout)};
     return fn_mat_inv(3, inv_args, env, arena);
   }
-  if (rows < cols) return exprtk_val_num(0);
+  if (rows < cols) return toad_val_num(0);
   double *a = MEM_ALLOC_ARRAY(arena, double, rows * cols);
   double *ata = MEM_ALLOC_ARRAY(arena, double, cols * cols);
   double *ata_inv = MEM_ALLOC_ARRAY(arena, double, cols * cols);
   double *pinv_row = MEM_ALLOC_ARRAY(arena, double, cols * rows);
   double *out = MEM_ALLOC_ARRAY(arena, double, cols * rows);
-  if (!a || !ata || !ata_inv || !pinv_row || !out) return exprtk_val_num(0);
+  if (!a || !ata || !ata_inv || !pinv_row || !out) return toad_val_num(0);
   math_double_to_row_major_matrix(args[0].data.vector.data, rows, cols, layout, a);
   for (size_t i = 0; i < cols; ++i) {
     for (size_t j = 0; j < cols; ++j) {
@@ -1512,7 +1512,7 @@ static exprtk_value_t fn_linalg_pinv(size_t argc, exprtk_value_t *args, exprtk_e
       ata_inv[i * cols + j] = sum;
     }
   }
-  if (!gauss_jordan_invert(ata_inv, cols, arena)) return exprtk_val_num(0);
+  if (!gauss_jordan_invert(ata_inv, cols, arena)) return toad_val_num(0);
   for (size_t i = 0; i < cols; ++i) {
     for (size_t r = 0; r < rows; ++r) {
       double sum = 0.0;
@@ -1522,31 +1522,31 @@ static exprtk_value_t fn_linalg_pinv(size_t argc, exprtk_value_t *args, exprtk_e
     }
   }
   math_row_major_to_double_matrix(pinv_row, cols, rows, layout, out);
-  return exprtk_val_vec(out, cols * rows);
+  return toad_val_vec(out, cols * rows);
 }
 
-static exprtk_value_t fn_linalg_lstsq(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_linalg_lstsq(size_t argc, toad_value_t *args, toad_env_t *env,
                                       mem_pool_t *arena) {
   (void)env;
-  if ((argc != 4 && argc != 5) || args[0].type != EXPRTK_VAL_VECTOR ||
-      args[1].type != EXPRTK_VAL_VECTOR || !math_is_number(args[2]) ||
+  if ((argc != 4 && argc != 5) || args[0].type != TOAD_VAL_VECTOR ||
+      args[1].type != TOAD_VAL_VECTOR || !math_is_number(args[2]) ||
       !math_is_number(args[3]))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   size_t rows = (size_t)math_number_value(args[2]);
   size_t cols = (size_t)math_number_value(args[3]);
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 5 && !math_matrix_layout_arg(args[4], &layout)) return exprtk_val_num(0);
+  if (argc == 5 && !math_matrix_layout_arg(args[4], &layout)) return toad_val_num(0);
   if (rows == 0 || cols == 0 || args[0].data.vector.size < rows * cols ||
       args[1].data.vector.size < rows)
-    return exprtk_val_num(0);
-  exprtk_value_t pinv_args[4] = {args[0], exprtk_val_num((double)rows),
-                                 exprtk_val_num((double)cols), exprtk_val_num((double)layout)};
-  exprtk_value_t pinv = fn_linalg_pinv(4, pinv_args, env, arena);
-  if (pinv.type != EXPRTK_VAL_VECTOR) return exprtk_val_num(0);
+    return toad_val_num(0);
+  toad_value_t pinv_args[4] = {args[0], toad_val_num((double)rows),
+                                 toad_val_num((double)cols), toad_val_num((double)layout)};
+  toad_value_t pinv = fn_linalg_pinv(4, pinv_args, env, arena);
+  if (pinv.type != TOAD_VAL_VECTOR) return toad_val_num(0);
   double *p = MEM_ALLOC_ARRAY(arena, double, cols * rows);
   double *b = MEM_ALLOC_ARRAY(arena, double, rows);
   double *x = MEM_ALLOC_ARRAY(arena, double, cols);
-  if (!p || !b || !x) return exprtk_val_num(0);
+  if (!p || !b || !x) return toad_val_num(0);
   math_double_to_row_major_matrix(pinv.data.vector.data, cols, rows, layout, p);
   for (size_t r = 0; r < rows; ++r)
     b[r] = args[1].data.vector.data[r];
@@ -1556,19 +1556,19 @@ static exprtk_value_t fn_linalg_lstsq(size_t argc, exprtk_value_t *args, exprtk_
       sum += p[c * rows + r] * b[r];
     x[c] = sum;
   }
-  return exprtk_val_vec(x, cols);
+  return toad_val_vec(x, cols);
 }
 
-static exprtk_value_t fn_linalg_lu(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_linalg_lu(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
-  if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_VECTOR || !math_is_number(args[1]))
-    return exprtk_val_num(0);
+  if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_VECTOR || !math_is_number(args[1]))
+    return toad_val_num(0);
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return exprtk_val_num(0);
+  if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return toad_val_num(0);
   size_t n = (size_t)math_number_value(args[1]);
   if (n == 0 || n > (size_t)INT_MAX || args[0].data.vector.size < n * n)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   double *lu = MEM_ALLOC_ARRAY(arena, double, n * n);
   size_t *pivots = MEM_ALLOC_ARRAY(arena, size_t, n);
@@ -1578,10 +1578,10 @@ static exprtk_value_t fn_linalg_lu(size_t argc, exprtk_value_t *args, exprtk_env
   double *u_out = MEM_ALLOC_ARRAY(arena, double, n * n);
   double *p_out = MEM_ALLOC_ARRAY(arena, double, n);
   if (!lu || !pivots || !l_row || !u_row || !l_out || !u_out || !p_out)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   math_double_to_row_major_matrix(args[0].data.vector.data, n, n, layout, lu);
-  if (!math_lu_decompose_row_major(lu, n, pivots, NULL)) return exprtk_val_num(0);
+  if (!math_lu_decompose_row_major(lu, n, pivots, NULL)) return toad_val_num(0);
 
   for (size_t r = 0; r < n; ++r) {
     for (size_t c = 0; c < n; ++c) {
@@ -1601,38 +1601,38 @@ static exprtk_value_t fn_linalg_lu(size_t argc, exprtk_value_t *args, exprtk_env
 
   math_row_major_to_double_matrix(l_row, n, n, layout, l_out);
   math_row_major_to_double_matrix(u_row, n, n, layout, u_out);
-  exprtk_value_t list = exprtk_val_list_empty();
-  exprtk_list_push(&list, exprtk_val_vec(l_out, n * n));
-  exprtk_list_push(&list, exprtk_val_vec(u_out, n * n));
-  exprtk_list_push(&list, exprtk_val_vec(p_out, n));
+  toad_value_t list = toad_val_list_empty();
+  toad_list_push(&list, toad_val_vec(l_out, n * n));
+  toad_list_push(&list, toad_val_vec(u_out, n * n));
+  toad_list_push(&list, toad_val_vec(p_out, n));
   return list;
 }
 
-static exprtk_value_t fn_linalg_lu_solve(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_linalg_lu_solve(size_t argc, toad_value_t *args, toad_env_t *env,
                                          mem_pool_t *arena) {
   (void)env;
-  if ((argc != 4 && argc != 5) || args[0].type != EXPRTK_VAL_VECTOR ||
-      args[1].type != EXPRTK_VAL_VECTOR || !math_is_number(args[2]) ||
+  if ((argc != 4 && argc != 5) || args[0].type != TOAD_VAL_VECTOR ||
+      args[1].type != TOAD_VAL_VECTOR || !math_is_number(args[2]) ||
       !math_is_number(args[3]))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 5 && !math_matrix_layout_arg(args[4], &layout)) return exprtk_val_num(0);
+  if (argc == 5 && !math_matrix_layout_arg(args[4], &layout)) return toad_val_num(0);
   size_t n = (size_t)math_number_value(args[2]);
   size_t cols = (size_t)math_number_value(args[3]);
   if (n == 0 || cols == 0 || n > (size_t)INT_MAX || cols > (size_t)INT_MAX ||
       args[0].data.vector.size < n * n || args[1].data.vector.size < n * cols)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   double *lu = MEM_ALLOC_ARRAY(arena, double, n * n);
   double *b = MEM_ALLOC_ARRAY(arena, double, n * cols);
   double *x = MEM_ALLOC_ARRAY(arena, double, n * cols);
   double *out = MEM_ALLOC_ARRAY(arena, double, n * cols);
   size_t *pivots = MEM_ALLOC_ARRAY(arena, size_t, n);
-  if (!lu || !b || !x || !out || !pivots) return exprtk_val_num(0);
+  if (!lu || !b || !x || !out || !pivots) return toad_val_num(0);
 
   math_double_to_row_major_matrix(args[0].data.vector.data, n, n, layout, lu);
   math_double_to_row_major_matrix(args[1].data.vector.data, n, cols, layout, b);
-  if (!math_lu_decompose_row_major(lu, n, pivots, NULL)) return exprtk_val_num(0);
+  if (!math_lu_decompose_row_major(lu, n, pivots, NULL)) return toad_val_num(0);
 
   for (size_t r = 0; r < n; ++r)
     for (size_t c = 0; c < cols; ++c)
@@ -1653,46 +1653,46 @@ static exprtk_value_t fn_linalg_lu_solve(size_t argc, exprtk_value_t *args, expr
       for (size_t k = ii + 1; k < n; ++k)
         sum -= lu[ii * n + k] * x[k * cols + c];
       double diag = lu[ii * n + ii];
-      if (fabs(diag) < 1e-12) return exprtk_val_num(0);
+      if (fabs(diag) < 1e-12) return toad_val_num(0);
       x[ii * cols + c] = sum / diag;
     }
   }
 
   math_row_major_to_double_matrix(x, n, cols, layout, out);
-  return exprtk_val_vec(out, n * cols);
+  return toad_val_vec(out, n * cols);
 }
 
-static exprtk_value_t fn_mat_rank(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_rank(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
-  if ((argc < 3 || argc > 5) || args[0].type != EXPRTK_VAL_VECTOR ||
+  if ((argc < 3 || argc > 5) || args[0].type != TOAD_VAL_VECTOR ||
       !math_is_number(args[1]) || !math_is_number(args[2]))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   size_t rows = (size_t)math_number_value(args[1]);
   size_t cols = (size_t)math_number_value(args[2]);
   if (rows == 0 || cols == 0 || args[0].data.vector.size < rows * cols)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   double tol = 1e-10;
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
   if (argc == 4) {
-    if ((args[3].type == EXPRTK_VAL_STRING) ||
+    if ((args[3].type == TOAD_VAL_STRING) ||
         (math_is_number(args[3]) && (fabs(math_number_value(args[3])) < 1e-12 ||
                                      fabs(math_number_value(args[3]) - 1.0) < 1e-12))) {
-      if (!math_matrix_layout_arg(args[3], &layout)) return exprtk_val_num(0);
+      if (!math_matrix_layout_arg(args[3], &layout)) return toad_val_num(0);
     } else if (math_is_number(args[3])) {
       tol = fabs(math_number_value(args[3]));
     } else {
-      return exprtk_val_num(0);
+      return toad_val_num(0);
     }
   } else if (argc == 5) {
     if (!math_is_number(args[3]) || !math_matrix_layout_arg(args[4], &layout))
-      return exprtk_val_num(0);
+      return toad_val_num(0);
     tol = fabs(math_number_value(args[3]));
   }
 
   double *a = MEM_ALLOC_ARRAY(arena, double, rows * cols);
-  if (!a) return exprtk_val_num(0);
+  if (!a) return toad_val_num(0);
   math_double_to_row_major_matrix(args[0].data.vector.data, rows, cols, layout, a);
 
   size_t rank = 0;
@@ -1725,46 +1725,46 @@ static exprtk_value_t fn_mat_rank(size_t argc, exprtk_value_t *args, exprtk_env_
     ++rank;
     ++pivot_row;
   }
-  return exprtk_val_num((double)rank);
+  return toad_val_num((double)rank);
 }
 
-static exprtk_value_t fn_linalg_eigh(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_linalg_eigh(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
   (void)env;
-  if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_VECTOR || !math_is_number(args[1]))
-    return exprtk_val_num(0);
+  if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_VECTOR || !math_is_number(args[1]))
+    return toad_val_num(0);
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return exprtk_val_num(0);
+  if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return toad_val_num(0);
   size_t n = (size_t)math_number_value(args[1]);
-  if (n == 0 || args[0].data.vector.size < n * n) return exprtk_val_num(0);
+  if (n == 0 || args[0].data.vector.size < n * n) return toad_val_num(0);
 
   double *a = MEM_ALLOC_ARRAY(arena, double, n * n);
   double *eigenvalues = MEM_ALLOC_ARRAY(arena, double, n);
-  if (!a || !eigenvalues) return exprtk_val_num(0);
+  if (!a || !eigenvalues) return toad_val_num(0);
   math_double_to_row_major_matrix(args[0].data.vector.data, n, n, layout, a);
   for (size_t r = 0; r < n; ++r) {
     for (size_t c = r + 1; c < n; ++c) {
-      if (fabs(a[r * n + c] - a[c * n + r]) > 1e-8) return exprtk_val_num(0);
+      if (fabs(a[r * n + c] - a[c * n + r]) > 1e-8) return toad_val_num(0);
     }
   }
-  if (!math_symmetric_eigenvalues_jacobi(a, n, eigenvalues)) return exprtk_val_num(0);
+  if (!math_symmetric_eigenvalues_jacobi(a, n, eigenvalues)) return toad_val_num(0);
   math_sort_asc(eigenvalues, n);
-  return exprtk_val_vec(eigenvalues, n);
+  return toad_val_vec(eigenvalues, n);
 }
 
-static exprtk_value_t fn_linalg_svd(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_linalg_svd(size_t argc, toad_value_t *args, toad_env_t *env,
                                     mem_pool_t *arena) {
   (void)env;
   size_t rows = 0, cols = 0;
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
   if (!math_matrix_dims_from_args(argc, args, 3, &rows, &cols, &layout))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   double *a = MEM_ALLOC_ARRAY(arena, double, rows * cols);
   double *ata = MEM_ALLOC_ARRAY(arena, double, cols * cols);
   double *evals = MEM_ALLOC_ARRAY(arena, double, cols);
   double *s = MEM_ALLOC_ARRAY(arena, double, cols);
-  if (!a || !ata || !evals || !s) return exprtk_val_num(0);
+  if (!a || !ata || !evals || !s) return toad_val_num(0);
   math_double_to_row_major_matrix(args[0].data.vector.data, rows, cols, layout, a);
 
   for (size_t i = 0; i < cols; ++i) {
@@ -1775,18 +1775,18 @@ static exprtk_value_t fn_linalg_svd(size_t argc, exprtk_value_t *args, exprtk_en
       ata[i * cols + j] = sum;
     }
   }
-  if (!math_symmetric_eigenvalues_jacobi(ata, cols, evals)) return exprtk_val_num(0);
+  if (!math_symmetric_eigenvalues_jacobi(ata, cols, evals)) return toad_val_num(0);
   for (size_t i = 0; i < cols; ++i)
     s[i] = sqrt(fmax(0.0, evals[i]));
   math_sort_desc(s, cols);
-  return exprtk_val_vec(s, cols);
+  return toad_val_vec(s, cols);
 }
 
-static exprtk_value_t fn_mat_cond(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_cond(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
-  exprtk_value_t s = fn_linalg_svd(argc, args, env, arena);
-  if (s.type != EXPRTK_VAL_VECTOR || s.data.vector.size == 0) return exprtk_val_num(0);
+  toad_value_t s = fn_linalg_svd(argc, args, env, arena);
+  if (s.type != TOAD_VAL_VECTOR || s.data.vector.size == 0) return toad_val_num(0);
   double max_s = 0.0;
   double min_s = INFINITY;
   for (size_t i = 0; i < s.data.vector.size; ++i) {
@@ -1794,81 +1794,81 @@ static exprtk_value_t fn_mat_cond(size_t argc, exprtk_value_t *args, exprtk_env_
     if (v > max_s) max_s = v;
     if (v < min_s) min_s = v;
   }
-  if (min_s <= 1e-12 || !isfinite(min_s)) return exprtk_val_num(0);
-  return exprtk_val_num(max_s / min_s);
+  if (min_s <= 1e-12 || !isfinite(min_s)) return toad_val_num(0);
+  return toad_val_num(max_s / min_s);
 }
 
-static exprtk_value_t fn_linalg_solve_cholesky(size_t argc, exprtk_value_t *args,
-                                               exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_linalg_solve_cholesky(size_t argc, toad_value_t *args,
+                                               toad_env_t *env, mem_pool_t *arena) {
   (void)env;
-  if ((argc != 4 && argc != 5) || args[0].type != EXPRTK_VAL_VECTOR ||
-      args[1].type != EXPRTK_VAL_VECTOR || !math_is_number(args[2]) ||
+  if ((argc != 4 && argc != 5) || args[0].type != TOAD_VAL_VECTOR ||
+      args[1].type != TOAD_VAL_VECTOR || !math_is_number(args[2]) ||
       !math_is_number(args[3]))
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   size_t n = (size_t)math_number_value(args[2]);
   size_t cols = (size_t)math_number_value(args[3]);
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 5 && !math_matrix_layout_arg(args[4], &layout)) return exprtk_val_num(0);
+  if (argc == 5 && !math_matrix_layout_arg(args[4], &layout)) return toad_val_num(0);
   if (n == 0 || cols == 0 || args[0].data.vector.size < n * n ||
       args[1].data.vector.size < n * cols)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
-  exprtk_value_t chol_args[3] = {args[0], exprtk_val_num((double)n), exprtk_val_num((double)layout)};
-  exprtk_value_t l = fn_mat_cholesky(3, chol_args, env, arena);
-  if (l.type != EXPRTK_VAL_VECTOR) return exprtk_val_num(0);
-  exprtk_value_t forward_args[5] = {l, args[1], exprtk_val_num((double)n), exprtk_val_num((double)cols),
-                                    exprtk_val_num((double)layout)};
-  exprtk_value_t y = fn_mat_solve_tri(5, forward_args, env, arena);
-  if (y.type != EXPRTK_VAL_VECTOR) return exprtk_val_num(0);
-  exprtk_value_t back_args[6] = {l, y, exprtk_val_num((double)n), exprtk_val_num((double)cols),
-                                 exprtk_val_num(1.0), exprtk_val_num((double)layout)};
+  toad_value_t chol_args[3] = {args[0], toad_val_num((double)n), toad_val_num((double)layout)};
+  toad_value_t l = fn_mat_cholesky(3, chol_args, env, arena);
+  if (l.type != TOAD_VAL_VECTOR) return toad_val_num(0);
+  toad_value_t forward_args[5] = {l, args[1], toad_val_num((double)n), toad_val_num((double)cols),
+                                    toad_val_num((double)layout)};
+  toad_value_t y = fn_mat_solve_tri(5, forward_args, env, arena);
+  if (y.type != TOAD_VAL_VECTOR) return toad_val_num(0);
+  toad_value_t back_args[6] = {l, y, toad_val_num((double)n), toad_val_num((double)cols),
+                                 toad_val_num(1.0), toad_val_num((double)layout)};
   return fn_mat_solve_tri(6, back_args, env, arena);
 }
 
-static exprtk_value_t fn_linalg_det_lu(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_linalg_det_lu(size_t argc, toad_value_t *args, toad_env_t *env,
                                        mem_pool_t *arena) {
   (void)env;
-  if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_VECTOR || !math_is_number(args[1]))
-    return exprtk_val_num(0);
+  if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_VECTOR || !math_is_number(args[1]))
+    return toad_val_num(0);
   math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-  if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return exprtk_val_num(0);
+  if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return toad_val_num(0);
   size_t n = (size_t)math_number_value(args[1]);
-  if (n == 0 || args[0].data.vector.size < n * n) return exprtk_val_num(0);
+  if (n == 0 || args[0].data.vector.size < n * n) return toad_val_num(0);
   double *lu = MEM_ALLOC_ARRAY(arena, double, n * n);
   size_t *pivots = MEM_ALLOC_ARRAY(arena, size_t, n);
   int swaps = 0;
-  if (!lu || !pivots) return exprtk_val_num(0);
+  if (!lu || !pivots) return toad_val_num(0);
   math_double_to_row_major_matrix(args[0].data.vector.data, n, n, layout, lu);
-  if (!math_lu_decompose_row_major(lu, n, pivots, &swaps)) return exprtk_val_num(0);
+  if (!math_lu_decompose_row_major(lu, n, pivots, &swaps)) return toad_val_num(0);
   double det = swaps & 1 ? -1.0 : 1.0;
   for (size_t i = 0; i < n; ++i) det *= lu[i * n + i];
-  return exprtk_val_num(det);
+  return toad_val_num(det);
 }
 
-static exprtk_value_t fn_linalg_rank(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_linalg_rank(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
   return fn_mat_rank(argc, args, env, arena);
 }
 
-static exprtk_value_t fn_linalg_cond(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_linalg_cond(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
   return fn_mat_cond(argc, args, env, arena);
 }
 
-static exprtk_value_t fn_mat_slogdet(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat_slogdet(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
-  exprtk_value_t det_val = fn_linalg_det_lu(argc, args, env, arena);
-  if (!math_is_number(det_val)) return exprtk_val_num(0);
+  toad_value_t det_val = fn_linalg_det_lu(argc, args, env, arena);
+  if (!math_is_number(det_val)) return toad_val_num(0);
   double det = math_number_value(det_val);
-  if (fabs(det) < 1e-15) return exprtk_val_num(0);
+  if (fabs(det) < 1e-15) return toad_val_num(0);
   double *out = MEM_ALLOC_ARRAY(arena, double, 2);
-  if (!out) return exprtk_val_num(0);
+  if (!out) return toad_val_num(0);
   out[0] = det < 0.0 ? -1.0 : 1.0;
   out[1] = log(fabs(det));
-  return exprtk_val_vec(out, 2);
+  return toad_val_vec(out, 2);
 }
 
-static exprtk_value_t fn_linalg_eig2(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_linalg_eig2(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
   return fn_eig2(argc, args, env, arena);
 }
@@ -1937,60 +1937,60 @@ static double math_t_quantile_value(double p, double nu) {
   return (lo + hi) * 0.5;
 }
 
-static exprtk_value_t fn_stats_normal_pdf(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_stats_normal_pdf(size_t argc, toad_value_t *args, toad_env_t *env,
                                           mem_pool_t *arena) {
   (void)env; (void)arena;
-  if (argc < 1 || argc > 3 || !math_is_number(args[0])) return exprtk_val_num(0);
+  if (argc < 1 || argc > 3 || !math_is_number(args[0])) return toad_val_num(0);
   double mu = argc >= 2 && math_is_number(args[1]) ? math_number_value(args[1]) : 0.0;
   double sigma = argc >= 3 && math_is_number(args[2]) ? math_number_value(args[2]) : 1.0;
-  return exprtk_val_num(math_normal_pdf_value(math_number_value(args[0]), mu, sigma));
+  return toad_val_num(math_normal_pdf_value(math_number_value(args[0]), mu, sigma));
 }
 
-static exprtk_value_t fn_stats_normal_cdf(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_stats_normal_cdf(size_t argc, toad_value_t *args, toad_env_t *env,
                                           mem_pool_t *arena) {
   (void)env; (void)arena;
-  if (argc < 1 || argc > 3 || !math_is_number(args[0])) return exprtk_val_num(0);
+  if (argc < 1 || argc > 3 || !math_is_number(args[0])) return toad_val_num(0);
   double mu = argc >= 2 && math_is_number(args[1]) ? math_number_value(args[1]) : 0.0;
   double sigma = argc >= 3 && math_is_number(args[2]) ? math_number_value(args[2]) : 1.0;
-  return exprtk_val_num(math_normal_cdf_value(math_number_value(args[0]), mu, sigma));
+  return toad_val_num(math_normal_cdf_value(math_number_value(args[0]), mu, sigma));
 }
 
-static exprtk_value_t fn_stats_normal_quantile(size_t argc, exprtk_value_t *args,
-                                               exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_stats_normal_quantile(size_t argc, toad_value_t *args,
+                                               toad_env_t *env, mem_pool_t *arena) {
   (void)env; (void)arena;
-  if (argc < 1 || argc > 3 || !math_is_number(args[0])) return exprtk_val_num(0);
+  if (argc < 1 || argc > 3 || !math_is_number(args[0])) return toad_val_num(0);
   double mu = argc >= 2 && math_is_number(args[1]) ? math_number_value(args[1]) : 0.0;
   double sigma = argc >= 3 && math_is_number(args[2]) ? math_number_value(args[2]) : 1.0;
-  return exprtk_val_num(math_normal_quantile_value(math_number_value(args[0]), mu, sigma));
+  return toad_val_num(math_normal_quantile_value(math_number_value(args[0]), mu, sigma));
 }
 
-static exprtk_value_t fn_stats_t_pdf(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_stats_t_pdf(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
   (void)env; (void)arena;
-  if (argc != 2 || !math_is_number(args[0]) || !math_is_number(args[1])) return exprtk_val_num(0);
-  return exprtk_val_num(math_t_pdf_value(math_number_value(args[0]), math_number_value(args[1])));
+  if (argc != 2 || !math_is_number(args[0]) || !math_is_number(args[1])) return toad_val_num(0);
+  return toad_val_num(math_t_pdf_value(math_number_value(args[0]), math_number_value(args[1])));
 }
 
-static exprtk_value_t fn_stats_t_cdf(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_stats_t_cdf(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
   (void)env; (void)arena;
-  if (argc != 2 || !math_is_number(args[0]) || !math_is_number(args[1])) return exprtk_val_num(0);
-  return exprtk_val_num(math_t_cdf_value(math_number_value(args[0]), math_number_value(args[1])));
+  if (argc != 2 || !math_is_number(args[0]) || !math_is_number(args[1])) return toad_val_num(0);
+  return toad_val_num(math_t_cdf_value(math_number_value(args[0]), math_number_value(args[1])));
 }
 
-static exprtk_value_t fn_stats_t_quantile(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_stats_t_quantile(size_t argc, toad_value_t *args, toad_env_t *env,
                                           mem_pool_t *arena) {
   (void)env; (void)arena;
-  if (argc != 2 || !math_is_number(args[0]) || !math_is_number(args[1])) return exprtk_val_num(0);
-  return exprtk_val_num(math_t_quantile_value(math_number_value(args[0]), math_number_value(args[1])));
+  if (argc != 2 || !math_is_number(args[0]) || !math_is_number(args[1])) return toad_val_num(0);
+  return toad_val_num(math_t_quantile_value(math_number_value(args[0]), math_number_value(args[1])));
 }
 
-static exprtk_value_t fn_stats_t_test_1samp(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_stats_t_test_1samp(size_t argc, toad_value_t *args, toad_env_t *env,
                                             mem_pool_t *arena) {
   (void)env; (void)arena;
-  if ((argc != 1 && argc != 2) || args[0].type != EXPRTK_VAL_VECTOR) return exprtk_val_num(0);
+  if ((argc != 1 && argc != 2) || args[0].type != TOAD_VAL_VECTOR) return toad_val_num(0);
   size_t n = args[0].data.vector.size;
-  if (n < 2) return exprtk_val_num(0);
+  if (n < 2) return toad_val_num(0);
   double mu0 = argc == 2 && math_is_number(args[1]) ? math_number_value(args[1]) : 0.0;
   double mean = simd_sum(args[0].data.vector.data, n) / (double)n;
   double ss = 0.0;
@@ -2000,292 +2000,292 @@ static exprtk_value_t fn_stats_t_test_1samp(size_t argc, exprtk_value_t *args, e
   }
   double sd = sqrt(ss / (double)(n - 1));
   double t = sd <= 0.0 ? 0.0 : (mean - mu0) / (sd / sqrt((double)n));
-  exprtk_value_t map = exprtk_val_map();
-  exprtk_map_set(&map, "t", exprtk_val_num(t));
-  exprtk_map_set(&map, "df", exprtk_val_num((double)(n - 1)));
-  exprtk_map_set(&map, "mean", exprtk_val_num(mean));
-  exprtk_map_set(&map, "p_two", exprtk_val_num(2.0 * (1.0 - math_t_cdf_value(fabs(t), (double)(n - 1)))));
+  toad_value_t map = toad_val_map();
+  toad_map_set(&map, "t", toad_val_num(t));
+  toad_map_set(&map, "df", toad_val_num((double)(n - 1)));
+  toad_map_set(&map, "mean", toad_val_num(mean));
+  toad_map_set(&map, "p_two", toad_val_num(2.0 * (1.0 - math_t_cdf_value(fabs(t), (double)(n - 1)))));
   return map;
 }
 
-static exprtk_value_t fn_transpose(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_transpose(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
-  if (argc == 3 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 3 && args[0].type == TOAD_VAL_VECTOR) {
     size_t rows = (size_t)args[1].data.number, cols = (size_t)args[2].data.number;
     if (args[0].data.vector.size >= rows * cols) {
       double *res = MEM_ALLOC_ARRAY(arena, double, rows * cols);
       if (res) {
-        exprtk_transpose(args[0].data.vector.data, rows, cols, res);
-        return exprtk_val_vec(res, rows * cols);
+        toad_transpose(args[0].data.vector.data, rows, cols, res);
+        return toad_val_vec(res, rows * cols);
       }
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_eig2(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_eig2(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR && args[0].data.vector.size >= 4) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR && args[0].data.vector.size >= 4) {
     double *ev = MEM_ALLOC_ARRAY(arena, double, 2);
     if (ev) {
-      exprtk_eig2(args[0].data.vector.data, ev);
-      return exprtk_val_vec(ev, 2);
+      toad_eig2(args[0].data.vector.data, ev);
+      return toad_val_vec(ev, 2);
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_eig3(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_eig3(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc == 2 && args[1].type == EXPRTK_VAL_VECTOR && args[0].data.vector.size >= 9 &&
+  if (argc == 2 && args[1].type == TOAD_VAL_VECTOR && args[0].data.vector.size >= 9 &&
       args[1].data.vector.size >= 3)
-    return exprtk_val_num((double)exprtk_eig3(args[0].data.vector.data, args[1].data.vector.data));
-  return exprtk_val_num(0);
+    return toad_val_num((double)toad_eig3(args[0].data.vector.data, args[1].data.vector.data));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_trace2(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_trace2(size_t argc, toad_value_t *args, toad_env_t *env,
                                 mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR && args[0].data.vector.size >= 4)
-    return exprtk_val_num(exprtk_trace2(args[0].data.vector.data));
-  return exprtk_val_num(0);
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR && args[0].data.vector.size >= 4)
+    return toad_val_num(toad_trace2(args[0].data.vector.data));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_sin(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_sin(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(sin(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(sin(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_cos(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_cos(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(cos(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(cos(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_tan(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_tan(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(tan(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(tan(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_sqrt(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_sqrt(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(sqrt(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(sqrt(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_abs(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_abs(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env;
   if (argc == 1) {
-    if (args[0].type == EXPRTK_VAL_NUMBER)
-      return exprtk_val_num(fabs(args[0].data.number));
-    if (args[0].type == EXPRTK_VAL_VECTOR) {
+    if (args[0].type == TOAD_VAL_NUMBER)
+      return toad_val_num(fabs(args[0].data.number));
+    if (args[0].type == TOAD_VAL_VECTOR) {
         size_t n = args[0].data.vector.size;
         double *res = MEM_ALLOC_ARRAY(arena, double, n);
         if (res) {
             simd_abs(args[0].data.vector.data, res, n);
-            return exprtk_val_vec(res, n);
+            return toad_val_vec(res, n);
         }
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_exp(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_exp(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(exp(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(exp(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_log(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_log(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(log(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(log(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_ceil(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_ceil(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(ceil(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(ceil(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_floor(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_floor(size_t argc, toad_value_t *args, toad_env_t *env,
                                mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(floor(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(floor(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_round(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_round(size_t argc, toad_value_t *args, toad_env_t *env,
                                mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(round(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(round(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_len(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_len(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1) {
-    if (args[0].type == EXPRTK_VAL_STRING)
-      return exprtk_val_num((double)args[0].data.string.len);
-    if (args[0].type == EXPRTK_VAL_VECTOR)
-      return exprtk_val_num((double)args[0].data.vector.size);
+    if (args[0].type == TOAD_VAL_STRING)
+      return toad_val_num((double)args[0].data.string.len);
+    if (args[0].type == TOAD_VAL_VECTOR)
+      return toad_val_num((double)args[0].data.vector.size);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_min(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_min(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     if (args[0].data.vector.size == 0)
-      return exprtk_val_num(0);
-    return exprtk_val_num(simd_min(args[0].data.vector.data, args[0].data.vector.size));
+      return toad_val_num(0);
+    return toad_val_num(simd_min(args[0].data.vector.data, args[0].data.vector.size));
   }
   if (argc > 0) {
     double res = args[0].data.number;
     for (size_t i = 1; i < argc; ++i)
       if (args[i].data.number < res)
         res = args[i].data.number;
-    return exprtk_val_num(res);
+    return toad_val_num(res);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_max(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_max(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     if (args[0].data.vector.size == 0)
-      return exprtk_val_num(0);
-    return exprtk_val_num(simd_max(args[0].data.vector.data, args[0].data.vector.size));
+      return toad_val_num(0);
+    return toad_val_num(simd_max(args[0].data.vector.data, args[0].data.vector.size));
   }
   if (argc > 0) {
     double res = args[0].data.number;
     for (size_t i = 1; i < argc; ++i)
       if (args[i].data.number > res)
         res = args[i].data.number;
-    return exprtk_val_num(res);
+    return toad_val_num(res);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_avg(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_avg(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)arena;
-  if (argc != 1 || args[0].type != EXPRTK_VAL_VECTOR) {
+  if (argc != 1 || args[0].type != TOAD_VAL_VECTOR) {
     if (env)
       env->aborted = 1;
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   }
   if (args[0].data.vector.size == 0)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   size_t n = args[0].data.vector.size;
-  return exprtk_val_num(simd_sum(args[0].data.vector.data, n) / (double)n);
+  return toad_val_num(simd_sum(args[0].data.vector.data, n) / (double)n);
 }
 
-static exprtk_value_t fn_sum(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_sum(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
-    return exprtk_val_num(simd_sum(args[0].data.vector.data, args[0].data.vector.size));
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
+    return toad_val_num(simd_sum(args[0].data.vector.data, args[0].data.vector.size));
   }
   if (argc > 0) {
     double sum = 0;
     for (size_t i = 0; i < argc; ++i)
       sum += args[i].data.number;
-    return exprtk_val_num(sum);
+    return toad_val_num(sum);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_fibonacci(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_fibonacci(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(exprtk_fibonacci((int)args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(toad_fibonacci((int)args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_gcd(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_gcd(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 2)
-    return exprtk_val_num(
-        (double)exprtk_gcd((long long)args[0].data.number, (long long)args[1].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(
+        (double)toad_gcd((long long)args[0].data.number, (long long)args[1].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_normal_rand(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_normal_rand(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 0 || argc == 2) {
     double mu = (argc == 2) ? args[0].data.number : 0.0;
     double sigma = (argc == 2) ? args[1].data.number : 1.0;
-    return exprtk_val_num(exprtk_normal_rand(mu, sigma));
+    return toad_val_num(toad_normal_rand(mu, sigma));
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_vector_find_value(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vector_find_value(size_t argc, toad_value_t *args, toad_env_t *env,
                                            mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 2 && args[0].type == TOAD_VAL_VECTOR) {
     double target = args[1].data.number;
     for (size_t i = 0; i < args[0].data.vector.size; ++i) {
       if (fabs(args[0].data.vector.data[i] - target) < 1e-9)
-        return exprtk_val_num((double)i);
+        return toad_val_num((double)i);
     }
-    return exprtk_val_num(-1.0);
+    return toad_val_num(-1.0);
   }
-  return exprtk_val_num(-1.0);
+  return toad_val_num(-1.0);
 }
 
-static exprtk_value_t fn_vector_find_all(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vector_find_all(size_t argc, toad_value_t *args, toad_env_t *env,
                                          mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 2 && args[0].type == TOAD_VAL_VECTOR) {
     double target = args[1].data.number;
     size_t n = args[0].data.vector.size;
     size_t count = 0;
@@ -2300,99 +2300,99 @@ static exprtk_value_t fn_vector_find_all(size_t argc, exprtk_value_t *args, expr
         if (fabs(args[0].data.vector.data[i] - target) < 1e-9)
           res[k++] = (double)i;
       }
-      return exprtk_val_vec(res, count);
+      return toad_val_vec(res, count);
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_median(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_median(size_t argc, toad_value_t *args, toad_env_t *env,
                                 mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     if (args[0].data.vector.size == 0)
-      return exprtk_val_num(0);
-    return exprtk_val_num(exprtk_median(args[0].data.vector.data, args[0].data.vector.size, arena));
+      return toad_val_num(0);
+    return toad_val_num(toad_median(args[0].data.vector.data, args[0].data.vector.size, arena));
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_percentile(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_percentile(size_t argc, toad_value_t *args, toad_env_t *env,
                                     mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 2 && args[0].type == TOAD_VAL_VECTOR) {
     if (args[0].data.vector.size == 0)
-      return exprtk_val_num(0);
-    return exprtk_val_num(exprtk_percentile(args[0].data.vector.data, args[0].data.vector.size,
+      return toad_val_num(0);
+    return toad_val_num(toad_percentile(args[0].data.vector.data, args[0].data.vector.size,
                                             args[1].data.number, arena));
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_geometric_mean(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_geometric_mean(size_t argc, toad_value_t *args, toad_env_t *env,
                                         mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     if (args[0].data.vector.size == 0)
-      return exprtk_val_num(0);
-    return exprtk_val_num(
-        exprtk_geometric_mean(args[0].data.vector.data, args[0].data.vector.size));
+      return toad_val_num(0);
+    return toad_val_num(
+        toad_geometric_mean(args[0].data.vector.data, args[0].data.vector.size));
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_harmonic_mean(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_harmonic_mean(size_t argc, toad_value_t *args, toad_env_t *env,
                                        mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     if (args[0].data.vector.size == 0)
-      return exprtk_val_num(0);
-    return exprtk_val_num(exprtk_harmonic_mean(args[0].data.vector.data, args[0].data.vector.size));
+      return toad_val_num(0);
+    return toad_val_num(toad_harmonic_mean(args[0].data.vector.data, args[0].data.vector.size));
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_skewness(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_skewness(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     if (args[0].data.vector.size == 0)
-      return exprtk_val_num(0);
-    return exprtk_val_num(exprtk_skewness(args[0].data.vector.data, args[0].data.vector.size));
+      return toad_val_num(0);
+    return toad_val_num(toad_skewness(args[0].data.vector.data, args[0].data.vector.size));
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_kurtosis(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_kurtosis(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     if (args[0].data.vector.size == 0)
-      return exprtk_val_num(0);
-    return exprtk_val_num(exprtk_kurtosis(args[0].data.vector.data, args[0].data.vector.size));
+      return toad_val_num(0);
+    return toad_val_num(toad_kurtosis(args[0].data.vector.data, args[0].data.vector.size));
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_inv_normal_cdf(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_inv_normal_cdf(size_t argc, toad_value_t *args, toad_env_t *env,
                                         mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(inv_normal_cdf(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(inv_normal_cdf(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_ols_fit(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_ols_fit(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR) {
     if (args[0].data.vector.size == 0 || args[0].data.vector.size != args[1].data.vector.size)
-      return exprtk_val_num(0);
+      return toad_val_num(0);
     ols_result_t r =
         ols_fit(args[0].data.vector.data, args[1].data.vector.data, args[0].data.vector.size);
     double *res = MEM_ALLOC_ARRAY(arena, double, 4);
@@ -2401,48 +2401,48 @@ static exprtk_value_t fn_ols_fit(size_t argc, exprtk_value_t *args, exprtk_env_t
       res[1] = r.intercept;
       res[2] = r.res_var;
       res[3] = r.t_slope;
-      return exprtk_val_vec(res, 4);
+      return toad_val_vec(res, 4);
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_inv(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_inv(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 2 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = (size_t)args[1].data.number;
     if (args[0].data.vector.size >= n * n) {
       double *res = MEM_ALLOC_ARRAY(arena, double, n * n);
       if (res) {
         memcpy(res, args[0].data.vector.data, n * n * sizeof(double));
         if (gauss_jordan_invert(res, n, arena))
-          return exprtk_val_vec(res, n * n);
+          return toad_val_vec(res, n * n);
       }
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_dot(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_dot(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR) {
     if (args[0].data.vector.size == args[1].data.vector.size) {
       size_t n = args[0].data.vector.size;
       double *a = args[0].data.vector.data;
       double *b = args[1].data.vector.data;
-      return exprtk_val_num(simd_dot(a, b, n));
+      return toad_val_num(simd_dot(a, b, n));
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_cross(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_cross(size_t argc, toad_value_t *args, toad_env_t *env,
                                mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR) {
     if (args[0].data.vector.size == 3 && args[1].data.vector.size == 3) {
       double *res = MEM_ALLOC_ARRAY(arena, double, 3);
       if (res) {
@@ -2451,39 +2451,39 @@ static exprtk_value_t fn_cross(size_t argc, exprtk_value_t *args, exprtk_env_t *
         res[0] = a[1] * b[2] - a[2] * b[1];
         res[1] = a[2] * b[0] - a[0] * b[2];
         res[2] = a[0] * b[1] - a[1] * b[0];
-        return exprtk_val_vec(res, 3);
+        return toad_val_vec(res, 3);
       }
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_norm(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_norm(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     double *a = args[0].data.vector.data;
-    return exprtk_val_num(sqrt(simd_norm_sq(a, n)));
+    return toad_val_num(sqrt(simd_norm_sq(a, n)));
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_asin(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_asin(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(asin(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(asin(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_angle(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_angle(size_t argc, toad_value_t *args, toad_env_t *env,
                                mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR) {
     if (args[0].data.vector.size == 3 && args[1].data.vector.size == 3) {
       double *a = args[0].data.vector.data;
       double *b = args[1].data.vector.data;
@@ -2491,16 +2491,16 @@ static exprtk_value_t fn_angle(size_t argc, exprtk_value_t *args, exprtk_env_t *
       double mag_a = sqrt(simd_norm_sq(a, 3));
       double mag_b = sqrt(simd_norm_sq(b, 3));
       if (mag_a * mag_b > 0)
-        return exprtk_val_num(acos(dot / (mag_a * mag_b)));
+        return toad_val_num(acos(dot / (mag_a * mag_b)));
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_proj(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_proj(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR) {
     if (args[0].data.vector.size == 3 && args[1].data.vector.size == 3) {
       double *res = MEM_ALLOC_ARRAY(arena, double, 3);
       if (res) {
@@ -2514,144 +2514,144 @@ static exprtk_value_t fn_proj(size_t argc, exprtk_value_t *args, exprtk_env_t *e
         } else {
           res[0] = res[1] = res[2] = 0;
         }
-        return exprtk_val_vec(res, 3);
+        return toad_val_vec(res, 3);
       }
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
 /* ========================================================================= */
 /* Flex Engine SIMD Types & Operations                                       */
 /* ========================================================================= */
-static exprtk_value_t fn_vec_add(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vec_add(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     if (n == args[1].data.vector.size) {
       double *res = MEM_ALLOC_ARRAY(arena, double, n);
       double *a = args[0].data.vector.data, *b = args[1].data.vector.data;
       simd_add(a, b, res, n);
-      return exprtk_val_vec(res, n);
+      return toad_val_vec(res, n);
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_vec_sub(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vec_sub(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     if (n == args[1].data.vector.size) {
       double *res = MEM_ALLOC_ARRAY(arena, double, n);
       double *a = args[0].data.vector.data, *b = args[1].data.vector.data;
       simd_sub(a, b, res, n);
-      return exprtk_val_vec(res, n);
+      return toad_val_vec(res, n);
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_vec_mul(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vec_mul(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     if (n == args[1].data.vector.size) {
       double *res = MEM_ALLOC_ARRAY(arena, double, n);
       double *a = args[0].data.vector.data, *b = args[1].data.vector.data;
       simd_mul(a, b, res, n);
-      return exprtk_val_vec(res, n);
+      return toad_val_vec(res, n);
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_vec_div(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vec_div(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     if (n == args[1].data.vector.size) {
       double *res = MEM_ALLOC_ARRAY(arena, double, n);
       double *a = args[0].data.vector.data, *b = args[1].data.vector.data;
       simd_div(a, b, res, n);
-      return exprtk_val_vec(res, n);
+      return toad_val_vec(res, n);
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_vec_sqr(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vec_sqr(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     double *res = MEM_ALLOC_ARRAY(arena, double, n);
     simd_sqr(args[0].data.vector.data, res, n);
-    return exprtk_val_vec(res, n);
+    return toad_val_vec(res, n);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_vec_reciprocal(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vec_reciprocal(size_t argc, toad_value_t *args, toad_env_t *env,
                                         mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     double *res = MEM_ALLOC_ARRAY(arena, double, n);
     simd_reciprocal(args[0].data.vector.data, res, n);
-    return exprtk_val_vec(res, n);
+    return toad_val_vec(res, n);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_vec_scale(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vec_scale(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_NUMBER) {
+  if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_NUMBER) {
     size_t n = args[0].data.vector.size;
     double *res = MEM_ALLOC_ARRAY(arena, double, n);
     double *a = args[0].data.vector.data;
     double s = args[1].data.number;
     simd_scale(a, res, s, n);
-    return exprtk_val_vec(res, n);
+    return toad_val_vec(res, n);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_vec2_perp(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vec2_perp(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR && args[0].data.vector.size >= 2) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR && args[0].data.vector.size >= 2) {
     double *res = MEM_ALLOC_ARRAY(arena, double, 2);
     res[0] = -args[0].data.vector.data[1];
     res[1] = args[0].data.vector.data[0];
-    return exprtk_val_vec(res, 2);
+    return toad_val_vec(res, 2);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_vec_normalize(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vec_normalize(size_t argc, toad_value_t *args, toad_env_t *env,
                                        mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     double *a = args[0].data.vector.data;
     double len = sqrt(simd_norm_sq(a, n));
     if (len > 1e-15) {
       double *res = MEM_ALLOC_ARRAY(arena, double, n);
       simd_scale(a, res, 1.0 / len, n);
-      return exprtk_val_vec(res, n);
+      return toad_val_vec(res, n);
     }
-    return exprtk_val_vec(a, n);
+    return toad_val_vec(a, n);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_transform_create(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_transform_create(size_t argc, toad_value_t *args, toad_env_t *env,
                                           mem_pool_t *arena) {
   (void)env;
   if (argc >= 5) {
@@ -2676,15 +2676,15 @@ static exprtk_value_t fn_transform_create(size_t argc, exprtk_value_t *args, exp
       res[4] = sy * c;
       res[5] = y;
     }
-    return exprtk_val_vec(res, 6);
+    return toad_val_vec(res, 6);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_transform_pt(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_transform_pt(size_t argc, toad_value_t *args, toad_env_t *env,
                                       mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_VECTOR &&
+  if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR &&
       args[0].data.vector.size >= 6 && args[1].data.vector.size >= 2) {
     double *m = args[0].data.vector.data;
     double *p = args[1].data.vector.data;
@@ -2692,15 +2692,15 @@ static exprtk_value_t fn_transform_pt(size_t argc, exprtk_value_t *args, exprtk_
     double px = p[0], py = p[1];
     res[0] = m[0] * px + m[1] * py + m[2];
     res[1] = m[3] * px + m[4] * py + m[5];
-    return exprtk_val_vec(res, 2);
+    return toad_val_vec(res, 2);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_transform_mul(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_transform_mul(size_t argc, toad_value_t *args, toad_env_t *env,
                                        mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_VECTOR &&
+  if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR &&
       args[0].data.vector.size >= 6 && args[1].data.vector.size >= 6) {
     double *res = MEM_ALLOC_ARRAY(arena, double, 6);
     double *m = args[0].data.vector.data, *o = args[1].data.vector.data;
@@ -2710,9 +2710,9 @@ static exprtk_value_t fn_transform_mul(size_t argc, exprtk_value_t *args, exprtk
     res[3] = m[3] * o[0] + m[4] * o[3];
     res[4] = m[3] * o[1] + m[4] * o[4];
     res[5] = m[3] * o[2] + m[4] * o[5] + m[5];
-    return exprtk_val_vec(res, 6);
+    return toad_val_vec(res, 6);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
 /* --- Vector Utilities (merged from vec module) --- */
@@ -2727,108 +2727,108 @@ static int cmp_double_desc(const void *a, const void *b) {
   return (db > da) - (db < da);
 }
 
-static exprtk_value_t fn_vec_sort(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vec_sort(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     if (n == 0)
-      return exprtk_val_vec(NULL, 0);
+      return toad_val_vec(NULL, 0);
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
     if (!out)
-      return exprtk_val_num(0);
+      return toad_val_num(0);
     memcpy(out, args[0].data.vector.data, n * sizeof(double));
     qsort(out, n, sizeof(double), cmp_double_asc);
-    return exprtk_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_vec_sort_desc(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vec_sort_desc(size_t argc, toad_value_t *args, toad_env_t *env,
                                        mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     if (n == 0)
-      return exprtk_val_vec(NULL, 0);
+      return toad_val_vec(NULL, 0);
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
     if (!out)
-      return exprtk_val_num(0);
+      return toad_val_num(0);
     memcpy(out, args[0].data.vector.data, n * sizeof(double));
     qsort(out, n, sizeof(double), cmp_double_desc);
-    return exprtk_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_vec_unique(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vec_unique(size_t argc, toad_value_t *args, toad_env_t *env,
                                     mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     if (n == 0)
-      return exprtk_val_vec(NULL, 0);
+      return toad_val_vec(NULL, 0);
     double *tmp = MEM_ALLOC_ARRAY(arena, double, n);
     if (!tmp)
-      return exprtk_val_num(0);
+      return toad_val_num(0);
     memcpy(tmp, args[0].data.vector.data, n * sizeof(double));
     qsort(tmp, n, sizeof(double), cmp_double_asc);
     size_t out_n = 1;
     for (size_t i = 1; i < n; ++i)
       if (tmp[i] != tmp[out_n - 1])
         tmp[out_n++] = tmp[i];
-    return exprtk_val_vec(tmp, out_n);
+    return toad_val_vec(tmp, out_n);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_vec_reverse(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vec_reverse(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     if (n == 0)
-      return exprtk_val_vec(NULL, 0);
+      return toad_val_vec(NULL, 0);
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
     if (!out)
-      return exprtk_val_num(0);
+      return toad_val_num(0);
     simd_reverse(args[0].data.vector.data, out, n);
-    return exprtk_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_vec_concat(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vec_concat(size_t argc, toad_value_t *args, toad_env_t *env,
                                     mem_pool_t *arena) {
   (void)env;
-  if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR) {
     size_t n1 = args[0].data.vector.size, n2 = args[1].data.vector.size;
     size_t total = n1 + n2;
     if (total == 0)
-      return exprtk_val_vec(NULL, 0);
+      return toad_val_vec(NULL, 0);
     double *out = MEM_ALLOC_ARRAY(arena, double, total);
     if (!out)
-      return exprtk_val_num(0);
+      return toad_val_num(0);
     if (n1)
       memcpy(out, args[0].data.vector.data, n1 * sizeof(double));
     if (n2)
       memcpy(out + n1, args[1].data.vector.data, n2 * sizeof(double));
-    return exprtk_val_vec(out, total);
+    return toad_val_vec(out, total);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_vec_range(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vec_range(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
   if (argc < 1 || argc > 2)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   // Check argument types
-  if (args[0].type != EXPRTK_VAL_NUMBER)
-    return exprtk_val_num(0);
-  if (argc == 2 && args[1].type != EXPRTK_VAL_NUMBER)
-    return exprtk_val_num(0);
+  if (args[0].type != TOAD_VAL_NUMBER)
+    return toad_val_num(0);
+  if (argc == 2 && args[1].type != TOAD_VAL_NUMBER)
+    return toad_val_num(0);
 
   double start_d = 0, end_d;
   if (argc == 1) {
@@ -2838,57 +2838,57 @@ static exprtk_value_t fn_vec_range(size_t argc, exprtk_value_t *args, exprtk_env
     end_d = args[1].data.number;
   }
   if (end_d <= start_d)
-    return exprtk_val_vec(NULL, 0);
+    return toad_val_vec(NULL, 0);
   size_t n = (size_t)(end_d - start_d);
   double *out = MEM_ALLOC_ARRAY(arena, double, n);
   if (!out)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   for (size_t i = 0; i < n; ++i)
     out[i] = start_d + (double)i;
-  return exprtk_val_vec(out, n);
+  return toad_val_vec(out, n);
 }
 
-static exprtk_value_t fn_vec_cumsum(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vec_cumsum(size_t argc, toad_value_t *args, toad_env_t *env,
                                     mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     if (n == 0)
-      return exprtk_val_vec(NULL, 0);
+      return toad_val_vec(NULL, 0);
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
     if (!out)
-      return exprtk_val_num(0);
+      return toad_val_num(0);
     simd_cumsum(args[0].data.vector.data, out, n);
-    return exprtk_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_vec_diff(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vec_diff(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     if (n <= 1)
-      return exprtk_val_vec(NULL, 0);
+      return toad_val_vec(NULL, 0);
     size_t out_n = n - 1;
     double *out = MEM_ALLOC_ARRAY(arena, double, out_n);
     if (!out)
-      return exprtk_val_num(0);
+      return toad_val_num(0);
     simd_diff(args[0].data.vector.data, out, n);
-    return exprtk_val_vec(out, out_n);
+    return toad_val_vec(out, out_n);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_transform_inv(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_transform_inv(size_t argc, toad_value_t *args, toad_env_t *env,
                                        mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR && args[0].data.vector.size >= 6) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR && args[0].data.vector.size >= 6) {
     double *m = args[0].data.vector.data;
     double det = m[0] * m[4] - m[1] * m[3];
     if (fabs(det) < 1e-15)
-      return exprtk_val_num(0);
+      return toad_val_num(0);
     double *res = MEM_ALLOC_ARRAY(arena, double, 6);
     double idet = 1.0 / det;
     res[0] = m[4] * idet;
@@ -2897,16 +2897,16 @@ static exprtk_value_t fn_transform_inv(size_t argc, exprtk_value_t *args, exprtk
     res[3] = -m[3] * idet;
     res[4] = m[0] * idet;
     res[5] = (m[3] * m[2] - m[0] * m[5]) * idet;
-    return exprtk_val_vec(res, 6);
+    return toad_val_vec(res, 6);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_rotate_vec(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_rotate_vec(size_t argc, toad_value_t *args, toad_env_t *env,
                                     mem_pool_t *arena) {
   (void)env;
-  if (argc == 3 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_NUMBER &&
-      args[2].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 3 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_NUMBER &&
+      args[2].type == TOAD_VAL_VECTOR) {
     if (args[0].data.vector.size == 3 && args[2].data.vector.size == 3) {
       double *res = MEM_ALLOC_ARRAY(arena, double, 3);
       if (res) {
@@ -2920,18 +2920,18 @@ static exprtk_value_t fn_rotate_vec(size_t argc, exprtk_value_t *args, exprtk_en
                    (axis[(i + 1) % 3] * v[(i + 2) % 3] - axis[(i + 2) % 3] * v[(i + 1) % 3]) * s +
                    axis[i] * dot * (1.0 - c);
         }
-        return exprtk_val_vec(res, 3);
+        return toad_val_vec(res, 3);
       }
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_lookat(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_lookat(size_t argc, toad_value_t *args, toad_env_t *env,
                                 mem_pool_t *arena) {
   (void)env;
-  if (argc == 3 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_VECTOR &&
-      args[2].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 3 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR &&
+      args[2].type == TOAD_VAL_VECTOR) {
     if (args[0].data.vector.size == 3 && args[1].data.vector.size == 3 &&
         args[2].data.vector.size == 3) {
       double *res = MEM_ALLOC_ARRAY(arena, double, 16);
@@ -2972,14 +2972,14 @@ static exprtk_value_t fn_lookat(size_t argc, exprtk_value_t *args, exprtk_env_t 
         res[13] = 0;
         res[14] = 0;
         res[15] = 1;
-        return exprtk_val_vec(res, 16);
+        return toad_val_vec(res, 16);
       }
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_perspective(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_perspective(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
   (void)env;
   if (argc == 4) {
@@ -2996,13 +2996,13 @@ static exprtk_value_t fn_perspective(size_t argc, exprtk_value_t *args, exprtk_e
       res[10] = (zFar + zNear) / (zNear - zFar);
       res[11] = (2.0 * zFar * zNear) / (zNear - zFar);
       res[14] = -1.0;
-      return exprtk_val_vec(res, 16);
+      return toad_val_vec(res, 16);
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_ortho(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_ortho(size_t argc, toad_value_t *args, toad_env_t *env,
                                mem_pool_t *arena) {
   (void)env;
   if (argc == 6) {
@@ -3019,132 +3019,132 @@ static exprtk_value_t fn_ortho(size_t argc, exprtk_value_t *args, exprtk_env_t *
       res[7] = -(t + b) / (t - b);
       res[11] = -(f + n) / (f - n);
       res[15] = 1.0;
-      return exprtk_val_vec(res, 16);
+      return toad_val_vec(res, 16);
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_mat4_mul(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat4_mul(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
-  if ((argc == 2 || argc == 3) && args[0].type == EXPRTK_VAL_VECTOR &&
-      args[1].type == EXPRTK_VAL_VECTOR) {
+  if ((argc == 2 || argc == 3) && args[0].type == TOAD_VAL_VECTOR &&
+      args[1].type == TOAD_VAL_VECTOR) {
     if (args[0].data.vector.size == 16 && args[1].data.vector.size == 16) {
       math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-      if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return exprtk_val_num(0);
+      if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return toad_val_num(0);
       return math_matmul_backend(args[0].data.vector.data, args[1].data.vector.data, 4, 4, 4,
                                  1.0f, 0.0f, layout, arena);
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_mat3_mul(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mat3_mul(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
-  if ((argc == 2 || argc == 3) && args[0].type == EXPRTK_VAL_VECTOR &&
-      args[1].type == EXPRTK_VAL_VECTOR) {
+  if ((argc == 2 || argc == 3) && args[0].type == TOAD_VAL_VECTOR &&
+      args[1].type == TOAD_VAL_VECTOR) {
     if (args[0].data.vector.size == 9 && args[1].data.vector.size == 9) {
       math_matrix_layout_t layout = MATH_MATRIX_COL_MAJOR;
-      if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return exprtk_val_num(0);
+      if (argc == 3 && !math_matrix_layout_arg(args[2], &layout)) return toad_val_num(0);
       return math_matmul_backend(args[0].data.vector.data, args[1].data.vector.data, 3, 3, 3,
                                  1.0f, 0.0f, layout, arena);
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_acos(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_acos(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(acos(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(acos(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_atan(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_atan(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(atan(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(atan(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_atan2(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_atan2(size_t argc, toad_value_t *args, toad_env_t *env,
                                mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 2)
-    return exprtk_val_num(atan2(args[0].data.number, args[1].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(atan2(args[0].data.number, args[1].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_sinh(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_sinh(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(sinh(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(sinh(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_cosh(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_cosh(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(cosh(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(cosh(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_tanh(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_tanh(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(tanh(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(tanh(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_pow(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_pow(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 2)
-    return exprtk_val_num(pow(args[0].data.number, args[1].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(pow(args[0].data.number, args[1].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_clamp(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_clamp(size_t argc, toad_value_t *args, toad_env_t *env,
                                mem_pool_t *arena) {
   (void)env;
   if (argc == 3) {
     double lo = args[1].data.number;
     double hi = args[2].data.number;
     if (lo > hi) { double tmp = lo; lo = hi; hi = tmp; }
-    
-    if (args[0].type == EXPRTK_VAL_NUMBER) {
+
+    if (args[0].type == TOAD_VAL_NUMBER) {
         double x = args[0].data.number;
         if (x < lo) x = lo;
         if (x > hi) x = hi;
-        return exprtk_val_num(x);
+        return toad_val_num(x);
     }
-    if (args[0].type == EXPRTK_VAL_VECTOR) {
+    if (args[0].type == TOAD_VAL_VECTOR) {
         size_t n = args[0].data.vector.size;
         double *res = MEM_ALLOC_ARRAY(arena, double, n);
         if (res) {
             simd_clip(args[0].data.vector.data, res, n, lo, hi);
-            return exprtk_val_vec(res, n);
+            return toad_val_vec(res, n);
         }
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_lerp(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_lerp(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
@@ -3152,12 +3152,12 @@ static exprtk_value_t fn_lerp(size_t argc, exprtk_value_t *args, exprtk_env_t *e
     double a = args[0].data.number;
     double b = args[1].data.number;
     double t = args[2].data.number;
-    return exprtk_val_num(a + (b - a) * t);
+    return toad_val_num(a + (b - a) * t);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_smoothstep(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_smoothstep(size_t argc, toad_value_t *args, toad_env_t *env,
                                     mem_pool_t *arena) {
   (void)env;
   (void)arena;
@@ -3166,132 +3166,132 @@ static exprtk_value_t fn_smoothstep(size_t argc, exprtk_value_t *args, exprtk_en
     double edge1 = args[1].data.number;
     double x = args[2].data.number;
     if (fabs(edge1 - edge0) < 1e-15) {
-      return exprtk_val_num(x < edge0 ? 0.0 : 1.0);
+      return toad_val_num(x < edge0 ? 0.0 : 1.0);
     }
     double t = (x - edge0) / (edge1 - edge0);
     if (t < 0.0)
       t = 0.0;
     if (t > 1.0)
       t = 1.0;
-    return exprtk_val_num(t * t * (3.0 - 2.0 * t));
+    return toad_val_num(t * t * (3.0 - 2.0 * t));
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_radians(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_radians(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1) {
     const double pi = 3.14159265358979323846;
-    return exprtk_val_num(args[0].data.number * (pi / 180.0));
+    return toad_val_num(args[0].data.number * (pi / 180.0));
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_degrees(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_degrees(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1) {
     const double pi = 3.14159265358979323846;
-    return exprtk_val_num(args[0].data.number * (180.0 / pi));
+    return toad_val_num(args[0].data.number * (180.0 / pi));
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_is_nan(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_is_nan(size_t argc, toad_value_t *args, toad_env_t *env,
                                 mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1) {
     double x = args[0].data.number;
-    return exprtk_val_num((x != x) ? 1.0 : 0.0);
+    return toad_val_num((x != x) ? 1.0 : 0.0);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_is_inf(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_is_inf(size_t argc, toad_value_t *args, toad_env_t *env,
                                 mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1) {
     double x = args[0].data.number;
-    return exprtk_val_num((x == INFINITY || x == -INFINITY) ? 1.0 : 0.0);
+    return toad_val_num((x == INFINITY || x == -INFINITY) ? 1.0 : 0.0);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_hypot(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_hypot(size_t argc, toad_value_t *args, toad_env_t *env,
                                mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 2)
-    return exprtk_val_num(hypot(args[0].data.number, args[1].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(hypot(args[0].data.number, args[1].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_log1p(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_log1p(size_t argc, toad_value_t *args, toad_env_t *env,
                                mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(log1p(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(log1p(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_expm1(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_expm1(size_t argc, toad_value_t *args, toad_env_t *env,
                                mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(expm1(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(expm1(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_step(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_step(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 2)
-    return exprtk_val_num(args[1].data.number < args[0].data.number ? 0.0 : 1.0);
-  return exprtk_val_num(0);
+    return toad_val_num(args[1].data.number < args[0].data.number ? 0.0 : 1.0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_fract(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_fract(size_t argc, toad_value_t *args, toad_env_t *env,
                                mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1) {
     double x = args[0].data.number;
-    return exprtk_val_num(x - floor(x));
+    return toad_val_num(x - floor(x));
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_saturate(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_saturate(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   if (argc == 1) {
-    if (args[0].type == EXPRTK_VAL_NUMBER) {
+    if (args[0].type == TOAD_VAL_NUMBER) {
         double x = args[0].data.number;
         if (x < 0.0) x = 0.0;
         if (x > 1.0) x = 1.0;
-        return exprtk_val_num(x);
+        return toad_val_num(x);
     }
-    if (args[0].type == EXPRTK_VAL_VECTOR) {
+    if (args[0].type == TOAD_VAL_VECTOR) {
         size_t n = args[0].data.vector.size;
         double *res = MEM_ALLOC_ARRAY(arena, double, n);
         if (res) {
             simd_clip(args[0].data.vector.data, res, n, 0.0, 1.0);
-            return exprtk_val_vec(res, n);
+            return toad_val_vec(res, n);
         }
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_inverse_lerp(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_inverse_lerp(size_t argc, toad_value_t *args, toad_env_t *env,
                                       mem_pool_t *arena) {
   (void)env;
   (void)arena;
@@ -3301,13 +3301,13 @@ static exprtk_value_t fn_inverse_lerp(size_t argc, exprtk_value_t *args, exprtk_
     double x = args[2].data.number;
     double d = b - a;
     if (fabs(d) < 1e-15)
-      return exprtk_val_num(0);
-    return exprtk_val_num((x - a) / d);
+      return toad_val_num(0);
+    return toad_val_num((x - a) / d);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_remap(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_remap(size_t argc, toad_value_t *args, toad_env_t *env,
                                mem_pool_t *arena) {
   (void)env;
   (void)arena;
@@ -3318,25 +3318,25 @@ static exprtk_value_t fn_remap(size_t argc, exprtk_value_t *args, exprtk_env_t *
     double out_max = args[4].data.number;
     double d = in_max - in_min;
     if (fabs(d) < 1e-15)
-      return exprtk_val_num(out_min);
+      return toad_val_num(out_min);
     double t = (args[0].data.number - in_min) / d;
-    return exprtk_val_num(out_min + (out_max - out_min) * t);
+    return toad_val_num(out_min + (out_max - out_min) * t);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_relu(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_relu(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1) {
     double x = args[0].data.number;
-    return exprtk_val_num(x > 0.0 ? x : 0.0);
+    return toad_val_num(x > 0.0 ? x : 0.0);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_sigmoid(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_sigmoid(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
   (void)arena;
@@ -3344,61 +3344,61 @@ static exprtk_value_t fn_sigmoid(size_t argc, exprtk_value_t *args, exprtk_env_t
     double x = args[0].data.number;
     if (x >= 0.0) {
       double z = exp(-x);
-      return exprtk_val_num(1.0 / (1.0 + z));
+      return toad_val_num(1.0 / (1.0 + z));
     }
     double z = exp(x);
-    return exprtk_val_num(z / (1.0 + z));
+    return toad_val_num(z / (1.0 + z));
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_softplus(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_softplus(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1) {
     double x = args[0].data.number;
     if (x > 40.0)
-      return exprtk_val_num(x);
+      return toad_val_num(x);
     if (x < -40.0)
-      return exprtk_val_num(exp(x));
-    return exprtk_val_num(log1p(exp(x)));
+      return toad_val_num(exp(x));
+    return toad_val_num(log1p(exp(x)));
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_copysign(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_copysign(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 2)
-    return exprtk_val_num(copysign(args[0].data.number, args[1].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(copysign(args[0].data.number, args[1].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_cbrt(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_cbrt(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1) {
     double x = args[0].data.number;
     if (x == 0.0)
-      return exprtk_val_num(0.0);
-    return exprtk_val_num(copysign(pow(fabs(x), 1.0 / 3.0), x));
+      return toad_val_num(0.0);
+    return toad_val_num(copysign(pow(fabs(x), 1.0 / 3.0), x));
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_exp2(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_exp2(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(pow(2.0, args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(pow(2.0, args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_logn(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_logn(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
@@ -3406,138 +3406,138 @@ static exprtk_value_t fn_logn(size_t argc, exprtk_value_t *args, exprtk_env_t *e
     double x = args[0].data.number;
     double base = args[1].data.number;
     if (x <= 0.0 || base <= 0.0 || fabs(base - 1.0) < 1e-15)
-      return exprtk_val_num(0);
-    return exprtk_val_num(log(x) / log(base));
+      return toad_val_num(0);
+    return toad_val_num(log(x) / log(base));
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_log10(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_log10(size_t argc, toad_value_t *args, toad_env_t *env,
                                mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(log10(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(log10(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_log2(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_log2(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(log2(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(log2(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_trunc(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_trunc(size_t argc, toad_value_t *args, toad_env_t *env,
                                mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 1)
-    return exprtk_val_num(trunc(args[0].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(trunc(args[0].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_vec_zscore(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_vec_zscore(size_t argc, toad_value_t *args, toad_env_t *env,
                                     mem_pool_t *arena) {
   (void)env;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
-    if (n == 0) return exprtk_val_vec(NULL, 0);
+    if (n == 0) return toad_val_vec(NULL, 0);
     double mean, var;
     simd_mean_variance(args[0].data.vector.data, n, &mean, &var);
     double sd = sqrt(var);
     double *res = MEM_ALLOC_ARRAY(arena, double, n);
     if (res) {
       simd_zscore(args[0].data.vector.data, res, n, mean, sd);
-      return exprtk_val_vec(res, n);
+      return toad_val_vec(res, n);
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_var(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_var(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env; (void)arena;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     double mean, var;
     simd_mean_variance(args[0].data.vector.data, args[0].data.vector.size, &mean, &var);
-    return exprtk_val_num(var);
+    return toad_val_num(var);
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_std(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_std(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env; (void)arena;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
     double mean, var;
     simd_mean_variance(args[0].data.vector.data, args[0].data.vector.size, &mean, &var);
-    return exprtk_val_num(sqrt(var));
+    return toad_val_num(sqrt(var));
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_sgn(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_sgn(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env;
   if (argc == 1) {
-    if (args[0].type == EXPRTK_VAL_NUMBER) {
+    if (args[0].type == TOAD_VAL_NUMBER) {
         double val = args[0].data.number;
-        return exprtk_val_num((val > 0) - (val < 0));
+        return toad_val_num((val > 0) - (val < 0));
     }
-    if (args[0].type == EXPRTK_VAL_VECTOR) {
+    if (args[0].type == TOAD_VAL_VECTOR) {
         size_t n = args[0].data.vector.size;
         double *res = MEM_ALLOC_ARRAY(arena, double, n);
         if (res) {
             simd_sign(args[0].data.vector.data, res, n);
-            return exprtk_val_vec(res, n);
+            return toad_val_vec(res, n);
         }
     }
   }
-  return exprtk_val_num(0);
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_any(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_any(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env; (void)arena;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR)
-      return exprtk_val_num(simd_any(args[0].data.vector.data, args[0].data.vector.size));
-  return exprtk_val_num(0);
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR)
+      return toad_val_num(simd_any(args[0].data.vector.data, args[0].data.vector.size));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_all(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_all(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env; (void)arena;
-  if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR)
-      return exprtk_val_num(simd_all(args[0].data.vector.data, args[0].data.vector.size));
-  return exprtk_val_num(0);
+  if (argc == 1 && args[0].type == TOAD_VAL_VECTOR)
+      return toad_val_num(simd_all(args[0].data.vector.data, args[0].data.vector.size));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_mod(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_mod(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc == 2)
-    return exprtk_val_num(fmod(args[0].data.number, args[1].data.number));
-  return exprtk_val_num(0);
+    return toad_val_num(fmod(args[0].data.number, args[1].data.number));
+  return toad_val_num(0);
 }
 
-static exprtk_value_t fn_rand(size_t argc, exprtk_value_t *args, exprtk_env_t *env,
+static toad_value_t fn_rand(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
   (void)argc;
   (void)args;
-  return exprtk_val_num((double)rand() / RAND_MAX);
+  return toad_val_num((double)rand() / RAND_MAX);
 }
 
 /* ========================================================================= */
 /* 3. Module Definition                                                     */
 /* ========================================================================= */
 
-static const exprtk_func_entry_t math_entries[] = {
+static const toad_func_entry_t math_entries[] = {
     {"abs", fn_abs},
     {"acos", fn_acos},
     {"all", fn_all},
@@ -3801,7 +3801,7 @@ static const exprtk_func_entry_t math_entries[] = {
     {"matrix.zeros", fn_mat_zeros},
 };
 
-static const exprtk_module_t math_module = {"math", math_entries,
+static const toad_module_t math_module = {"math", math_entries,
                                             sizeof(math_entries) / sizeof(math_entries[0])};
 
-const exprtk_module_t *exprtk_module_math(void) { return &math_module; }
+const toad_module_t *toad_module_math(void) { return &math_module; }

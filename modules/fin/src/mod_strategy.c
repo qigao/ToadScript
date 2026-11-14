@@ -1,8 +1,8 @@
 /**
  * @file mod_strategy.c
- * @brief TurboScript "strategy" module — event-driven trading primitives.
+ * @brief Toad "strategy" module — event-driven trading primitives.
  *
- * This module is mounted into the TurboScript environment by the strategy
+ * This module is mounted into the Toad environment by the strategy
  * runner before each bar evaluation.  It exposes functions that scripts can
  * call to express their intent without knowing anything about the underlying
  * C order manager.
@@ -10,7 +10,7 @@
  * ── Design principle ────────────────────────────────────────────────────────
  *
  * The script does NOT call order functions directly.  Instead it sets output
- * variables that the strategy runner reads after tbs_eval() returns:
+ * variables that the strategy runner reads after toad_eval() returns:
  *
  *   signal      — +1 buy, -1 sell, 0 flat (no trade)
  *   size        — fraction of equity (0.0 – 1.0]
@@ -42,11 +42,11 @@
  *   }
  */
 
-#include <turboscript/engine.h>
+#include <toad/engine.h>
 #include "mod_strategy.h"
-#include <turboscript/module.h>
+#include <toad/module.h>
 #include "fin.h"
-#include <turboscript/simd.h>
+#include <toad/simd.h>
 #include "strategy_optimizer.h"
 #include <math.h>
 #include <simde/x86/avx2.h>
@@ -55,13 +55,13 @@
 /* =========================================================================
  * Helpers: read/write named scalars in the env
  * ========================================================================= */
-static double env_get_num(tbs_env_t *env, const char *name, double def) {
-  tbs_value_t v = tbs_env_get(env, name);
-  return (v.type == TBS_VAL_NUMBER) ? v.data.number : def;
+static double env_get_num(toad_env_t *env, const char *name, double def) {
+  toad_value_t v = toad_env_get(env, name);
+  return (v.type == TOAD_VAL_NUMBER) ? v.data.number : def;
 }
 
-static void env_set_num(tbs_env_t *env, const char *name, double val) {
-  tbs_env_set(env, name, tbs_val_num(val));
+static void env_set_num(toad_env_t *env, const char *name, double val) {
+  toad_env_set(env, name, toad_val_num(val));
 }
 
 /* =========================================================================
@@ -72,90 +72,90 @@ static void env_set_num(tbs_env_t *env, const char *name, double val) {
  * buy([size=0.1, [stop_loss=0, [take_profit=0]]])
  * Sets signal=+1, size=..., stop_loss=..., take_profit=...
  */
-tbs_value_t fn_buy(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_buy(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)arena;
-  double sz = (argc >= 1 && args[0].type == TBS_VAL_NUMBER) ? args[0].data.number : 0.1;
-  double sl = (argc >= 2 && args[1].type == TBS_VAL_NUMBER) ? args[1].data.number : 0.0;
-  double tp = (argc >= 3 && args[2].type == TBS_VAL_NUMBER) ? args[2].data.number : 0.0;
+  double sz = (argc >= 1 && args[0].type == TOAD_VAL_NUMBER) ? args[0].data.number : 0.1;
+  double sl = (argc >= 2 && args[1].type == TOAD_VAL_NUMBER) ? args[1].data.number : 0.0;
+  double tp = (argc >= 3 && args[2].type == TOAD_VAL_NUMBER) ? args[2].data.number : 0.0;
   env_set_num(env, "signal", 1.0);
   env_set_num(env, "size", sz);
   env_set_num(env, "stop_loss", sl);
   env_set_num(env, "take_profit", tp);
-  return tbs_val_num(1.0);
+  return toad_val_num(1.0);
 }
 
 /**
  * sell([size=1.0, [stop_loss=0, [take_profit=0]]])
  * Sets signal=-1 (close long or open short if allowed by market rules).
  */
-tbs_value_t fn_sell(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_sell(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)arena;
-  double sz = (argc >= 1 && args[0].type == TBS_VAL_NUMBER) ? args[0].data.number : 1.0;
-  double sl = (argc >= 2 && args[1].type == TBS_VAL_NUMBER) ? args[1].data.number : 0.0;
-  double tp = (argc >= 3 && args[2].type == TBS_VAL_NUMBER) ? args[2].data.number : 0.0;
+  double sz = (argc >= 1 && args[0].type == TOAD_VAL_NUMBER) ? args[0].data.number : 1.0;
+  double sl = (argc >= 2 && args[1].type == TOAD_VAL_NUMBER) ? args[1].data.number : 0.0;
+  double tp = (argc >= 3 && args[2].type == TOAD_VAL_NUMBER) ? args[2].data.number : 0.0;
   env_set_num(env, "signal", -1.0);
   env_set_num(env, "size", sz);
   env_set_num(env, "stop_loss", sl);
   env_set_num(env, "take_profit", tp);
-  return tbs_val_num(-1.0);
+  return toad_val_num(-1.0);
 }
 
 /**
  * flat()
  * Signal = 0 → close any open position, submit no new trade.
  */
-tbs_value_t fn_flat(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_flat(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)argc;
   (void)args;
   (void)arena;
   env_set_num(env, "signal", 0.0);
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
  * set_sl(price)  — update stop-loss without changing signal
  */
-tbs_value_t fn_set_sl(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_set_sl(size_t argc, toad_value_t *args, toad_env_t *env,
                                 mem_pool_t *arena) {
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_NUMBER)
+  if (argc >= 1 && args[0].type == TOAD_VAL_NUMBER)
     env_set_num(env, "stop_loss", args[0].data.number);
-  return tbs_val_num(env_get_num(env, "stop_loss", 0.0));
+  return toad_val_num(env_get_num(env, "stop_loss", 0.0));
 }
 
 /**
  * set_tp(price)  — update take-profit without changing signal
  */
-tbs_value_t fn_set_tp(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_set_tp(size_t argc, toad_value_t *args, toad_env_t *env,
                                 mem_pool_t *arena) {
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_NUMBER)
+  if (argc >= 1 && args[0].type == TOAD_VAL_NUMBER)
     env_set_num(env, "take_profit", args[0].data.number);
-  return tbs_val_num(env_get_num(env, "take_profit", 0.0));
+  return toad_val_num(env_get_num(env, "take_profit", 0.0));
 }
 
 /**
  * set_trailing_sl(distance, is_pct)  — update trailing stop-loss
  */
-tbs_value_t fn_set_trailing_sl(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_set_trailing_sl(size_t argc, toad_value_t *args, toad_env_t *env,
                                          mem_pool_t *arena) {
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_NUMBER) {
+  if (argc >= 1 && args[0].type == TOAD_VAL_NUMBER) {
     env_set_num(env, "trailing_dist", args[0].data.number);
   }
-  if (argc >= 2 && args[1].type == TBS_VAL_NUMBER) {
+  if (argc >= 2 && args[1].type == TOAD_VAL_NUMBER) {
     env_set_num(env, "trailing_pct", args[1].data.number);
   }
-  return tbs_val_num(env_get_num(env, "trailing_dist", 0.0));
+  return toad_val_num(env_get_num(env, "trailing_dist", 0.0));
 }
 
 /**
  * limit_order(signal, limit_price, bars_valid)
  */
-tbs_value_t fn_limit_order(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_limit_order(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
   (void)arena;
   if (argc >= 2) {
@@ -166,13 +166,13 @@ tbs_value_t fn_limit_order(size_t argc, tbs_value_t *args, tbs_env_t *env,
   if (argc >= 3) {
     env_set_num(env, "bars_valid", args[2].data.number);
   }
-  return tbs_val_num(1.0);
+  return toad_val_num(1.0);
 }
 
 /**
  * stop_order(signal, stop_price, bars_valid)
  */
-tbs_value_t fn_stop_order(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_stop_order(size_t argc, toad_value_t *args, toad_env_t *env,
                                     mem_pool_t *arena) {
   (void)arena;
   if (argc >= 2) {
@@ -183,7 +183,7 @@ tbs_value_t fn_stop_order(size_t argc, tbs_value_t *args, tbs_env_t *env,
   if (argc >= 3) {
     env_set_num(env, "bars_valid", args[2].data.number);
   }
-  return tbs_val_num(1.0);
+  return toad_val_num(1.0);
 }
 
 /* =========================================================================
@@ -196,7 +196,7 @@ tbs_value_t fn_stop_order(size_t argc, tbs_value_t *args, tbs_env_t *env,
  * → Linearly normalises score into [0,1] relative to known min/max range.
  * Typically called from inside a loop over all active assets.
  */
-tbs_value_t fn_rank_pct(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_rank_pct(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   (void)arena;
@@ -205,9 +205,9 @@ tbs_value_t fn_rank_pct(size_t argc, tbs_value_t *args, tbs_env_t *env,
     double lo = args[1].data.number;
     double hi = args[2].data.number;
     double rng = hi - lo;
-    return tbs_val_num((rng > 1e-12) ? (v - lo) / rng : 0.5);
+    return toad_val_num((rng > 1e-12) ? (v - lo) / rng : 0.5);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
@@ -215,15 +215,15 @@ tbs_value_t fn_rank_pct(size_t argc, tbs_value_t *args, tbs_env_t *env,
  * → Returns a vector of percentile ranks (0..1) for each element.
  *   Elements equal to 0 are treated as inactive and returned as 0.
  */
-tbs_value_t fn_vec_rank(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_rank(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR) {
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     double *src = args[0].data.vector.data;
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
     if (!out)
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
 
     /* Count active (non-zero), find min/max */
     double mn = 1e300, mx = -1e300;
@@ -246,25 +246,25 @@ tbs_value_t fn_vec_rank(size_t argc, tbs_value_t *args, tbs_env_t *env,
       }
       out[i] = (rng > 1e-12) ? (src[i] - mn) / rng : 0.5;
     }
-    return tbs_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
  * vec_top(scores[], k)
  * → Returns a binary mask vector: 1 for the k highest non-zero scores.
  */
-tbs_value_t fn_vec_top(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_top(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
-  if (argc >= 2 && args[0].type == TBS_VAL_VECTOR) {
+  if (argc >= 2 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     size_t k = (size_t)args[1].data.number;
     double *src = args[0].data.vector.data;
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
     if (!out)
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
 
     for (size_t i = 0; i < n; i++)
       out[i] = 0.0;
@@ -282,51 +282,51 @@ tbs_value_t fn_vec_top(size_t argc, tbs_value_t *args, tbs_env_t *env,
       if (best_i != SIZE_MAX)
         out[best_i] = 1.0;
     }
-    return tbs_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
  * vec_filter_gt(values[], threshold)
  * → Binary mask: 1 where value > threshold AND value != 0 (active).
  */
-tbs_value_t fn_vec_filter_gt(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_filter_gt(size_t argc, toad_value_t *args, toad_env_t *env,
                                        mem_pool_t *arena) {
   (void)env;
-  if (argc >= 2 && args[0].type == TBS_VAL_VECTOR) {
+  if (argc >= 2 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     double thr = args[1].data.number;
     double *src = args[0].data.vector.data;
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
     if (!out)
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
     for (size_t i = 0; i < n; i++)
       out[i] = (src[i] != 0.0 && src[i] > thr) ? 1.0 : 0.0;
-    return tbs_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
  * vec_filter_lt(values[], threshold)
  * → Binary mask: 1 where value < threshold AND value != 0 (active).
  */
-tbs_value_t fn_vec_filter_lt(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_filter_lt(size_t argc, toad_value_t *args, toad_env_t *env,
                                        mem_pool_t *arena) {
   (void)env;
-  if (argc >= 2 && args[0].type == TBS_VAL_VECTOR) {
+  if (argc >= 2 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     double thr = args[1].data.number;
     double *src = args[0].data.vector.data;
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
     if (!out)
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
     for (size_t i = 0; i < n; i++)
       out[i] = (src[i] != 0.0 && src[i] < thr) ? 1.0 : 0.0;
-    return tbs_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
@@ -334,10 +334,10 @@ tbs_value_t fn_vec_filter_lt(size_t argc, tbs_value_t *args, tbs_env_t *env,
  * -> Returns a vector of indices where mask[i] != 0.
  * Useful for turning a binary filter into a list of targets to iterate over.
  */
-tbs_value_t fn_vec_where(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_where(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR) {
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     double *mask = args[0].data.vector.data;
 
@@ -350,7 +350,7 @@ tbs_value_t fn_vec_where(size_t argc, tbs_value_t *args, tbs_env_t *env,
 
     double *out = MEM_ALLOC_ARRAY(arena, double, count);
     if (!out)
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
 
     /* Second pass: collect */
     size_t j = 0;
@@ -358,9 +358,9 @@ tbs_value_t fn_vec_where(size_t argc, tbs_value_t *args, tbs_env_t *env,
       if (fabs(mask[i]) > 1e-9)
         out[j++] = (double)i;
     }
-    return tbs_val_vec(out, count);
+    return toad_val_vec(out, count);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 typedef struct {
@@ -382,10 +382,10 @@ static int sort_pair_cmp(const void *a, const void *b) {
  * vec_sort_idx(values[])
  * -> Returns a vector of indices [0...N-1] sorted by values[i] descending.
  */
-tbs_value_t fn_vec_sort_idx(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_sort_idx(size_t argc, toad_value_t *args, toad_env_t *env,
                                       mem_pool_t *arena) {
   (void)env;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR) {
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     double *src = args[0].data.vector.data;
     if (n == 0)
@@ -393,7 +393,7 @@ tbs_value_t fn_vec_sort_idx(size_t argc, tbs_value_t *args, tbs_env_t *env,
 
     sort_pair_t *pairs = MEM_ALLOC_ARRAY(arena, sort_pair_t, n);
     if (!pairs)
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
 
     for (size_t i = 0; i < n; i++) {
       pairs[i].idx = i;
@@ -404,14 +404,14 @@ tbs_value_t fn_vec_sort_idx(size_t argc, tbs_value_t *args, tbs_env_t *env,
 
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
     if (!out)
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
 
     for (size_t i = 0; i < n; i++) {
       out[i] = (double)pairs[i].idx;
     }
-    return tbs_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
@@ -419,17 +419,17 @@ tbs_value_t fn_vec_sort_idx(size_t argc, tbs_value_t *args, tbs_env_t *env,
  * -> Shifts vector by n positions. Pad with 0.
  * Positive n shifts right (forward in time), negative n shifts left (back in time).
  */
-tbs_value_t fn_vec_shift(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_shift(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
-  if (argc >= 2 && args[0].type == TBS_VAL_VECTOR && args[1].type == TBS_VAL_NUMBER) {
+  if (argc >= 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_NUMBER) {
     size_t n = args[0].data.vector.size;
     double *src = args[0].data.vector.data;
     int shift = (int)args[1].data.number;
 
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
     if (!out)
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
     memset(out, 0, n * sizeof(double));
 
     for (int i = 0; i < (int)n; i++) {
@@ -438,25 +438,25 @@ tbs_value_t fn_vec_shift(size_t argc, tbs_value_t *args, tbs_env_t *env,
         out[target] = src[i];
       }
     }
-    return tbs_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
  * vec_corr(v1[], v2[])
  * -> Returns Pearson correlation coefficient [-1, 1].
  */
-tbs_value_t fn_vec_corr(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_corr(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 2 && args[0].type == TBS_VAL_VECTOR && args[1].type == TBS_VAL_VECTOR) {
+  if (argc >= 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR) {
     size_t n1 = args[0].data.vector.size;
     size_t n2 = args[1].data.vector.size;
     size_t n = (n1 < n2) ? n1 : n2;
     if (n < 2)
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
 
     double *v1 = args[0].data.vector.data;
     double *v2 = args[1].data.vector.data;
@@ -474,10 +474,10 @@ tbs_value_t fn_vec_corr(size_t argc, tbs_value_t *args, tbs_env_t *env,
     double den = sqrt(((double)n * sum1sq - sum1 * sum1) * ((double)n * sum2sq - sum2 * sum2));
 
     if (fabs(den) < 1e-12)
-      return tbs_val_num(0.0);
-    return tbs_val_num(num / den);
+      return toad_val_num(0.0);
+    return toad_val_num(num / den);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /* =========================================================================
@@ -489,65 +489,65 @@ tbs_value_t fn_vec_corr(size_t argc, tbs_value_t *args, tbs_env_t *env,
  * → Returns the current position quantity (from the env "position" var).
  * The runner binds "position" before each bar, so this just proxies it.
  */
-tbs_value_t fn_pos(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_pos(size_t argc, toad_value_t *args, toad_env_t *env,
                              mem_pool_t *arena) {
   (void)argc;
   (void)args;
   (void)arena;
-  return tbs_val_num(env_get_num(env, "position", 0.0));
+  return toad_val_num(env_get_num(env, "position", 0.0));
 }
 
 /**
  * entry_px()
  * → Returns the average entry price (runner binds "entry_price" in env).
  */
-tbs_value_t fn_entry_px(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_entry_px(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)argc;
   (void)args;
   (void)arena;
-  return tbs_val_num(env_get_num(env, "entry_price", 0.0));
+  return toad_val_num(env_get_num(env, "entry_price", 0.0));
 }
 
 /**
  * is_long()   → 1 if position > 0, else 0.
  */
-tbs_value_t fn_is_long(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_is_long(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)argc;
   (void)args;
   (void)arena;
-  return tbs_val_num(env_get_num(env, "position", 0.0) > 0.0 ? 1.0 : 0.0);
+  return toad_val_num(env_get_num(env, "position", 0.0) > 0.0 ? 1.0 : 0.0);
 }
 
 /**
  * is_short()  → 1 if position < 0, else 0.
  */
-tbs_value_t fn_is_short(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_is_short(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)argc;
   (void)args;
   (void)arena;
-  return tbs_val_num(env_get_num(env, "position", 0.0) < 0.0 ? 1.0 : 0.0);
+  return toad_val_num(env_get_num(env, "position", 0.0) < 0.0 ? 1.0 : 0.0);
 }
 
 /**
  * is_flat()  → 1 if position == 0, else 0.
  */
-tbs_value_t fn_is_flat(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_is_flat(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)argc;
   (void)args;
   (void)arena;
   double p = env_get_num(env, "position", 0.0);
-  return tbs_val_num((p > -1e-9 && p < 1e-9) ? 1.0 : 0.0);
+  return toad_val_num((p > -1e-9 && p < 1e-9) ? 1.0 : 0.0);
 }
 
 /**
  * unrealized_pnl()
  * → (current_close - entry_price) * position  (inferred from env vars)
  */
-tbs_value_t fn_unrealized_pnl(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_unrealized_pnl(size_t argc, toad_value_t *args, toad_env_t *env,
                                         mem_pool_t *arena) {
   (void)argc;
   (void)args;
@@ -555,7 +555,7 @@ tbs_value_t fn_unrealized_pnl(size_t argc, tbs_value_t *args, tbs_env_t *env,
   double pos = env_get_num(env, "position", 0.0);
   double entry = env_get_num(env, "entry_price", 0.0);
   double close = env_get_num(env, "prev_close", 0.0); /* last known close */
-  return tbs_val_num((close - entry) * pos);
+  return toad_val_num((close - entry) * pos);
 }
 
 /* =========================================================================
@@ -566,7 +566,7 @@ tbs_value_t fn_unrealized_pnl(size_t argc, tbs_value_t *args, tbs_env_t *env,
  * kelly_size(win_rate, avg_win, avg_loss)
  * → Kelly fraction: w - (1-w)/ratio, clamped to [0,1].
  */
-tbs_value_t fn_kelly_size(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_kelly_size(size_t argc, toad_value_t *args, toad_env_t *env,
                                     mem_pool_t *arena) {
   (void)env;
   (void)arena;
@@ -575,16 +575,16 @@ tbs_value_t fn_kelly_size(size_t argc, tbs_value_t *args, tbs_env_t *env,
     double avg_win = args[1].data.number;
     double avg_loss = args[2].data.number;
     if (avg_loss < 1e-9)
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
     double ratio = avg_win / avg_loss;
     double k = w - (1.0 - w) / ratio;
     if (k < 0.0)
       k = 0.0;
     if (k > 1.0)
       k = 1.0;
-    return tbs_val_num(k);
+    return toad_val_num(k);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
@@ -592,7 +592,7 @@ tbs_value_t fn_kelly_size(size_t argc, tbs_value_t *args, tbs_env_t *env,
  * → Fraction of equity to allocate so that a full stop-loss hit costs risk_pct.
  *   size = risk_pct / |entry - stop_loss| × entry
  */
-tbs_value_t fn_risk_size(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_risk_size(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
   (void)arena;
@@ -602,13 +602,13 @@ tbs_value_t fn_risk_size(size_t argc, tbs_value_t *args, tbs_env_t *env,
     double sl = args[2].data.number;
     double dist = fabs(entry - sl);
     if (dist < 1e-9 || entry < 1e-9)
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
     double sz = risk / (dist / entry);
     if (sz > 1.0)
       sz = 1.0;
-    return tbs_val_num(sz);
+    return toad_val_num(sz);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
@@ -616,15 +616,15 @@ tbs_value_t fn_risk_size(size_t argc, tbs_value_t *args, tbs_env_t *env,
  * → stop_loss distance = atr_val * multiplier.
  * Convenience: caller subtracts from entry to get the SL price.
  */
-tbs_value_t fn_atr_sl(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_atr_sl(size_t argc, toad_value_t *args, toad_env_t *env,
                                 mem_pool_t *arena) {
   (void)env;
   (void)arena;
   if (argc >= 2)
-    return tbs_val_num(args[0].data.number * args[1].data.number);
+    return toad_val_num(args[0].data.number * args[1].data.number);
   if (argc == 1)
-    return tbs_val_num(args[0].data.number * 2.0); /* default 2× ATR */
-  return tbs_val_num(0.0);
+    return toad_val_num(args[0].data.number * 2.0); /* default 2× ATR */
+  return toad_val_num(0.0);
 }
 
 /* =========================================================================
@@ -636,36 +636,36 @@ tbs_value_t fn_atr_sl(size_t argc, tbs_value_t *args, tbs_env_t *env,
 /**
  * num_trades()  → total closed trades so far.
  */
-tbs_value_t fn_num_trades(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_num_trades(size_t argc, toad_value_t *args, toad_env_t *env,
                                     mem_pool_t *arena) {
   (void)argc;
   (void)args;
   (void)arena;
-  return tbs_val_num(env_get_num(env, "num_trades", 0.0));
+  return toad_val_num(env_get_num(env, "num_trades", 0.0));
 }
 
 /**
  * cum_pnl()  → cumulative realized P&L.
  */
-tbs_value_t fn_cum_pnl(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_cum_pnl(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)argc;
   (void)args;
   (void)arena;
-  return tbs_val_num(env_get_num(env, "cum_pnl", 0.0));
+  return toad_val_num(env_get_num(env, "cum_pnl", 0.0));
 }
 
 /**
  * win_rate()  → fraction of closed trades that were profitable (0..1).
  */
-tbs_value_t fn_win_rate(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_win_rate(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)argc;
   (void)args;
   (void)arena;
   double n_total = env_get_num(env, "num_trades", 0.0);
   double n_wins = env_get_num(env, "num_wins", 0.0);
-  return tbs_val_num((n_total > 0.5) ? (n_wins / n_total) : 0.0);
+  return toad_val_num((n_total > 0.5) ? (n_wins / n_total) : 0.0);
 }
 
 /* =========================================================================
@@ -676,110 +676,110 @@ tbs_value_t fn_win_rate(size_t argc, tbs_value_t *args, tbs_env_t *env,
  * last(vec[]) → return the last element of a vector.
  * Equivalent to vec[n-1] but works without knowing n in script.
  */
-tbs_value_t fn_last(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_last(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR && args[0].data.vector.size > 0) {
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR && args[0].data.vector.size > 0) {
     size_t n = args[0].data.vector.size;
-    return tbs_val_num(args[0].data.vector.data[n - 1]);
+    return toad_val_num(args[0].data.vector.data[n - 1]);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
  * prev(vec[], k=1) → return the k-th element from the end (0 = most recent).
  */
-tbs_value_t fn_prev(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_prev(size_t argc, toad_value_t *args, toad_env_t *env,
                               mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR) {
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     size_t k = (argc >= 2) ? (size_t)args[1].data.number : 1;
     if (n > k)
-      return tbs_val_num(args[0].data.vector.data[n - 1 - k]);
+      return toad_val_num(args[0].data.vector.data[n - 1 - k]);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
  * vec_sum(vec[]) → sum of all elements.
  */
-tbs_value_t fn_vec_sum(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_sum(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR) {
-    return tbs_val_num(simd_sum(args[0].data.vector.data, args[0].data.vector.size));
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR) {
+    return toad_val_num(simd_sum(args[0].data.vector.data, args[0].data.vector.size));
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
  * vec_mean(vec[]) → arithmetic mean.
  */
-tbs_value_t fn_vec_mean(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_mean(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR && args[0].data.vector.size > 0) {
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR && args[0].data.vector.size > 0) {
     size_t n = args[0].data.vector.size;
     double sum = simd_sum(args[0].data.vector.data, n);
-    return tbs_val_num(sum / (double)n);
+    return toad_val_num(sum / (double)n);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
  * vec_std(vec[]) → population std-dev.
  */
-tbs_value_t fn_vec_std(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_std(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR && args[0].data.vector.size > 1) {
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR && args[0].data.vector.size > 1) {
     size_t n = args[0].data.vector.size;
     double *d = args[0].data.vector.data;
     double mean, variance;
     simd_mean_variance(d, n, &mean, &variance);
     double pop_var = (n > 1) ? variance * (double)(n - 1) / (double)n : 0.0;
-    return tbs_val_num(sqrt(pop_var));
+    return toad_val_num(sqrt(pop_var));
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
  * vec_max(vec[]) / vec_min(vec[])
  */
-tbs_value_t fn_vec_max(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_max(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR && args[0].data.vector.size > 0) {
-    return tbs_val_num(simd_max(args[0].data.vector.data, args[0].data.vector.size));
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR && args[0].data.vector.size > 0) {
+    return toad_val_num(simd_max(args[0].data.vector.data, args[0].data.vector.size));
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
-tbs_value_t fn_vec_min(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_min(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR && args[0].data.vector.size > 0) {
-    return tbs_val_num(simd_min(args[0].data.vector.data, args[0].data.vector.size));
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR && args[0].data.vector.size > 0) {
+    return toad_val_num(simd_min(args[0].data.vector.data, args[0].data.vector.size));
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
  * vec_roll_max(v[], window)
  * -> Returns a vector of rolling maximums.
  */
-tbs_value_t fn_vec_roll_max(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_roll_max(size_t argc, toad_value_t *args, toad_env_t *env,
                                       mem_pool_t *arena) {
   (void)env;
-  if (argc >= 2 && args[0].type == TBS_VAL_VECTOR && args[1].type == TBS_VAL_NUMBER) {
+  if (argc >= 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_NUMBER) {
     size_t n = args[0].data.vector.size;
     int win = (int)args[1].data.number;
     if (win <= 0 || n == 0)
@@ -788,7 +788,7 @@ tbs_value_t fn_vec_roll_max(size_t argc, tbs_value_t *args, tbs_env_t *env,
     double *src = args[0].data.vector.data;
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
     if (!out)
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
 
     for (int i = 0; i < (int)n; i++) {
       int start = i - win + 1;
@@ -797,18 +797,18 @@ tbs_value_t fn_vec_roll_max(size_t argc, tbs_value_t *args, tbs_env_t *env,
       size_t len = (size_t)(i - start + 1);
       out[i] = simd_max(&src[start], len);
     }
-    return tbs_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
  * vec_roll_min(v[], window)
  */
-tbs_value_t fn_vec_roll_min(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_roll_min(size_t argc, toad_value_t *args, toad_env_t *env,
                                       mem_pool_t *arena) {
   (void)env;
-  if (argc >= 2 && args[0].type == TBS_VAL_VECTOR && args[1].type == TBS_VAL_NUMBER) {
+  if (argc >= 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_NUMBER) {
     size_t n = args[0].data.vector.size;
     int win = (int)args[1].data.number;
     if (win <= 0 || n == 0)
@@ -817,7 +817,7 @@ tbs_value_t fn_vec_roll_min(size_t argc, tbs_value_t *args, tbs_env_t *env,
     double *src = args[0].data.vector.data;
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
     if (!out)
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
 
     for (int i = 0; i < (int)n; i++) {
       int start = i - win + 1;
@@ -826,24 +826,24 @@ tbs_value_t fn_vec_roll_min(size_t argc, tbs_value_t *args, tbs_env_t *env,
       size_t len = (size_t)(i - start + 1);
       out[i] = simd_min(&src[start], len);
     }
-    return tbs_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
  * vec_vmax(v1[], v2[])
  * -> Element-wise maximum of two vectors (or vector and scalar).
  */
-tbs_value_t fn_vec_vmax(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_vmax(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   if (argc >= 2) {
     size_t n = 0;
     double *v1 = NULL, *v2 = NULL;
     double s1 = 0, s2 = 0;
-    int is_v1 = (args[0].type == TBS_VAL_VECTOR);
-    int is_v2 = (args[1].type == TBS_VAL_VECTOR);
+    int is_v1 = (args[0].type == TOAD_VAL_VECTOR);
+    int is_v2 = (args[1].type == TOAD_VAL_VECTOR);
 
     if (is_v1) {
       n = args[0].data.vector.size;
@@ -855,18 +855,18 @@ tbs_value_t fn_vec_vmax(size_t argc, tbs_value_t *args, tbs_env_t *env,
       if (n == 0)
         n = args[1].data.vector.size;
       else if (n != args[1].data.vector.size)
-        return tbs_val_num(0.0);
+        return toad_val_num(0.0);
       v2 = args[1].data.vector.data;
     } else {
       s2 = args[1].data.number;
     }
 
     if (n == 0)
-      return tbs_val_num(fmax(s1, s2));
+      return toad_val_num(fmax(s1, s2));
 
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
     if (!out)
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
 
     if (is_v1 && is_v2) {
       simd_element_max(v1, v2, out, n);
@@ -875,23 +875,23 @@ tbs_value_t fn_vec_vmax(size_t argc, tbs_value_t *args, tbs_env_t *env,
     } else if (is_v2) {
       simd_element_max_scalar(v2, s1, out, n);
     }
-    return tbs_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
  * vec_vmin(v1[], v2[])
  */
-tbs_value_t fn_vec_vmin(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_vmin(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
   if (argc >= 2) {
     size_t n = 0;
     double *v1 = NULL, *v2 = NULL;
     double s1 = 0, s2 = 0;
-    int is_v1 = (args[0].type == TBS_VAL_VECTOR);
-    int is_v2 = (args[1].type == TBS_VAL_VECTOR);
+    int is_v1 = (args[0].type == TOAD_VAL_VECTOR);
+    int is_v2 = (args[1].type == TOAD_VAL_VECTOR);
 
     if (is_v1) {
       n = args[0].data.vector.size;
@@ -903,18 +903,18 @@ tbs_value_t fn_vec_vmin(size_t argc, tbs_value_t *args, tbs_env_t *env,
       if (n == 0)
         n = args[1].data.vector.size;
       else if (n != args[1].data.vector.size)
-        return tbs_val_num(0.0);
+        return toad_val_num(0.0);
       v2 = args[1].data.vector.data;
     } else {
       s2 = args[1].data.number;
     }
 
     if (n == 0)
-      return tbs_val_num(fmin(s1, s2));
+      return toad_val_num(fmin(s1, s2));
 
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
     if (!out)
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
 
     if (is_v1 && is_v2) {
       simd_element_min(v1, v2, out, n);
@@ -923,104 +923,104 @@ tbs_value_t fn_vec_vmin(size_t argc, tbs_value_t *args, tbs_env_t *env,
     } else if (is_v2) {
       simd_element_min_scalar(v2, s1, out, n);
     }
-    return tbs_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
  * vec_fill(n, val)
  * -> Creates a vector of size n filled with val.
  */
-tbs_value_t fn_vec_fill(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_fill(size_t argc, toad_value_t *args, toad_env_t *env,
                                   mem_pool_t *arena) {
   (void)env;
-  if (argc >= 2 && args[0].type == TBS_VAL_NUMBER && args[1].type == TBS_VAL_NUMBER) {
+  if (argc >= 2 && args[0].type == TOAD_VAL_NUMBER && args[1].type == TOAD_VAL_NUMBER) {
     size_t n = (size_t)args[0].data.number;
     double val = args[1].data.number;
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
     if (!out)
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
     for (size_t i = 0; i < n; i++)
       out[i] = val;
-    return tbs_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
  * vec_at(vec, idx)
  * -> Returns the value at idx.
  */
-tbs_value_t fn_vec_at(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_at(size_t argc, toad_value_t *args, toad_env_t *env,
                                 mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 2 && args[0].type == TBS_VAL_VECTOR && args[1].type == TBS_VAL_NUMBER) {
+  if (argc >= 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_NUMBER) {
     size_t n = args[0].data.vector.size;
     int idx = (int)args[1].data.number;
     if (idx >= 0 && (size_t)idx < n) {
-      return tbs_val_num(args[0].data.vector.data[idx]);
+      return toad_val_num(args[0].data.vector.data[idx]);
     }
   }
-  return tbs_val_num(NAN);
+  return toad_val_num(NAN);
 }
 
 /**
  * vec_any(v[]) -> scalar 1.0 if any element is non-zero, else 0.0.
  */
-tbs_value_t fn_vec_any(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_any(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR) {
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR) {
     for (size_t i = 0; i < args[0].data.vector.size; i++) {
       if (fabs(args[0].data.vector.data[i]) > 1e-9)
-        return tbs_val_num(1.0);
+        return toad_val_num(1.0);
     }
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
  * vec_all(v[]) -> scalar 1.0 if all elements are non-zero, else 0.0.
  */
-tbs_value_t fn_vec_all(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_all(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR) {
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR) {
     size_t n = args[0].data.vector.size;
     if (n == 0)
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
     for (size_t i = 0; i < n; i++) {
       if (fabs(args[0].data.vector.data[i]) <= 1e-9)
-        return tbs_val_num(0.0);
+        return toad_val_num(0.0);
     }
-    return tbs_val_num(1.0);
+    return toad_val_num(1.0);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
  * vec_cross(v1, v2)
  * -> Vector of 1.0 (cross-over), -1.0 (cross-under), or 0.0.
  */
-tbs_value_t fn_vec_cross(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_cross(size_t argc, toad_value_t *args, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
-  if (argc >= 2 && args[0].type == TBS_VAL_VECTOR && args[1].type == TBS_VAL_VECTOR) {
+  if (argc >= 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR) {
     size_t n1 = args[0].data.vector.size;
     size_t n2 = args[1].data.vector.size;
     size_t n = (n1 < n2) ? n1 : n2;
 
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
     if (!out)
-      return tbs_val_num(0.0);
+      return toad_val_num(0.0);
     memset(out, 0, n * sizeof(double));
 
     if (n < 2)
-      return tbs_val_vec(out, n);
+      return toad_val_vec(out, n);
 
     const double *v1 = args[0].data.vector.data;
     const double *v2 = args[1].data.vector.data;
@@ -1031,9 +1031,9 @@ tbs_value_t fn_vec_cross(size_t argc, tbs_value_t *args, tbs_env_t *env,
       else if (v1[i - 1] >= v2[i - 1] && v1[i] < v2[i])
         out[i] = -1.0;
     }
-    return tbs_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return tbs_val_num(0.0);
+  return toad_val_num(0.0);
 }
 
 /**
@@ -1042,19 +1042,19 @@ tbs_value_t fn_vec_cross(size_t argc, tbs_value_t *args, tbs_env_t *env,
  * Modes: 0=Last(Close), 1=First(Open), 2=Max(High), 3=Min(Low), 4=Sum(Volume), 5=Mean
  * Default mode is 0.
  */
-tbs_value_t fn_vec_resample(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_vec_resample(size_t argc, toad_value_t *args, toad_env_t *env,
                                       mem_pool_t *arena) {
   (void)env;
-  if (argc < 2 || args[0].type != TBS_VAL_VECTOR || args[1].type != TBS_VAL_NUMBER) {
-    return tbs_val_num(NAN);
+  if (argc < 2 || args[0].type != TOAD_VAL_VECTOR || args[1].type != TOAD_VAL_NUMBER) {
+    return toad_val_num(NAN);
   }
 
   int period = (int)args[1].data.number;
   if (period <= 0)
-    return tbs_val_num(NAN);
+    return toad_val_num(NAN);
 
   int mode = 0;
-  if (argc >= 3 && args[2].type == TBS_VAL_NUMBER) {
+  if (argc >= 3 && args[2].type == TOAD_VAL_NUMBER) {
     mode = (int)args[2].data.number;
   }
 
@@ -1068,7 +1068,7 @@ tbs_value_t fn_vec_resample(size_t argc, tbs_value_t *args, tbs_env_t *env,
 
   double *out = MEM_ALLOC_ARRAY(arena, double, out_len);
   if (!out)
-    return tbs_val_num(NAN);
+    return toad_val_num(NAN);
 
   const double *in = args[0].data.vector.data;
   ptrdiff_t end_idx = (ptrdiff_t)in_len - 1;
@@ -1118,116 +1118,116 @@ tbs_value_t fn_vec_resample(size_t argc, tbs_value_t *args, tbs_env_t *env,
     out_idx--;
   }
 
-  return tbs_val_vec(out, out_len);
+  return toad_val_vec(out, out_len);
 }
 
 /* =========================================================================
  * Performance Metrics wrappers
  * ========================================================================= */
 
-tbs_value_t fn_sharpe(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_sharpe(size_t argc, toad_value_t *args, toad_env_t *env,
                                 mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR) {
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR) {
     double rf = (argc >= 2) ? args[1].data.number : 0.0;
     double af = (argc >= 3) ? args[2].data.number : 252.0;
-    return tbs_val_num(
-        tbs_sharpe(args[0].data.vector.data, args[0].data.vector.size, rf, af));
+    return toad_val_num(
+        toad_sharpe(args[0].data.vector.data, args[0].data.vector.size, rf, af));
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-tbs_value_t fn_sortino(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_sortino(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR) {
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR) {
     double rf = (argc >= 2) ? args[1].data.number : 0.0;
     double af = (argc >= 3) ? args[2].data.number : 252.0;
-    return tbs_val_num(
-        tbs_sortino(args[0].data.vector.data, args[0].data.vector.size, rf, af));
+    return toad_val_num(
+        toad_sortino(args[0].data.vector.data, args[0].data.vector.size, rf, af));
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-tbs_value_t fn_calmar(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_calmar(size_t argc, toad_value_t *args, toad_env_t *env,
                                 mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR) {
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR) {
     double af = (argc >= 2) ? args[1].data.number : 252.0;
-    return tbs_val_num(tbs_calmar(args[0].data.vector.data, args[0].data.vector.size, af));
+    return toad_val_num(toad_calmar(args[0].data.vector.data, args[0].data.vector.size, af));
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-tbs_value_t fn_profit_factor(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_profit_factor(size_t argc, toad_value_t *args, toad_env_t *env,
                                        mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR)
-    return tbs_val_num(tbs_profit_factor(args[0].data.vector.data, args[0].data.vector.size));
-  return tbs_val_num(0);
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR)
+    return toad_val_num(toad_profit_factor(args[0].data.vector.data, args[0].data.vector.size));
+  return toad_val_num(0);
 }
 
-tbs_value_t fn_expectancy(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_expectancy(size_t argc, toad_value_t *args, toad_env_t *env,
                                     mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR)
-    return tbs_val_num(tbs_expectancy(args[0].data.vector.data, args[0].data.vector.size));
-  return tbs_val_num(0);
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR)
+    return toad_val_num(toad_expectancy(args[0].data.vector.data, args[0].data.vector.size));
+  return toad_val_num(0);
 }
 
-tbs_value_t fn_payoff_ratio(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_payoff_ratio(size_t argc, toad_value_t *args, toad_env_t *env,
                                       mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR)
-    return tbs_val_num(tbs_payoff_ratio(args[0].data.vector.data, args[0].data.vector.size));
-  return tbs_val_num(0);
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR)
+    return toad_val_num(toad_payoff_ratio(args[0].data.vector.data, args[0].data.vector.size));
+  return toad_val_num(0);
 }
 
-tbs_value_t fn_max_dd_duration(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_max_dd_duration(size_t argc, toad_value_t *args, toad_env_t *env,
                                          mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR)
-    return tbs_val_num(
-        (double)tbs_max_dd_duration(args[0].data.vector.data, args[0].data.vector.size));
-  return tbs_val_num(0);
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR)
+    return toad_val_num(
+        (double)toad_max_dd_duration(args[0].data.vector.data, args[0].data.vector.size));
+  return toad_val_num(0);
 }
 
-tbs_value_t fn_ulcer_index(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_ulcer_index(size_t argc, toad_value_t *args, toad_env_t *env,
                                      mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 1 && args[0].type == TBS_VAL_VECTOR)
-    return tbs_val_num(tbs_ulcer_index(args[0].data.vector.data, args[0].data.vector.size));
-  return tbs_val_num(0);
+  if (argc >= 1 && args[0].type == TOAD_VAL_VECTOR)
+    return toad_val_num(toad_ulcer_index(args[0].data.vector.data, args[0].data.vector.size));
+  return toad_val_num(0);
 }
 
-tbs_value_t fn_information_ratio(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_information_ratio(size_t argc, toad_value_t *args, toad_env_t *env,
                                            mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 2 && args[0].type == TBS_VAL_VECTOR && args[1].type == TBS_VAL_VECTOR)
-    return tbs_val_num(tbs_information_ratio(
+  if (argc >= 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR)
+    return toad_val_num(toad_information_ratio(
         args[0].data.vector.data, args[1].data.vector.data, args[0].data.vector.size));
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-tbs_value_t fn_treynor(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_treynor(size_t argc, toad_value_t *args, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
   (void)arena;
-  if (argc >= 2 && args[0].type == TBS_VAL_VECTOR && args[1].type == TBS_VAL_VECTOR) {
+  if (argc >= 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR) {
     double rf = (argc >= 3) ? args[2].data.number : 0.0;
-    return tbs_val_num(tbs_treynor(args[0].data.vector.data, args[1].data.vector.data,
+    return toad_val_num(toad_treynor(args[0].data.vector.data, args[1].data.vector.data,
                                          args[0].data.vector.size, rf));
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
 /* =========================================================================
@@ -1239,25 +1239,25 @@ tbs_value_t fn_treynor(size_t argc, tbs_value_t *args, tbs_env_t *env,
  * → Returns a map: {open: vec, high: vec, low: vec, close: vec, volume: vec, count: num}
  * Reuses fn_vec_resample logic with all 5 modes at once.
  */
-tbs_value_t fn_resample_ohlcv(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_resample_ohlcv(size_t argc, toad_value_t *args, toad_env_t *env,
                                         mem_pool_t *arena) {
   (void)env;
   if (argc < 6)
-    return tbs_val_num(NAN);
+    return toad_val_num(NAN);
   for (size_t i = 0; i < 5; i++) {
-    if (args[i].type != TBS_VAL_VECTOR)
-      return tbs_val_num(NAN);
+    if (args[i].type != TOAD_VAL_VECTOR)
+      return toad_val_num(NAN);
   }
-  if (args[5].type != TBS_VAL_NUMBER)
-    return tbs_val_num(NAN);
+  if (args[5].type != TOAD_VAL_NUMBER)
+    return toad_val_num(NAN);
 
   int period = (int)args[5].data.number;
   if (period <= 0)
-    return tbs_val_num(NAN);
+    return toad_val_num(NAN);
 
   size_t in_len = args[0].data.vector.size;
   if (in_len == 0)
-    return tbs_val_num(NAN);
+    return toad_val_num(NAN);
 
   size_t out_len = in_len / (size_t)period;
   if (out_len == 0)
@@ -1275,7 +1275,7 @@ tbs_value_t fn_resample_ohlcv(size_t argc, tbs_value_t *args, tbs_env_t *env,
   double *rc = MEM_ALLOC_ARRAY(arena, double, out_len);
   double *rv = MEM_ALLOC_ARRAY(arena, double, out_len);
   if (!ro || !rh || !rl || !rc || !rv)
-    return tbs_val_num(NAN);
+    return toad_val_num(NAN);
 
   /* Aggregate from the end (align to most recent bar) */
   ptrdiff_t end_idx = (ptrdiff_t)in_len - 1;
@@ -1312,13 +1312,13 @@ tbs_value_t fn_resample_ohlcv(size_t argc, tbs_value_t *args, tbs_env_t *env,
     out_idx--;
   }
 
-  tbs_value_t m = tbs_val_map();
-  tbs_map_set(&m, "open", tbs_val_vec(ro, out_len));
-  tbs_map_set(&m, "high", tbs_val_vec(rh, out_len));
-  tbs_map_set(&m, "low", tbs_val_vec(rl, out_len));
-  tbs_map_set(&m, "close", tbs_val_vec(rc, out_len));
-  tbs_map_set(&m, "volume", tbs_val_vec(rv, out_len));
-  tbs_map_set(&m, "count", tbs_val_num((double)out_len));
+  toad_value_t m = toad_val_map();
+  toad_map_set(&m, "open", toad_val_vec(ro, out_len));
+  toad_map_set(&m, "high", toad_val_vec(rh, out_len));
+  toad_map_set(&m, "low", toad_val_vec(rl, out_len));
+  toad_map_set(&m, "close", toad_val_vec(rc, out_len));
+  toad_map_set(&m, "volume", toad_val_vec(rv, out_len));
+  toad_map_set(&m, "count", toad_val_num((double)out_len));
   return m;
 }
 
@@ -1340,39 +1340,39 @@ tbs_value_t fn_resample_ohlcv(size_t argc, tbs_value_t *args, tbs_env_t *env,
  * step:             window slide step in bars
  * metric:           0=sharpe, 1=sortino, 2=calmar, 3=profit_factor
  */
-tbs_value_t fn_walk_forward(size_t argc, tbs_value_t *args, tbs_env_t *env,
+toad_value_t fn_walk_forward(size_t argc, toad_value_t *args, toad_env_t *env,
                                       mem_pool_t *arena) {
   (void)env;
   if (argc < 6)
-    return tbs_val_num(NAN);
+    return toad_val_num(NAN);
 
   /* arg0: param names (list of strings) */
-  if (args[0].type != TBS_VAL_LIST)
-    return tbs_val_num(NAN);
+  if (args[0].type != TOAD_VAL_LIST)
+    return toad_val_num(NAN);
   size_t np = args[0].data.list.count;
   if (np == 0)
-    return tbs_val_num(NAN);
+    return toad_val_num(NAN);
 
   const char **names = (const char **)MEM_ALLOC_ARRAY(arena, const char *, np);
   if (!names)
-    return tbs_val_num(NAN);
+    return toad_val_num(NAN);
   for (size_t i = 0; i < np; i++) {
-    tbs_value_t item = args[0].data.list.items[i];
-    if (item.type != TBS_VAL_STRING)
-      return tbs_val_num(NAN);
+    toad_value_t item = args[0].data.list.items[i];
+    if (item.type != TOAD_VAL_STRING)
+      return toad_val_num(NAN);
     names[i] = item.data.string.data;
   }
 
   /* arg1: ranges vector */
-  if (args[1].type != TBS_VAL_VECTOR)
-    return tbs_val_num(NAN);
+  if (args[1].type != TOAD_VAL_VECTOR)
+    return toad_val_num(NAN);
   if (args[1].data.vector.size != np * 3)
-    return tbs_val_num(NAN);
+    return toad_val_num(NAN);
 
   /* arg2-5: scalars */
   for (size_t i = 2; i < 6; i++) {
-    if (args[i].type != TBS_VAL_NUMBER)
-      return tbs_val_num(NAN);
+    if (args[i].type != TOAD_VAL_NUMBER)
+      return toad_val_num(NAN);
   }
 
   wfo_config_t cfg = {0};
@@ -1389,8 +1389,8 @@ tbs_value_t fn_walk_forward(size_t argc, tbs_value_t *args, tbs_env_t *env,
   (void)cfg;
 
   /* Return an explicit placeholder map instead of pretending success. */
-  tbs_value_t m = tbs_val_map();
-  tbs_map_set(&m, "error", tbs_val_num(-1.0));
-  tbs_map_set(&m, "num_windows", tbs_val_num(0.0));
+  toad_value_t m = toad_val_map();
+  toad_map_set(&m, "error", toad_val_num(-1.0));
+  toad_map_set(&m, "num_windows", toad_val_num(0.0));
   return m;
 }

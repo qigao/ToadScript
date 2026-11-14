@@ -11,7 +11,7 @@
 
 // TA-Lib Volatility Indicators
 
-size_t tbs_ta_trange(const double *hi, const double *lo, const double *cl, size_t n,
+size_t toad_ta_trange(const double *hi, const double *lo, const double *cl, size_t n,
                         double *out) {
   if (n == 0)
     return 0;
@@ -19,7 +19,7 @@ size_t tbs_ta_trange(const double *hi, const double *lo, const double *cl, size_
   return n;
 }
 
-size_t tbs_ta_atr(const double *hi, const double *lo, const double *cl, size_t n, size_t period,
+size_t toad_ta_atr(const double *hi, const double *lo, const double *cl, size_t n, size_t period,
                      double *out, mem_pool_t *arena) {
   if (period == 0 || n < period)
     return 0;
@@ -31,14 +31,14 @@ size_t tbs_ta_atr(const double *hi, const double *lo, const double *cl, size_t n
   return n;
 }
 
-size_t tbs_ta_natr(const double *hi, const double *lo, const double *cl, size_t n, size_t period,
+size_t toad_ta_natr(const double *hi, const double *lo, const double *cl, size_t n, size_t period,
                       double *out, mem_pool_t *arena) {
   if (period == 0 || n < period)
     return 0;
   double *atr = MEM_ALLOC_ARRAY(arena, double, n);
   if (!atr)
     return 0;
-  tbs_ta_atr(hi, lo, cl, n, period, atr, arena);
+  toad_ta_atr(hi, lo, cl, n, period, atr, arena);
   size_t i = period - 1;
   simde__m256d v_100 = simde_mm256_set1_pd(100.0);
   simde__m256d v_zero = simde_mm256_set1_pd(1e-15); // Use 1e-15 for comparison
@@ -54,7 +54,7 @@ size_t tbs_ta_natr(const double *hi, const double *lo, const double *cl, size_t 
   return n;
 }
 
-size_t tbs_ta_bop(const double *o, const double *h, const double *l, const double *c, size_t n,
+size_t toad_ta_bop(const double *o, const double *h, const double *l, const double *c, size_t n,
                      double *out) {
   size_t i = 0;
   simde__m256d v_zero = simde_mm256_setzero_pd();
@@ -75,7 +75,7 @@ size_t tbs_ta_bop(const double *o, const double *h, const double *l, const doubl
 }
 
 // TA-Lib Volume Indicators
-size_t tbs_ta_obv(const double *cl, const double *vol, size_t n, double *out) {
+size_t toad_ta_obv(const double *cl, const double *vol, size_t n, double *out) {
   if (n == 0)
     return 0;
   double obv = 0;
@@ -112,7 +112,7 @@ size_t tbs_ta_obv(const double *cl, const double *vol, size_t n, double *out) {
   return n;
 }
 
-size_t tbs_ta_ad(const double *hi, const double *lo, const double *cl, const double *vol,
+size_t toad_ta_ad(const double *hi, const double *lo, const double *cl, const double *vol,
                     size_t n, double *out) {
   if (n == 0)
     return 0;
@@ -152,14 +152,14 @@ size_t tbs_ta_ad(const double *hi, const double *lo, const double *cl, const dou
   return n;
 }
 
-size_t tbs_ta_adosc(const double *hi, const double *lo, const double *cl, const double *vol,
+size_t toad_ta_adosc(const double *hi, const double *lo, const double *cl, const double *vol,
                        size_t n, size_t fast_p, size_t slow_p, double *out, mem_pool_t *arena) {
   if (fast_p == 0 || slow_p == 0 || n < slow_p)
     return 0;
   double *ad = MEM_ALLOC_ARRAY(arena, double, n);
   if (!ad)
     return 0;
-  tbs_ta_ad(hi, lo, cl, vol, n, ad);
+  toad_ta_ad(hi, lo, cl, vol, n, ad);
   double *f_ema = MEM_ALLOC_ARRAY(arena, double, n);
   double *s_ema = MEM_ALLOC_ARRAY(arena, double, n);
   if (!f_ema || !s_ema) {
@@ -177,7 +177,7 @@ size_t tbs_ta_adosc(const double *hi, const double *lo, const double *cl, const 
   return n;
 }
 
-size_t tbs_ta_cmf(const double *hi, const double *lo, const double *cl, const double *vol,
+size_t toad_ta_cmf(const double *hi, const double *lo, const double *cl, const double *vol,
                      size_t n, size_t period, double *out, mem_pool_t *arena) {
   if (period == 0 || n < period)
     return 0;
@@ -220,7 +220,7 @@ size_t tbs_ta_cmf(const double *hi, const double *lo, const double *cl, const do
   return n;
 }
 
-size_t tbs_ta_mfi(const double *hi, const double *lo, const double *cl, const double *vol,
+size_t toad_ta_mfi(const double *hi, const double *lo, const double *cl, const double *vol,
                      size_t n, size_t period, double *out, mem_pool_t *arena) {
   if (period == 0 || n < period + 1)
     return 0;
@@ -281,7 +281,7 @@ size_t tbs_ta_mfi(const double *hi, const double *lo, const double *cl, const do
 }
 
 // TA-Lib Trend Indicators
-size_t tbs_ta_plus_dm(const double *hi, const double *lo, size_t n, size_t period, double *out,
+size_t toad_ta_plus_dm(const double *hi, const double *lo, size_t n, size_t period, double *out,
                          mem_pool_t *arena) {
   if (period == 0 || n < 1)
     return 0;
@@ -312,7 +312,7 @@ size_t tbs_ta_plus_dm(const double *hi, const double *lo, size_t n, size_t perio
   return n;
 }
 
-size_t tbs_ta_minus_dm(const double *hi, const double *lo, size_t n, size_t period, double *out,
+size_t toad_ta_minus_dm(const double *hi, const double *lo, size_t n, size_t period, double *out,
                           mem_pool_t *arena) {
   if (period == 0 || n < 1)
     return 0;
@@ -343,7 +343,7 @@ size_t tbs_ta_minus_dm(const double *hi, const double *lo, size_t n, size_t peri
   return n;
 }
 
-size_t tbs_ta_plus_di(const double *hi, const double *lo, const double *cl, size_t n,
+size_t toad_ta_plus_di(const double *hi, const double *lo, const double *cl, size_t n,
                          size_t period, double *out, mem_pool_t *arena) {
   if (period == 0 || n < period)
     return 0;
@@ -352,8 +352,8 @@ size_t tbs_ta_plus_di(const double *hi, const double *lo, const double *cl, size
   if (!pdm || !atr) {
         return 0;
   }
-  tbs_ta_plus_dm(hi, lo, n, period, pdm, arena);
-  tbs_ta_atr(hi, lo, cl, n, period, atr, arena);
+  toad_ta_plus_dm(hi, lo, n, period, pdm, arena);
+  toad_ta_atr(hi, lo, cl, n, period, atr, arena);
   size_t i = period - 1;
   simde__m256d v_100 = simde_mm256_set1_pd(100.0);
   simde__m256d v_epsilon = simde_mm256_set1_pd(1e-15);
@@ -369,7 +369,7 @@ size_t tbs_ta_plus_di(const double *hi, const double *lo, const double *cl, size
   return n;
 }
 
-size_t tbs_ta_minus_di(const double *hi, const double *lo, const double *cl, size_t n,
+size_t toad_ta_minus_di(const double *hi, const double *lo, const double *cl, size_t n,
                           size_t period, double *out, mem_pool_t *arena) {
   if (period == 0 || n < period)
     return 0;
@@ -378,8 +378,8 @@ size_t tbs_ta_minus_di(const double *hi, const double *lo, const double *cl, siz
   if (!mdm || !atr) {
         return 0;
   }
-  tbs_ta_minus_dm(hi, lo, n, period, mdm, arena);
-  tbs_ta_atr(hi, lo, cl, n, period, atr, arena);
+  toad_ta_minus_dm(hi, lo, n, period, mdm, arena);
+  toad_ta_atr(hi, lo, cl, n, period, atr, arena);
   size_t i = period - 1;
   simde__m256d v_100 = simde_mm256_set1_pd(100.0);
   simde__m256d v_epsilon = simde_mm256_set1_pd(1e-15);
@@ -395,7 +395,7 @@ size_t tbs_ta_minus_di(const double *hi, const double *lo, const double *cl, siz
   return n;
 }
 
-size_t tbs_ta_dx(const double *hi, const double *lo, const double *cl, size_t n, size_t period,
+size_t toad_ta_dx(const double *hi, const double *lo, const double *cl, size_t n, size_t period,
                     double *out, mem_pool_t *arena) {
   if (period == 0 || n < period)
     return 0;
@@ -404,8 +404,8 @@ size_t tbs_ta_dx(const double *hi, const double *lo, const double *cl, size_t n,
   if (!p_di || !m_di) {
     return 0;
   }
-  tbs_ta_plus_di(hi, lo, cl, n, period, p_di, arena);
-  tbs_ta_minus_di(hi, lo, cl, n, period, m_di, arena);
+  toad_ta_plus_di(hi, lo, cl, n, period, p_di, arena);
+  toad_ta_minus_di(hi, lo, cl, n, period, m_di, arena);
   size_t i = period - 1;
   simde__m256d v_100 = simde_mm256_set1_pd(100.0);
   simde__m256d v_zero = simde_mm256_setzero_pd();
@@ -426,23 +426,23 @@ size_t tbs_ta_dx(const double *hi, const double *lo, const double *cl, size_t n,
   return n;
 }
 
-size_t tbs_ta_adx(const double *hi, const double *lo, const double *cl, size_t n, size_t period,
+size_t toad_ta_adx(const double *hi, const double *lo, const double *cl, size_t n, size_t period,
                      double *out, mem_pool_t *arena) {
   if (period == 0 || n < 2 * period)
     return 0;
   double *dx = MEM_ALLOC_ARRAY(arena, double, n);
   if (!dx)
     return 0;
-  tbs_ta_dx(hi, lo, cl, n, period, dx, arena);
+  toad_ta_dx(hi, lo, cl, n, period, dx, arena);
   ta_wilder_smooth(dx + period - 1, n - (period - 1), period, out + period - 1);
   return n;
 }
 
-size_t tbs_ta_adxr(const double *hi, const double *lo, const double *cl, size_t n, size_t period,
+size_t toad_ta_adxr(const double *hi, const double *lo, const double *cl, size_t n, size_t period,
                       double *out, mem_pool_t *arena) {
   if (period == 0 || n < 2 * period)
     return 0; // Changed condition to 2*period as per ADX requirement
-  tbs_ta_adx(hi, lo, cl, n, period, out, arena);
+  toad_ta_adx(hi, lo, cl, n, period, out, arena);
   size_t i = 2 * period - 2; // First valid index for ADXR
   simde__m256d v_05 = simde_mm256_set1_pd(0.5);
   for (; i + 4 <= n; i += 4) {
@@ -457,7 +457,7 @@ size_t tbs_ta_adxr(const double *hi, const double *lo, const double *cl, size_t 
 }
 
 // TA-Lib Statistics Indicators
-size_t tbs_ta_stddev(const double *in, size_t n, size_t period, double mult, double *out,
+size_t toad_ta_stddev(const double *in, size_t n, size_t period, double mult, double *out,
                         mem_pool_t *arena) {
   if (period == 0 || n < period)
     return 0;
@@ -506,7 +506,7 @@ size_t tbs_ta_stddev(const double *in, size_t n, size_t period, double mult, dou
   return n;
 }
 
-size_t tbs_ta_var(const double *in, size_t n, size_t period, double mult, double *out,
+size_t toad_ta_var(const double *in, size_t n, size_t period, double mult, double *out,
                      mem_pool_t *arena) {
   if (period == 0 || n < period)
     return 0;
@@ -553,7 +553,7 @@ size_t tbs_ta_var(const double *in, size_t n, size_t period, double mult, double
   return n;
 }
 
-size_t tbs_ta_linearreg(const double *in, size_t n, size_t period, double *out) {
+size_t toad_ta_linearreg(const double *in, size_t n, size_t period, double *out) {
   if (period < 2 || n < period)
     return 0;
   double sum_y = 0, sum_xy = 0;
@@ -582,7 +582,7 @@ size_t tbs_ta_linearreg(const double *in, size_t n, size_t period, double *out) 
   return n;
 }
 
-size_t tbs_ta_linearreg_slope(const double *in, size_t n, size_t period, double *out) {
+size_t toad_ta_linearreg_slope(const double *in, size_t n, size_t period, double *out) {
   if (period < 2 || n < period)
     return 0;
   double sum_y = 0, sum_xy = 0;
@@ -607,7 +607,7 @@ size_t tbs_ta_linearreg_slope(const double *in, size_t n, size_t period, double 
   return n;
 }
 
-size_t tbs_ta_linearreg_intercept(const double *in, size_t n, size_t period, double *out) {
+size_t toad_ta_linearreg_intercept(const double *in, size_t n, size_t period, double *out) {
   if (period < 2 || n < period)
     return 0;
   double sum_y = 0, sum_xy = 0;
@@ -634,10 +634,10 @@ size_t tbs_ta_linearreg_intercept(const double *in, size_t n, size_t period, dou
   return n;
 }
 
-size_t tbs_ta_linearreg_angle(const double *in, size_t n, size_t period, double *out) {
+size_t toad_ta_linearreg_angle(const double *in, size_t n, size_t period, double *out) {
   if (period == 0 || n < period)
     return 0;
-  tbs_ta_linearreg_slope(in, n, period, out);
+  toad_ta_linearreg_slope(in, n, period, out);
   size_t i = period - 1;
   double scale = 180.0 / M_PI;
   for (; i < n; ++i) {
@@ -646,7 +646,7 @@ size_t tbs_ta_linearreg_angle(const double *in, size_t n, size_t period, double 
   return n;
 }
 
-size_t tbs_ta_tsf(const double *in, size_t n, size_t period, double *out) {
+size_t toad_ta_tsf(const double *in, size_t n, size_t period, double *out) {
   if (period < 2 || n < period)
     return 0;
   double sum_y = 0, sum_xy = 0;
@@ -675,7 +675,7 @@ size_t tbs_ta_tsf(const double *in, size_t n, size_t period, double *out) {
   return n;
 }
 
-size_t tbs_ta_beta(const double *in0, const double *in1, size_t n, size_t period, double *out) {
+size_t toad_ta_beta(const double *in0, const double *in1, size_t n, size_t period, double *out) {
   if (period == 0 || n < period)
     return 0;
   double sum0 = 0, sum1 = 0, sum11 = 0, sum01 = 0;
@@ -703,7 +703,7 @@ size_t tbs_ta_beta(const double *in0, const double *in1, size_t n, size_t period
   return n;
 }
 
-size_t tbs_ta_correl(const double *in0, const double *in1, size_t n, size_t period,
+size_t toad_ta_correl(const double *in0, const double *in1, size_t n, size_t period,
                         double *out) {
   if (period == 0 || n < period)
     return 0;
@@ -739,7 +739,7 @@ size_t tbs_ta_correl(const double *in0, const double *in1, size_t n, size_t peri
 }
 
 // TA-Lib Price Transform Indicators
-size_t tbs_ta_avgprice(const double *o, const double *h, const double *l, const double *c,
+size_t toad_ta_avgprice(const double *o, const double *h, const double *l, const double *c,
                           size_t n, double *out) {
   size_t i = 0;
   for (; i + 4 <= n; i += 4) {
@@ -753,7 +753,7 @@ size_t tbs_ta_avgprice(const double *o, const double *h, const double *l, const 
   return n;
 }
 
-size_t tbs_ta_medprice(const double *h, const double *l, size_t n, double *out) {
+size_t toad_ta_medprice(const double *h, const double *l, size_t n, double *out) {
   size_t i = 0;
   for (; i + 4 <= n; i += 4) {
     simde__m256d v = simde_mm256_add_pd(simde_mm256_loadu_pd(&h[i]), simde_mm256_loadu_pd(&l[i]));
@@ -764,7 +764,7 @@ size_t tbs_ta_medprice(const double *h, const double *l, size_t n, double *out) 
   return n;
 }
 
-size_t tbs_ta_typprice(const double *h, const double *l, const double *c, size_t n,
+size_t toad_ta_typprice(const double *h, const double *l, const double *c, size_t n,
                           double *out) {
   size_t i = 0;
   for (; i + 4 <= n; i += 4) {
@@ -777,7 +777,7 @@ size_t tbs_ta_typprice(const double *h, const double *l, const double *c, size_t
   return n;
 }
 
-size_t tbs_ta_wclprice(const double *h, const double *l, const double *c, size_t n,
+size_t toad_ta_wclprice(const double *h, const double *l, const double *c, size_t n,
                           double *out) {
   size_t i = 0;
   for (; i + 4 <= n; i += 4) {

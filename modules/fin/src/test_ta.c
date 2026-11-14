@@ -20,7 +20,7 @@ spec("ta_indicators") {
             size_t n = 10;
             size_t period = 3;
 
-            size_t result = exprtk_ta_sma(in, n, period, out);
+            size_t result = toad_ta_sma(in, n, period, out);
             check((result) == (n));
 
             // SMA(3) at index 2: (1+2+3)/3 = 2.0
@@ -35,7 +35,7 @@ spec("ta_indicators") {
             double in[] = {2, 4, 6};
             double out[3] = {0};
 
-            size_t result = exprtk_ta_sma(in, 3, 3, out);
+            size_t result = toad_ta_sma(in, 3, 3, out);
             check((result) == (3));
             check(fabs((double)(out[2]) - (double)(4.0)) <= (double)(EPSILON)); // (2+4+6)/3 = 4.0
         }
@@ -49,7 +49,7 @@ spec("ta_indicators") {
             size_t n = 6;
             size_t period = 3;
 
-            size_t result = exprtk_ta_ema(in, n, period, out);
+            size_t result = toad_ta_ema(in, n, period, out);
             check((result) == (n));
 
             // Warmup is undefined until period-1
@@ -71,8 +71,8 @@ spec("ta_indicators") {
             double anchored[4] = {0};
             double session_vwap[4] = {0};
 
-            check((exprtk_ta_vwap(hi, lo, cl, vol, 4, anchored)) == (4));
-            check((exprtk_ta_vwap_session(hi, lo, cl, vol, session, 4, session_vwap)) == (4));
+            check((toad_ta_vwap(hi, lo, cl, vol, 4, anchored)) == (4));
+            check((toad_ta_vwap_session(hi, lo, cl, vol, session, 4, session_vwap)) == (4));
 
             check(fabs((double)(anchored[0]) - (double)(10.0)) <= (double)(EPSILON));
             check(fabs((double)(anchored[3]) - (double)(16.0)) <= (double)(EPSILON));
@@ -95,7 +95,7 @@ spec("ta_indicators") {
             size_t n = 20;
             size_t period = 14;
 
-            size_t result = exprtk_ta_rsi(in, n, period, out, &arena);
+            size_t result = toad_ta_rsi(in, n, period, out, &arena);
             check((result) == (n));
 
             // RSI should be between 0 and 100
@@ -123,7 +123,7 @@ spec("ta_indicators") {
             double sig[50] = {0};
             double hist[50] = {0};
 
-            size_t result = exprtk_ta_macd(in, 50, 12, 26, 9, line, sig, hist, &arena);
+            size_t result = toad_ta_macd(in, 50, 12, 26, 9, line, sig, hist, &arena);
             check((result) == (50));
 
             // MACD line should have values after slow period
@@ -152,7 +152,7 @@ spec("ta_indicators") {
             size_t n = 5;
             size_t period = 3;
 
-            size_t result = exprtk_ta_atr(hi, lo, cl, n, period, out, &arena);
+            size_t result = toad_ta_atr(hi, lo, cl, n, period, out, &arena);
             check((result) == (n));
 
             // ATR should be positive
@@ -175,7 +175,7 @@ spec("ta_indicators") {
             size_t period = 5;
             double mult = 2.0;
 
-            size_t result = exprtk_ta_bbands(in, n, period, mult, upper, middle, lower);
+            size_t result = toad_ta_bbands(in, n, period, mult, upper, middle, lower);
             check((result) == (n));
 
             // Middle band should equal SMA
@@ -195,7 +195,7 @@ spec("ta_indicators") {
             size_t n = 8;
             size_t period = 3;
 
-            size_t result = exprtk_ta_mom(in, n, period, out);
+            size_t result = toad_ta_mom(in, n, period, out);
             check((result) == (n));
 
             // MOM at index 3: in[3] - in[0] = 103 - 100 = 3
@@ -208,7 +208,7 @@ spec("ta_indicators") {
             size_t n = 5;
             size_t period = 2;
 
-            size_t result = exprtk_ta_roc(in, n, period, out);
+            size_t result = toad_ta_roc(in, n, period, out);
             check((result) == (n));
 
             // ROC at index 2: ((104 - 100) / 100) * 100 = 4.0
@@ -226,7 +226,7 @@ spec("ta_indicators") {
             double sigma[] = {0.2};
             double out[1] = {0};
 
-            size_t result = exprtk_ta_bsm_call(S, K, T, r, sigma, 1, out);
+            size_t result = toad_ta_bsm_call(S, K, T, r, sigma, 1, out);
             check((result) == (1));
 
             // ATM call with 1 year to expiry should have positive value
@@ -242,7 +242,7 @@ spec("ta_indicators") {
             double sigma[] = {0.2};
             double out[1] = {0};
 
-            size_t result = exprtk_ta_bsm_put(S, K, T, r, sigma, 1, out);
+            size_t result = toad_ta_bsm_put(S, K, T, r, sigma, 1, out);
             check((result) == (1));
 
             // ATM put with 1 year to expiry should have positive value
@@ -257,7 +257,7 @@ spec("ta_indicators") {
             double sigma[] = {0.2};
             double out[1] = {0};
 
-            size_t result = exprtk_ta_bsm_delta_call(S, K, T, r, sigma, 1, out);
+            size_t result = toad_ta_bsm_delta_call(S, K, T, r, sigma, 1, out);
             check((result) == (1));
 
             // Delta should be between 0 and 1 for calls
@@ -273,7 +273,7 @@ spec("ta_indicators") {
             double out[5] = {0};
             size_t n = 5;
 
-            size_t result = exprtk_ta_obv(cl, vol, n, out);
+            size_t result = toad_ta_obv(cl, vol, n, out);
             check((result) == (n));
 
             // OBV starts with first volume, then accumulates based on price direction

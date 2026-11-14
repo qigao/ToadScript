@@ -3,11 +3,11 @@
  * @brief engine Lexer Definitions
  */
 
-#ifndef TBS_LEXER_H
-#define TBS_LEXER_H
+#ifndef TOAD_LEXER_H
+#define TOAD_LEXER_H
 
 #include <stddef.h>
-#include <turboscript/types.h>
+#include <toad/types.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,13 +21,13 @@ typedef struct {
     int column;
     int last_token;
     char error[256];
-} tbs_lexer_t;
+} toad_lexer_t;
 
-void tbs_lexer_init(tbs_lexer_t *lexer, const char *input, size_t length);
-int  tbs_lexer_next(tbs_lexer_t *lexer, tbs_token_t *token);
+void toad_lexer_init(toad_lexer_t *lexer, const char *input, size_t length);
+int  toad_lexer_next(toad_lexer_t *lexer, toad_token_t *token);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* TBS_LEXER_H */
+#endif /* TOAD_LEXER_H */

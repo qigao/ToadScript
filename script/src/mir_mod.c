@@ -1,14 +1,14 @@
 /**
  * @file mir_mod.c
- * @brief Script-level `mir.load` / `mir.call` built-in functions for turbo_script.
+ * @brief Script-level `mir.load` / `mir.call` built-in functions for toad_script.
  *
- * These are exprtk_native_fn (user_data-based) functions registered via
- * exprtk_env_register_func. The user_data is a mir_instance_t*.
+ * These are toad_native_fn (user_data-based) functions registered via
+ * toad_env_register_func. The user_data is a mir_instance_t*.
  */
-#include "turbo_script_internal.h"
+#include "internal.h"
 #include "memory/buffer.h"
-#include "exprtk.h"
-#include "exprtk_module.h"
+#include <toad/engine.h>
+#include <toad/module.h>
 #include <mir.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,10 +29,10 @@ static MIR_item_t mir_get_global_item(MIR_context_t ctx, const char *name) {
   return NULL;
 }
 
-static exprtk_value_t ts_mir_load(size_t argc, exprtk_value_t *args, exprtk_env_t *env, void *user_data) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)user_data;
-  if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-    return exprtk_val_num(0);
+static toad_value_t ts_mir_load(size_t argc, toad_value_t *args, toad_env_t *env, void *user_data) {
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)user_data;
+  if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+    return toad_val_num(0);
 
   if (!ctx->script_mir_ctx)
     ctx->script_mir_ctx = MIR_init();
@@ -41,7 +41,7 @@ static exprtk_value_t ts_mir_load(size_t argc, exprtk_value_t *args, exprtk_env_
   size_t len = args[0].data.string.len;
   char *script = (char *)malloc(len + 1);
   if (!script)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   memcpy(script, args[0].data.string.data, len);
   script[len] = '\0';
 
@@ -64,20 +64,20 @@ static exprtk_value_t ts_mir_load(size_t argc, exprtk_value_t *args, exprtk_env_
     ctx->script_mir_linked = 1;
   }
 
-  return exprtk_val_num(1.0);
+  return toad_val_num(1.0);
 }
 
-static exprtk_value_t ts_mir_call(size_t argc, exprtk_value_t *args, exprtk_env_t *env, void *user_data) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)user_data;
-  if (argc < 1 || args[0].type != EXPRTK_VAL_STRING)
-    return exprtk_val_num(0);
+static toad_value_t ts_mir_call(size_t argc, toad_value_t *args, toad_env_t *env, void *user_data) {
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)user_data;
+  if (argc < 1 || args[0].type != TOAD_VAL_STRING)
+    return toad_val_num(0);
   if (!ctx->script_mir_ctx)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   size_t name_len = args[0].data.string.len;
   char *func_name = (char *)malloc(name_len + 1);
   if (!func_name)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
   memcpy(func_name, args[0].data.string.data, name_len);
   func_name[name_len] = '\0';
 
@@ -85,20 +85,20 @@ static exprtk_value_t ts_mir_call(size_t argc, exprtk_value_t *args, exprtk_env_
   free(func_name);
 
   if (!func_item || func_item->item_type != MIR_func_item)
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 
   size_t mir_argc = argc - 1;
   MIR_val_t *mir_args = NULL;
   if (mir_argc > 0) {
     mir_args = (MIR_val_t *)malloc(mir_argc * sizeof(MIR_val_t));
     if (!mir_args)
-      return exprtk_val_num(0);
+      return toad_val_num(0);
   }
 
   for (size_t i = 0; i < mir_argc; i++) {
-    if (args[i + 1].type == EXPRTK_VAL_NUMBER)
+    if (args[i + 1].type == TOAD_VAL_NUMBER)
       mir_args[i].d = args[i + 1].data.number;
-    else if (args[i + 1].type == EXPRTK_VAL_STRING)
+    else if (args[i + 1].type == TOAD_VAL_STRING)
       mir_args[i].a = (void *)args[i + 1].data.string.data;
     else
       mir_args[i].i = 0;
@@ -111,21 +111,21 @@ static exprtk_value_t ts_mir_call(size_t argc, exprtk_value_t *args, exprtk_env_
   if (func_item->item_type == MIR_func_item && func_item->u.func->nres > 0) {
     MIR_type_t type = func_item->u.func->res_types[0];
     if (type == MIR_T_F)
-      return exprtk_val_num(result.f);
+      return toad_val_num(result.f);
     if (type == MIR_T_D)
-      return exprtk_val_num(result.d);
+      return toad_val_num(result.d);
     if (type == MIR_T_I64 || type == MIR_T_I32 || type == MIR_T_I16 || type == MIR_T_I8)
-      return exprtk_val_num((double)result.i);
+      return toad_val_num((double)result.i);
     if (type == MIR_T_U64 || type == MIR_T_U32 || type == MIR_T_U16 || type == MIR_T_U8)
-      return exprtk_val_num((double)result.u);
+      return toad_val_num((double)result.u);
   }
 
-  return exprtk_val_num(result.d);
+  return toad_val_num(result.d);
 }
 
-void turbo_script_register_mir(turbo_script_ctx_t *ctx) {
-  exprtk_env_register_func(&ctx->env, "mir.load", ts_mir_load, ctx);
-  exprtk_env_register_func(&ctx->env, "mir.call", ts_mir_call, ctx);
-  ctx->env.eval_node = turbo_script_mir_eval_node;
-  ctx->env.exec_script_body = turbo_script_mir_exec_script_body;
+void toad_script_register_mir(toad_script_ctx_t *ctx) {
+  toad_env_register_func(&ctx->env, "mir.load", ts_mir_load, ctx);
+  toad_env_register_func(&ctx->env, "mir.call", ts_mir_call, ctx);
+  ctx->env.eval_node = toad_script_mir_eval_node;
+  ctx->env.exec_script_body = toad_script_mir_exec_script_body;
 }

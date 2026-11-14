@@ -122,22 +122,22 @@ static const char *ts_databind_type(const cmeta_data_desc *data) {
 static int ts_schema_default(
     ts_databind_text_builder_t *builder,
     const cmeta_data_desc *data,
-    const tbs_value_t *value) {
+    const toad_value_t *value) {
   if (!builder || !data || !value) return 0;
   if (cmeta_data_desc_equal(data, &cmeta_data_int64) &&
-      value->type == TBS_VAL_INTEGER)
+      value->type == TOAD_VAL_INTEGER)
     return ts_builder_printf(builder, " default %lld",
                              (long long)value->data.integer);
   if (cmeta_data_desc_equal(data, &cmeta_data_double) &&
-      value->type == TBS_VAL_NUMBER)
+      value->type == TOAD_VAL_NUMBER)
     return ts_builder_printf(builder, " default %.17g",
                              value->data.number);
   if (cmeta_data_desc_equal(data, &cmeta_data_bool) &&
-      value->type == TBS_VAL_BOOL)
+      value->type == TOAD_VAL_BOOL)
     return ts_builder_append(
         builder, value->data.boolean ? " default true" : " default false");
   if (data->kind == CMETA_DATA_STRING &&
-      value->type == TBS_VAL_STRING) {
+      value->type == TOAD_VAL_STRING) {
     if (!ts_builder_append(builder, " default ")) return 0;
     return ts_builder_quoted(builder, value->data.string);
   }
@@ -145,7 +145,7 @@ static int ts_schema_default(
 }
 
 static int ts_build_schema(
-    tbs_class_t *klass, char **out_schema, size_t *out_length,
+    toad_class_t *klass, char **out_schema, size_t *out_length,
     char *error, size_t error_len) {
   ts_databind_text_builder_t builder = {0};
   const cmeta_data_desc *object_data;
@@ -153,13 +153,13 @@ static int ts_build_schema(
   if (out_schema) *out_schema = NULL;
   if (out_length) *out_length = 0u;
   if (!klass || !out_schema || !out_length ||
-      !tbs_class_finalize_cmeta_data(klass)) {
+      !toad_class_finalize_cmeta_data(klass)) {
     ts_databind_set_error(
         error, error_len, "DataBind class reflection is unavailable");
     return 0;
   }
 
-  object_data = tbs_class_cmeta_data(klass);
+  object_data = toad_class_cmeta_data(klass);
   if (!object_data || object_data->kind != CMETA_DATA_STRUCT) {
     ts_databind_set_error(
         error, error_len, "invalid class CMeta data surface");
@@ -167,7 +167,7 @@ static int ts_build_schema(
   }
 
   if (!ts_builder_append(
-          &builder, "schema TurboScriptMapper [version(1)]; message ") ||
+          &builder, "schema ToadMapper [version(1)]; message ") ||
       !ts_builder_append(&builder, klass->name) ||
       !ts_builder_append(&builder, " {")) {
     free(builder.data);
@@ -241,8 +241,8 @@ static int ts_build_schema(
   return 1;
 }
 
-int turbo_script_class_databind_compile(
-    tbs_class_t *klass,
+int toad_script_class_databind_compile(
+    toad_class_t *klass,
     DataBind **out_codec,
     DataBindMessagePlan **out_plan,
     char *error,
@@ -261,12 +261,12 @@ int turbo_script_class_databind_compile(
   if (out_codec) *out_codec = NULL;
   if (out_plan) *out_plan = NULL;
   if (!klass || !out_codec || !out_plan ||
-      !tbs_class_finalize_cmeta_data(klass)) {
+      !toad_class_finalize_cmeta_data(klass)) {
     ts_databind_set_error(error, error_len, "invalid reflected class");
     return 0;
   }
 
-  data = tbs_class_cmeta_data(klass);
+  data = toad_class_cmeta_data(klass);
   schema_status =
       ts_build_schema(klass, &schema, &schema_len, error, error_len);
   if (schema_status <= 0) return schema_status;

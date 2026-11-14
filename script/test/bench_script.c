@@ -1,10 +1,10 @@
-#include <turboscript/script.h>
+#include <toad/script.h>
 #include "../src/internal.h"
 #include "tinytest.h"
 #include <stdio.h>
 #include <stdlib.h>
 
-static void bench_reset_runtime(turbo_script_ctx_t *ctx) {
+static void bench_reset_runtime(toad_script_ctx_t *ctx) {
   if (!ctx)
     return;
   ctx->env.curr_loop_iterations = 0;
@@ -12,111 +12,111 @@ static void bench_reset_runtime(turbo_script_ctx_t *ctx) {
   ctx->env.aborted = 0;
 }
 
-spec("TurboScript Benchmark") {
+spec("Toad Benchmark") {
 
   describe("Interpreter Performance (No MIR)") {
 
     describe("Loops and Math Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Loops and Math") {
         benchmark("1000 iters loop", 1000, 1.0) {
-          turbo_script_run(ctx, "sum = 0; for (i = 0; i < 1000; i += 1) { sum += i; }");
+          toad_script_run(ctx, "sum = 0; for (i = 0; i < 1000; i += 1) { sum += i; }");
         }
 
         benchmark("10000 iters loop", 100, 1.0) {
-          turbo_script_run(ctx, "sum = 0; for (i = 0; i < 10000; i += 1) { sum += i; }");
+          toad_script_run(ctx, "sum = 0; for (i = 0; i < 10000; i += 1) { sum += i; }");
         }
 
         benchmark("complex math 1000", 1000, 1.0) {
           const char *script =
               "a = 10.5; b = 20.3; for(i=0; i<1000; i+=1) { c = (a * b) + (a / b) - (a + b); }";
-          turbo_script_run(ctx, script);
+          toad_script_run(ctx, script);
         }
       }
     }
 
     describe("Reuse Context Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Re-using context (Eval only)") {
         benchmark("loop 1000 (re-use ctx)", 1000, 1.0) {
-          turbo_script_run(ctx, "sum = 0; for (i = 0; i < 1000; i += 1) { sum += i; }");
+          toad_script_run(ctx, "sum = 0; for (i = 0; i < 1000; i += 1) { sum += i; }");
         }
       }
     }
 
     describe("Compile vs Run Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
-      turbo_script_compiled_t *compiled = NULL;
+      toad_script_ctx_t *ctx = NULL;
+      toad_script_compiled_t *compiled = NULL;
       const char *script = "sum = 0; for (i = 0; i < 1000; i += 1) { sum += i; }";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
-        compiled = turbo_script_compile(ctx, script);
+        compiled = toad_script_compile(ctx, script);
         check_not_null(compiled);
       }
 
       after_each() {
-        turbo_script_compiled_free(compiled);
+        toad_script_compiled_free(compiled);
         compiled = NULL;
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Compile vs Run") {
         benchmark("run (parse + eval)", 1000, 1.0) {
-          turbo_script_run(ctx, script);
+          toad_script_run(ctx, script);
         }
 
         benchmark("exec (eval only)", 1000, 1.0) {
-          turbo_script_exec(ctx, compiled);
+          toad_script_exec(ctx, compiled);
         }
       }
     }
 
     describe("Function Overhead Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
-        turbo_script_run(ctx, "func add(a, b) { return a + b; }");
+        toad_script_run(ctx, "func add(a, b) { return a + b; }");
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Function Overhead") {
         benchmark("inline add 1000", 1000, 1.0) {
-          turbo_script_run(ctx, "sum = 0; for(i=0; i<1000; i+=1) { sum = sum + 1 + 2; }");
+          toad_script_run(ctx, "sum = 0; for(i=0; i<1000; i+=1) { sum = sum + 1 + 2; }");
         }
 
         benchmark("func call add 1000", 1000, 1.0) {
-          turbo_script_run(ctx, "sum = 0; for(i=0; i<1000; i+=1) { sum = add(sum, 1); }");
+          toad_script_run(ctx, "sum = 0; for(i=0; i<1000; i+=1) { sum = add(sum, 1); }");
         }
       }
     }
@@ -125,62 +125,62 @@ spec("TurboScript Benchmark") {
   describe("Native JIT Comparison") {
 
     describe("Small Loop Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       const char *script = "sum = 0; for (i = 0; i < 1000; i += 1) { sum += i; }";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
-        turbo_script_compile_mir(ctx, script);
+        toad_script_compile_mir(ctx, script);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Small Loop (1,000 iterations)") {
         benchmark("Interpreter", 1000, 1.0) {
-          turbo_script_run(ctx, script);
+          toad_script_run(ctx, script);
         }
 
         benchmark("MIR JIT", 1000, 1.0) {
-          turbo_script_exec_jit(ctx);
+          toad_script_exec_jit(ctx);
         }
       }
     }
 
     describe("Large Loop Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       const char *script = "sum = 0; for (i = 0; i < 100000; i += 1) { sum += i; }";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
         ctx->env.max_loop_iterations = 1000000;
         ctx->env.max_nodes = 10000000;
-        turbo_script_compile_mir(ctx, script);
+        toad_script_compile_mir(ctx, script);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Large Loop (100,000 iterations)") {
         benchmark("Interpreter", 100, 1.0) {
           bench_reset_runtime(ctx);
-          turbo_script_run(ctx, script);
+          toad_script_run(ctx, script);
         }
 
         benchmark("MIR JIT", 100, 1.0) {
-          turbo_script_exec_jit(ctx);
+          toad_script_exec_jit(ctx);
         }
       }
     }
 
     describe("Arithmetic Intensity Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       const char *script =
           "a = 1.5; b = 2.7; c = 0.0;"
           "for (i = 0; i < 10000; i += 1) {"
@@ -189,32 +189,32 @@ spec("TurboScript Benchmark") {
           "}";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
         ctx->env.max_loop_iterations = 1000000;
         ctx->env.max_nodes = 10000000;
-        turbo_script_compile_mir(ctx, script);
+        toad_script_compile_mir(ctx, script);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Arithmetic Intensity (FMA-heavy)") {
         benchmark("Interpreter", 100, 1.0) {
           bench_reset_runtime(ctx);
-          turbo_script_run(ctx, script);
+          toad_script_run(ctx, script);
         }
 
         benchmark("MIR JIT", 1000, 1.0) {
-          turbo_script_exec_jit(ctx);
+          toad_script_exec_jit(ctx);
         }
       }
     }
 
     describe("Nested Loops Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       const char *script =
           "total = 0;"
           "for (i = 0; i < 100; i += 1) {"
@@ -224,32 +224,32 @@ spec("TurboScript Benchmark") {
           "}";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
         ctx->env.max_loop_iterations = 1000000;
         ctx->env.max_nodes = 10000000;
-        turbo_script_compile_mir(ctx, script);
+        toad_script_compile_mir(ctx, script);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Nested Loops (100 x 100)") {
         benchmark("Interpreter", 100, 1.0) {
           bench_reset_runtime(ctx);
-          turbo_script_run(ctx, script);
+          toad_script_run(ctx, script);
         }
 
         benchmark("MIR JIT", 1000, 1.0) {
-          turbo_script_exec_jit(ctx);
+          toad_script_exec_jit(ctx);
         }
       }
     }
 
     describe("Branchy Code Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       const char *script =
           "count = 0;"
           "for (i = 0; i < 10000; i += 1) {"
@@ -262,32 +262,32 @@ spec("TurboScript Benchmark") {
           "}";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
         ctx->env.max_loop_iterations = 1000000;
         ctx->env.max_nodes = 10000000;
-        turbo_script_compile_mir(ctx, script);
+        toad_script_compile_mir(ctx, script);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Branchy Code (if/else chain)") {
         benchmark("Interpreter", 100, 1.0) {
           bench_reset_runtime(ctx);
-          turbo_script_run(ctx, script);
+          toad_script_run(ctx, script);
         }
 
         benchmark("MIR JIT", 1000, 1.0) {
-          turbo_script_exec_jit(ctx);
+          toad_script_exec_jit(ctx);
         }
       }
     }
 
     describe("Compound Assignment Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       const char *script =
           "a = 1.0; b = 2.0; c = 3.0;"
           "for (i = 0; i < 10000; i += 1) {"
@@ -296,32 +296,32 @@ spec("TurboScript Benchmark") {
           "}";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
         ctx->env.max_loop_iterations = 1000000;
         ctx->env.max_nodes = 10000000;
-        turbo_script_compile_mir(ctx, script);
+        toad_script_compile_mir(ctx, script);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Compound Assignment Ops") {
         benchmark("Interpreter", 100, 1.0) {
           bench_reset_runtime(ctx);
-          turbo_script_run(ctx, script);
+          toad_script_run(ctx, script);
         }
 
         benchmark("MIR JIT", 1000, 1.0) {
-          turbo_script_exec_jit(ctx);
+          toad_script_exec_jit(ctx);
         }
       }
     }
 
     describe("Function Calls Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       const char *script =
           "sum = 0;"
           "for (i = 0; i < 5000; i += 1) {"
@@ -329,35 +329,35 @@ spec("TurboScript Benchmark") {
           "}";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
         ctx->env.max_loop_iterations = 1000000;
         ctx->env.max_nodes = 100000000;
-        turbo_script_run(ctx, "func square(x) { return x * x; }");
+        toad_script_run(ctx, "func square(x) { return x * x; }");
         bench_reset_runtime(ctx);
-        turbo_script_compile_mir(ctx, script);
+        toad_script_compile_mir(ctx, script);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Function Calls in Loop") {
         benchmark("Interpreter", 100, 1.0) {
           bench_reset_runtime(ctx);
-          turbo_script_run(ctx, script);
+          toad_script_run(ctx, script);
         }
 
         benchmark("MIR JIT (bridge)", 100, 1.0) {
           bench_reset_runtime(ctx);
-          turbo_script_exec_jit(ctx);
+          toad_script_exec_jit(ctx);
         }
       }
     }
 
     describe("Comparison Heavy Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       const char *script =
           "lo = 0; hi = 0; val = 0;"
           "for (i = 0; i < 10000; i += 1) {"
@@ -367,32 +367,32 @@ spec("TurboScript Benchmark") {
           "}";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
         ctx->env.max_loop_iterations = 1000000;
         ctx->env.max_nodes = 10000000;
-        turbo_script_compile_mir(ctx, script);
+        toad_script_compile_mir(ctx, script);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Comparison-Heavy (min/max search)") {
         benchmark("Interpreter", 100, 1.0) {
           bench_reset_runtime(ctx);
-          turbo_script_run(ctx, script);
+          toad_script_run(ctx, script);
         }
 
         benchmark("MIR JIT", 1000, 1.0) {
-          turbo_script_exec_jit(ctx);
+          toad_script_exec_jit(ctx);
         }
       }
     }
 
     describe("Switch Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       const char *script =
           "total = 0;"
           "for (i = 0; i < 5000; i += 1) {"
@@ -406,32 +406,32 @@ spec("TurboScript Benchmark") {
           "}";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
         ctx->env.max_loop_iterations = 1000000;
         ctx->env.max_nodes = 10000000;
-        turbo_script_compile_mir(ctx, script);
+        toad_script_compile_mir(ctx, script);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Switch in Loop") {
         benchmark("Interpreter", 100, 1.0) {
           bench_reset_runtime(ctx);
-          turbo_script_run(ctx, script);
+          toad_script_run(ctx, script);
         }
 
         benchmark("MIR JIT", 1000, 1.0) {
-          turbo_script_exec_jit(ctx);
+          toad_script_exec_jit(ctx);
         }
       }
     }
 
     describe("Power Modulo Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       const char *script =
           "sum = 0;"
           "for (i = 1; i < 5000; i += 1) {"
@@ -439,32 +439,32 @@ spec("TurboScript Benchmark") {
           "}";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
         ctx->env.max_loop_iterations = 1000000;
         ctx->env.max_nodes = 10000000;
-        turbo_script_compile_mir(ctx, script);
+        toad_script_compile_mir(ctx, script);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Power & Modulo (math-heavy)") {
         benchmark("Interpreter", 100, 1.0) {
           bench_reset_runtime(ctx);
-          turbo_script_run(ctx, script);
+          toad_script_run(ctx, script);
         }
 
         benchmark("MIR JIT", 1000, 1.0) {
-          turbo_script_exec_jit(ctx);
+          toad_script_exec_jit(ctx);
         }
       }
     }
 
     describe("Logical Operators Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       const char *script =
           "count = 0;"
           "for (i = 0; i < 10000; i += 1) {"
@@ -474,32 +474,32 @@ spec("TurboScript Benchmark") {
           "}";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
         ctx->env.max_loop_iterations = 1000000;
         ctx->env.max_nodes = 10000000;
-        turbo_script_compile_mir(ctx, script);
+        toad_script_compile_mir(ctx, script);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Logical Operators (short-circuit)") {
         benchmark("Interpreter", 100, 1.0) {
           bench_reset_runtime(ctx);
-          turbo_script_run(ctx, script);
+          toad_script_run(ctx, script);
         }
 
         benchmark("MIR JIT", 1000, 1.0) {
-          turbo_script_exec_jit(ctx);
+          toad_script_exec_jit(ctx);
         }
       }
     }
 
     describe("Vector Sum Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       double *vec_data = NULL;
       const char *script =
           "sum = 0;"
@@ -508,7 +508,7 @@ spec("TurboScript Benchmark") {
           "}";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
         ctx->env.max_loop_iterations = 1000000;
         ctx->env.max_nodes = 10000000;
@@ -516,32 +516,32 @@ spec("TurboScript Benchmark") {
         check_not_null(vec_data);
         for (int i = 0; i < 10000; i++)
           vec_data[i] = (double)i;
-        ts_bind_vec(ctx, "v", vec_data, 10000);
-        ts_bind_num(ctx, "n", 10000);
-        turbo_script_compile_mir(ctx, script);
+        toad_script_bind_vec(ctx, "v", vec_data, 10000);
+        toad_script_bind_num(ctx, "n", 10000);
+        toad_script_compile_mir(ctx, script);
       }
 
       after_each() {
         free(vec_data);
         vec_data = NULL;
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Vector Sum (10,000 elements)") {
         benchmark("Interpreter", 100, 1.0) {
           bench_reset_runtime(ctx);
-          turbo_script_run(ctx, script);
+          toad_script_run(ctx, script);
         }
 
         benchmark("MIR JIT", 1000, 1.0) {
-          turbo_script_exec_jit(ctx);
+          toad_script_exec_jit(ctx);
         }
       }
     }
 
     describe("Dot Product Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       double *a_data = NULL;
       double *b_data = NULL;
       const char *script =
@@ -551,7 +551,7 @@ spec("TurboScript Benchmark") {
           "}";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
         ctx->env.max_loop_iterations = 1000000;
         ctx->env.max_nodes = 10000000;
@@ -563,9 +563,9 @@ spec("TurboScript Benchmark") {
           a_data[i] = (double)i * 0.1;
           b_data[i] = (double)(1000 - i) * 0.1;
         }
-        ts_bind_vec(ctx, "a", a_data, 1000);
-        ts_bind_vec(ctx, "b", b_data, 1000);
-        turbo_script_compile_mir(ctx, script);
+        toad_script_bind_vec(ctx, "a", a_data, 1000);
+        toad_script_bind_vec(ctx, "b", b_data, 1000);
+        toad_script_compile_mir(ctx, script);
       }
 
       after_each() {
@@ -573,24 +573,24 @@ spec("TurboScript Benchmark") {
         free(b_data);
         a_data = NULL;
         b_data = NULL;
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Dot Product (1,000 elements)") {
         benchmark("Interpreter", 100, 1.0) {
           bench_reset_runtime(ctx);
-          turbo_script_run(ctx, script);
+          toad_script_run(ctx, script);
         }
 
         benchmark("MIR JIT", 1000, 1.0) {
-          turbo_script_exec_jit(ctx);
+          toad_script_exec_jit(ctx);
         }
       }
     }
 
     describe("Map Field Access Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       const char *script =
           "sum = 0;"
           "for (i = 0; i < 10000; i += 1) {"
@@ -598,27 +598,27 @@ spec("TurboScript Benchmark") {
           "}";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
         ctx->env.max_loop_iterations = 1000000;
         ctx->env.max_nodes = 10000000;
-        turbo_script_run(ctx, "cfg = map {x: 1.5, y: 2.7, z: 0.3};");
-        turbo_script_compile_mir(ctx, script);
+        toad_script_run(ctx, "cfg = map {x: 1.5, y: 2.7, z: 0.3};");
+        toad_script_compile_mir(ctx, script);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Map Field Access (pre-bound, 10K reads)") {
         benchmark("Interpreter", 100, 1.0) {
           bench_reset_runtime(ctx);
-          turbo_script_run(ctx, script);
+          toad_script_run(ctx, script);
         }
 
         benchmark("MIR JIT", 1000, 1.0) {
-          turbo_script_exec_jit(ctx);
+          toad_script_exec_jit(ctx);
         }
       }
     }
@@ -628,34 +628,34 @@ spec("TurboScript Benchmark") {
 
     bench("Init/Free Costs") {
       benchmark("init_bare + free", 100, 1.0) {
-        turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_BARE);
-        turbo_script_free(ctx);
+        toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
+        toad_script_free(ctx);
       }
 
       benchmark("init_full + free", 100, 1.0) {
-        turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
-        turbo_script_free(ctx);
+        toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
+        toad_script_free(ctx);
       }
     }
 
     describe("Compile Parse Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       const char *script = "x = 1; y = 2; z = x + y;";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Compile/Parse Costs") {
         benchmark("compile/parse only", 1000, 1.0) {
-          turbo_script_compiled_t *compiled = turbo_script_compile(ctx, script);
-          turbo_script_compiled_free(compiled);
+          toad_script_compiled_t *compiled = toad_script_compile(ctx, script);
+          toad_script_compiled_free(compiled);
         }
       }
     }
@@ -664,7 +664,7 @@ spec("TurboScript Benchmark") {
   describe("Closure JIT Performance") {
 
     describe("Simple Closure Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       const char *setup =
           "func makeAdder(x) {"
           "  return func(y) { return x + y; };"
@@ -673,34 +673,34 @@ spec("TurboScript Benchmark") {
       const char *test_script = "result = add5(10);";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
         ctx->env.max_loop_iterations = 1000000;
         ctx->env.max_nodes = 10000000;
-        turbo_script_run(ctx, setup);
+        toad_script_run(ctx, setup);
         bench_reset_runtime(ctx);
-        turbo_script_compile_mir(ctx, test_script);
+        toad_script_compile_mir(ctx, test_script);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Simple Closure (1 captured var)") {
         benchmark("Interpreter", 1000, 1.0) {
           bench_reset_runtime(ctx);
-          turbo_script_run(ctx, test_script);
+          toad_script_run(ctx, test_script);
         }
 
         benchmark("JIT (closure)", 1000, 1.0) {
-          turbo_script_exec_jit(ctx);
+          toad_script_exec_jit(ctx);
         }
       }
     }
 
     describe("Multiple Captures Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       const char *setup =
           "func makeCalc(a, b) {"
           "  return func(x) { return a * x + b; };"
@@ -709,34 +709,34 @@ spec("TurboScript Benchmark") {
       const char *test_script = "result = calc(5);";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
         ctx->env.max_loop_iterations = 1000000;
         ctx->env.max_nodes = 10000000;
-        turbo_script_run(ctx, setup);
+        toad_script_run(ctx, setup);
         bench_reset_runtime(ctx);
-        turbo_script_compile_mir(ctx, test_script);
+        toad_script_compile_mir(ctx, test_script);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Multiple Captures (2 vars)") {
         benchmark("Interpreter", 1000, 1.0) {
           bench_reset_runtime(ctx);
-          turbo_script_run(ctx, test_script);
+          toad_script_run(ctx, test_script);
         }
 
         benchmark("JIT (closure)", 1000, 1.0) {
-          turbo_script_exec_jit(ctx);
+          toad_script_exec_jit(ctx);
         }
       }
     }
 
     describe("Closure in Loop Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       const char *setup =
           "func makeMultiplier(factor) {"
           "  return func(n) { return factor * n; };"
@@ -749,34 +749,34 @@ spec("TurboScript Benchmark") {
           "}";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
         ctx->env.max_loop_iterations = 1000000;
         ctx->env.max_nodes = 10000000;
-        turbo_script_run(ctx, setup);
+        toad_script_run(ctx, setup);
         bench_reset_runtime(ctx);
-        turbo_script_compile_mir(ctx, test_script);
+        toad_script_compile_mir(ctx, test_script);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Closure in Loop (1000 calls)") {
         benchmark("Interpreter", 100, 1.0) {
           bench_reset_runtime(ctx);
-          turbo_script_run(ctx, test_script);
+          toad_script_run(ctx, test_script);
         }
 
         benchmark("JIT (closure)", 100, 1.0) {
-          turbo_script_exec_jit(ctx);
+          toad_script_exec_jit(ctx);
         }
       }
     }
 
     describe("Complex Closure Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       const char *setup =
           "func makeFormula(a, b, c) {"
           "  return func(x) { return a * x * x + b * x + c; };"
@@ -789,34 +789,34 @@ spec("TurboScript Benchmark") {
           "}";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
         ctx->env.max_loop_iterations = 1000000;
         ctx->env.max_nodes = 10000000;
-        turbo_script_run(ctx, setup);
+        toad_script_run(ctx, setup);
         bench_reset_runtime(ctx);
-        turbo_script_compile_mir(ctx, test_script);
+        toad_script_compile_mir(ctx, test_script);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("Complex Closure (3 vars, math)") {
         benchmark("Interpreter", 100, 1.0) {
           bench_reset_runtime(ctx);
-          turbo_script_run(ctx, test_script);
+          toad_script_run(ctx, test_script);
         }
 
         benchmark("JIT (closure)", 100, 1.0) {
-          turbo_script_exec_jit(ctx);
+          toad_script_exec_jit(ctx);
         }
       }
     }
 
     describe("No Capture Fixture") {
-      turbo_script_ctx_t *ctx = NULL;
+      toad_script_ctx_t *ctx = NULL;
       const char *setup =
           "func makeConst(c) {"
           "  return func() { return 42; };"
@@ -829,28 +829,28 @@ spec("TurboScript Benchmark") {
           "}";
 
       before_each() {
-        ctx = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+        ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
         check_not_null(ctx);
         ctx->env.max_loop_iterations = 1000000;
         ctx->env.max_nodes = 10000000;
-        turbo_script_run(ctx, setup);
+        toad_script_run(ctx, setup);
         bench_reset_runtime(ctx);
-        turbo_script_compile_mir(ctx, test_script);
+        toad_script_compile_mir(ctx, test_script);
       }
 
       after_each() {
-        turbo_script_free(ctx);
+        toad_script_free(ctx);
         ctx = NULL;
       }
 
       bench("No Capture (optimized)") {
         benchmark("Interpreter", 100, 1.0) {
           bench_reset_runtime(ctx);
-          turbo_script_run(ctx, test_script);
+          toad_script_run(ctx, test_script);
         }
 
         benchmark("JIT (no closure)", 100, 1.0) {
-          turbo_script_exec_jit(ctx);
+          toad_script_exec_jit(ctx);
         }
       }
     }

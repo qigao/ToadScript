@@ -3,7 +3,7 @@
  * @brief Technical Analysis Other indicators and complex ones.
  */
 
-#include <turboscript/simd.h>
+#include <toad/simd.h>
 #include "ta.h"
 #include <math.h>
 #include <simde/x86/avx2.h>
@@ -12,7 +12,7 @@
 #include <memory/buffer.h>
 
 
-size_t tbs_ta_bbi(const double *in, size_t n, double *out, mem_pool_t *arena) {
+size_t toad_ta_bbi(const double *in, size_t n, double *out, mem_pool_t *arena) {
   if (n < 24)
     return 0;
   double *ma3 = MEM_ALLOC_ARRAY(arena, double, n);
@@ -35,7 +35,7 @@ size_t tbs_ta_bbi(const double *in, size_t n, double *out, mem_pool_t *arena) {
   return n;
 }
 
-size_t tbs_ta_hma(const double *in, size_t n, size_t period, double *out, mem_pool_t *arena) {
+size_t toad_ta_hma(const double *in, size_t n, size_t period, double *out, mem_pool_t *arena) {
   if (period < 2 || period > n)
     return 0;
   double *wma_half = MEM_ALLOC_ARRAY(arena, double, n);
@@ -54,7 +54,7 @@ size_t tbs_ta_hma(const double *in, size_t n, size_t period, double *out, mem_po
   return n;
 }
 
-size_t tbs_ta_vwap(const double *hi, const double *lo, const double *cl, const double *vol,
+size_t toad_ta_vwap(const double *hi, const double *lo, const double *cl, const double *vol,
                       size_t n, double *out) {
   if (n == 0)
     return 0;
@@ -86,7 +86,7 @@ size_t tbs_ta_vwap(const double *hi, const double *lo, const double *cl, const d
   return n;
 }
 
-size_t tbs_ta_vwap_session(const double *hi, const double *lo, const double *cl,
+size_t toad_ta_vwap_session(const double *hi, const double *lo, const double *cl,
                               const double *vol, const double *session, size_t n, double *out) {
   if (n == 0 || !session)
     return 0;
@@ -104,7 +104,7 @@ size_t tbs_ta_vwap_session(const double *hi, const double *lo, const double *cl,
   return n;
 }
 
-size_t tbs_ta_donchian(const double *hi, const double *lo, size_t n, size_t period,
+size_t toad_ta_donchian(const double *hi, const double *lo, size_t n, size_t period,
                           double *upper, double *lower, double *middle, mem_pool_t *arena) {
   if (n < period)
     return 0;
@@ -135,7 +135,7 @@ size_t tbs_ta_donchian(const double *hi, const double *lo, size_t n, size_t peri
   return n;
 }
 
-size_t tbs_ta_keltner(const double *hi, const double *lo, const double *cl, size_t n,
+size_t toad_ta_keltner(const double *hi, const double *lo, const double *cl, size_t n,
                          size_t ema_p, size_t atr_p, double mult, double *upper, double *middle,
                          double *lower, mem_pool_t *arena) {
   if (ema_p == 0 || atr_p == 0 || n < ema_p || n < atr_p)
@@ -148,7 +148,7 @@ size_t tbs_ta_keltner(const double *hi, const double *lo, const double *cl, size
   double *atr = MEM_ALLOC_ARRAY(arena, double, n);
   if (!atr)
     return 0;
-  tbs_ta_atr(hi, lo, cl, n, atr_p, atr, arena);
+  toad_ta_atr(hi, lo, cl, n, atr_p, atr, arena);
 
   size_t start = (ema_p > atr_p ? ema_p : atr_p) - 1;
   for (size_t i = 0; i < n; ++i) {
@@ -168,7 +168,7 @@ size_t tbs_ta_keltner(const double *hi, const double *lo, const double *cl, size
   return n;
 }
 
-size_t tbs_ta_ichimoku(const double *hi, const double *lo, const double *cl, size_t n,
+size_t toad_ta_ichimoku(const double *hi, const double *lo, const double *cl, size_t n,
                           size_t tenkan_p, size_t kijun_p, size_t senkou_p, double *tenkan,
                           double *kijun, double *senkou_a, double *senkou_b, double *chikou,
                           mem_pool_t *arena) {
@@ -218,7 +218,7 @@ size_t tbs_ta_ichimoku(const double *hi, const double *lo, const double *cl, siz
   return n;
 }
 
-size_t tbs_ta_supertrend(const double *hi, const double *lo, const double *cl, size_t n,
+size_t toad_ta_supertrend(const double *hi, const double *lo, const double *cl, size_t n,
                             size_t period, double mult, double *trend, double *upper, double *lower,
                             mem_pool_t *arena) {
   if (period == 0 || n < period)
@@ -226,7 +226,7 @@ size_t tbs_ta_supertrend(const double *hi, const double *lo, const double *cl, s
   double *atr = MEM_ALLOC_ARRAY(arena, double, n);
   if (!atr)
     return 0;
-  tbs_ta_atr(hi, lo, cl, n, period, atr, arena);
+  toad_ta_atr(hi, lo, cl, n, period, atr, arena);
 
   double *f_up = upper;
   double *f_lo = lower;
@@ -261,7 +261,7 @@ size_t tbs_ta_supertrend(const double *hi, const double *lo, const double *cl, s
   return n;
 }
 
-size_t tbs_ta_rma(const double *in, size_t n, size_t period, double *out) {
+size_t toad_ta_rma(const double *in, size_t n, size_t period, double *out) {
   if (period == 0 || n == 0)
     return 0;
   double alpha = 1.0 / (double)period;
@@ -284,7 +284,7 @@ size_t tbs_ta_rma(const double *in, size_t n, size_t period, double *out) {
   return n;
 }
 
-size_t tbs_ta_zlema(const double *in, size_t n, size_t period, double *out,
+size_t toad_ta_zlema(const double *in, size_t n, size_t period, double *out,
                        mem_pool_t *arena) {
   if (period < 2 || n < period)
     return 0;
@@ -302,7 +302,7 @@ size_t tbs_ta_zlema(const double *in, size_t n, size_t period, double *out,
   return n;
 }
 
-size_t tbs_ta_alma(const double *in, size_t n, size_t period, double offset, double sigma,
+size_t toad_ta_alma(const double *in, size_t n, size_t period, double offset, double sigma,
                       double *out, mem_pool_t *arena) {
   if (period < 2 || n < period)
     return 0;
@@ -347,14 +347,14 @@ size_t tbs_ta_alma(const double *in, size_t n, size_t period, double offset, dou
   return n;
 }
 
-size_t tbs_ta_vidya(const double *in, size_t n, size_t cmo_p, size_t ema_p, double *out,
+size_t toad_ta_vidya(const double *in, size_t n, size_t cmo_p, size_t ema_p, double *out,
                        mem_pool_t *arena) {
   if (n < cmo_p || n < ema_p)
     return 0;
   double *cmo = MEM_ALLOC_ARRAY(arena, double, n);
   if (!cmo)
     return 0;
-  tbs_ta_cmo(in, n, cmo_p, cmo, arena);
+  toad_ta_cmo(in, n, cmo_p, cmo, arena);
   double alpha = 2.0 / (double)(ema_p + 1);
   double val = in[cmo_p - 1];
   for (size_t i = 0; i < n; ++i) {
@@ -369,19 +369,19 @@ size_t tbs_ta_vidya(const double *in, size_t n, size_t cmo_p, size_t ema_p, doub
   return n;
 }
 
-size_t tbs_ta_rvi(const double *in, size_t n, size_t std_p, size_t ema_p, double *out,
+size_t toad_ta_rvi(const double *in, size_t n, size_t std_p, size_t ema_p, double *out,
                      mem_pool_t *arena) {
   if (n < std_p + ema_p)
     return 0;
   double *std = MEM_ALLOC_ARRAY(arena, double, n);
   if (!std)
     return 0;
-  tbs_ta_stddev(in, n, std_p, 1.0, std, arena);
-  size_t res = tbs_ta_rsi(std, n, ema_p, out, arena);
+  toad_ta_stddev(in, n, std_p, 1.0, std, arena);
+  size_t res = toad_ta_rsi(std, n, ema_p, out, arena);
   return res;
 }
 
-size_t tbs_ta_vhf(const double *in, size_t n, size_t period, double *out, mem_pool_t *arena) {
+size_t toad_ta_vhf(const double *in, size_t n, size_t period, double *out, mem_pool_t *arena) {
   if (n < period)
     return 0;
   double *hh = MEM_ALLOC_ARRAY(arena, double, n);
@@ -408,14 +408,14 @@ size_t tbs_ta_vhf(const double *in, size_t n, size_t period, double *out, mem_po
   return n;
 }
 
-size_t tbs_ta_volatility_ratio(const double *hi, const double *lo, const double *cl, size_t n,
+size_t toad_ta_volatility_ratio(const double *hi, const double *lo, const double *cl, size_t n,
                                   size_t period, double *out, mem_pool_t *arena) {
   if (n < period)
     return 0;
   double *atr = MEM_ALLOC_ARRAY(arena, double, n);
   if (!atr)
     return 0;
-  tbs_ta_atr(hi, lo, cl, n, period, atr, arena);
+  toad_ta_atr(hi, lo, cl, n, period, atr, arena);
   size_t i = 1;
   for (; i < n; ++i) {
     double tr1 = hi[i] - lo[i];
@@ -427,7 +427,7 @@ size_t tbs_ta_volatility_ratio(const double *hi, const double *lo, const double 
   return n;
 }
 
-size_t tbs_ta_arbr(const double *hi, const double *lo, const double *op, const double *cl,
+size_t toad_ta_arbr(const double *hi, const double *lo, const double *op, const double *cl,
                       size_t n, size_t period, double *ar, double *br) {
   if (period == 0 || n < period + 1)
     return 0;
@@ -468,7 +468,7 @@ size_t tbs_ta_arbr(const double *hi, const double *lo, const double *op, const d
   return n;
 }
 
-size_t tbs_ta_rsrs(const double *hi, const double *lo, size_t n, size_t n_reg, size_t m_z,
+size_t toad_ta_rsrs(const double *hi, const double *lo, size_t n, size_t n_reg, size_t m_z,
                       double *slope, double *zscore, mem_pool_t *arena) {
   if (n < n_reg)
     return 0;
@@ -507,7 +507,7 @@ size_t tbs_ta_rsrs(const double *hi, const double *lo, size_t n, size_t n_reg, s
   return n;
 }
 
-size_t tbs_ta_smart_money(const double *p, const double *v, size_t n, size_t period, double *out,
+size_t toad_ta_smart_money(const double *p, const double *v, size_t n, size_t period, double *out,
                              mem_pool_t *arena) {
   if (n < period)
     return 0;
@@ -531,7 +531,7 @@ size_t tbs_ta_smart_money(const double *p, const double *v, size_t n, size_t per
   return n;
 }
 
-size_t tbs_ta_vmacd_mtm(const double *v, size_t n, size_t period, double *out,
+size_t toad_ta_vmacd_mtm(const double *v, size_t n, size_t period, double *out,
                            mem_pool_t *arena) {
   if (n < 60)
     return 0;
@@ -540,7 +540,7 @@ size_t tbs_ta_vmacd_mtm(const double *v, size_t n, size_t period, double *out,
   double *hist = MEM_ALLOC_ARRAY(arena, double, n);
   if (!macd || !sig || !hist)
     return 0;
-  tbs_ta_macd(v, n, 12, 26, 9, macd, sig, hist, arena);
+  toad_ta_macd(v, n, 12, 26, 9, macd, sig, hist, arena);
   double *zscore = MEM_ALLOC_ARRAY(arena, double, n);
   if (!zscore)
     return 0;
@@ -570,7 +570,7 @@ size_t tbs_ta_vmacd_mtm(const double *v, size_t n, size_t period, double *out,
   return n;
 }
 
-size_t tbs_ta_noise_area(const double *op, const double *cl, size_t n, size_t period,
+size_t toad_ta_noise_area(const double *op, const double *cl, size_t n, size_t period,
                             double *upper, double *lower, mem_pool_t *arena) {
   if (n < period)
     return 0;
@@ -610,7 +610,7 @@ static int w_factor_cmp(const void *a, const void *b) {
   return (va > vb) - (va < vb);
 }
 
-size_t tbs_ta_w_factor(const double *ret, const double *amt, const double *cnt, size_t n,
+size_t toad_ta_w_factor(const double *ret, const double *amt, const double *cnt, size_t n,
                           size_t period, double *out, mem_pool_t *arena) {
   if (n < period)
     return 0;
@@ -638,7 +638,7 @@ size_t tbs_ta_w_factor(const double *ret, const double *amt, const double *cnt, 
   return n;
 }
 
-size_t tbs_ta_cpv(const double *ret, const double *vol, size_t n, size_t period, double *out,
+size_t toad_ta_cpv(const double *ret, const double *vol, size_t n, size_t period, double *out,
                      mem_pool_t *arena) {
   if (n < period * 2)
     return 0;
@@ -670,7 +670,7 @@ size_t tbs_ta_cpv(const double *ret, const double *vol, size_t n, size_t period,
   return n;
 }
 
-size_t tbs_vec_quantile(const double *in, size_t n, size_t period, double *out,
+size_t toad_vec_quantile(const double *in, size_t n, size_t period, double *out,
                            mem_pool_t *arena) {
   (void)arena;
   if (n < period)
@@ -687,13 +687,13 @@ size_t tbs_vec_quantile(const double *in, size_t n, size_t period, double *out,
   return n;
 }
 
-size_t tbs_ta_qrs(const double *slope, size_t n, size_t period, double *out,
+size_t toad_ta_qrs(const double *slope, size_t n, size_t period, double *out,
                      mem_pool_t *arena) {
   (void)arena;
-  return tbs_vec_quantile(slope, n, period, out, arena);
+  return toad_vec_quantile(slope, n, period, out, arena);
 }
 
-size_t tbs_ta_alligator(const double *in, size_t n, double *jaw, double *teeth, double *lips,
+size_t toad_ta_alligator(const double *in, size_t n, double *jaw, double *teeth, double *lips,
                            mem_pool_t *arena) {
   if (n < 21)
     return 0;
@@ -702,9 +702,9 @@ size_t tbs_ta_alligator(const double *in, size_t n, double *jaw, double *teeth, 
   double *tmp_l = MEM_ALLOC_ARRAY(arena, double, n);
   if (!tmp_j || !tmp_t || !tmp_l)
     return 0;
-  tbs_ta_smma(in, n, 13, tmp_j);
-  tbs_ta_smma(in, n, 8, tmp_t);
-  tbs_ta_smma(in, n, 5, tmp_l);
+  toad_ta_smma(in, n, 13, tmp_j);
+  toad_ta_smma(in, n, 8, tmp_t);
+  toad_ta_smma(in, n, 5, tmp_l);
   memset(jaw, 0, n * sizeof(double));
   memset(teeth, 0, n * sizeof(double));
   memset(lips, 0, n * sizeof(double));
@@ -717,7 +717,7 @@ size_t tbs_ta_alligator(const double *in, size_t n, double *jaw, double *teeth, 
   return n;
 }
 
-size_t tbs_ta_shadow(const double *op, const double *hi, const double *lo, const double *cl,
+size_t toad_ta_shadow(const double *op, const double *hi, const double *lo, const double *cl,
                         size_t n, double *upper, double *lower, mem_pool_t *arena) {
   (void)arena;
   for (size_t i = 0; i < n; i++) {

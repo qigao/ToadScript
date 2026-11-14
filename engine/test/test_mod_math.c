@@ -3,10 +3,10 @@
  * @brief Unit tests for SIMD-optimized math functions in mod_math.c
  */
 
-#include "exprtk.h"
-#include "exprtk_module.h"
-#include "exprtk_types.h"
-#include "simd_helpers.h"
+#include <toad/engine.h>
+#include <toad/module.h>
+#include <toad/types.h>
+#include <toad/simd.h>
 #include "tinytest.h"
 #include "memory/buffer.h"
 #include <math.h>
@@ -110,7 +110,7 @@ spec("SIMD Computation") {
   describe("Skewness") {
     it("should be near zero for symmetric data") {
       double data[] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
-      double skew = exprtk_skewness(data, 9);
+      double skew = toad_skewness(data, 9);
       check(fabs(skew) < 0.1);
     }
 
@@ -119,7 +119,7 @@ spec("SIMD Computation") {
       double *data = malloc(n * sizeof(double));
       fill_random(data, n, 0.0, 100.0);
 
-      double skew = exprtk_skewness(data, n);
+      double skew = toad_skewness(data, n);
       check(fabs(skew) < 2.0);
 
       free(data);
@@ -141,7 +141,7 @@ spec("SIMD Computation") {
         }
       }
 
-      double kurt = exprtk_kurtosis(data, n);
+      double kurt = toad_kurtosis(data, n);
       check(fabs(kurt) < 1.0);
 
       free(data);
@@ -151,7 +151,7 @@ spec("SIMD Computation") {
   describe("Geometric Mean") {
     it("should calculate correctly") {
       double data[] = {1, 2, 4, 8, 16};
-      double gm = exprtk_geometric_mean(data, 5);
+      double gm = toad_geometric_mean(data, 5);
       double expected = pow(1.0 * 2.0 * 4.0 * 8.0 * 16.0, 1.0 / 5.0);
       check(fabs((double)(gm) - (double)(expected)) <= (double)(TEST_TOLERANCE));
     }
@@ -161,7 +161,7 @@ spec("SIMD Computation") {
       double *data = malloc(n * sizeof(double));
       fill_random(data, n, 1.0, 100.0);
 
-      double gm = exprtk_geometric_mean(data, n);
+      double gm = toad_geometric_mean(data, n);
       check(gm > 0 && gm < 100.0);
 
       free(data);
@@ -171,7 +171,7 @@ spec("SIMD Computation") {
   describe("Harmonic Mean") {
     it("should calculate correctly") {
       double data[] = {1, 2, 4};
-      double hm = exprtk_harmonic_mean(data, 3);
+      double hm = toad_harmonic_mean(data, 3);
       double expected = 3.0 / (1.0 / 1.0 + 1.0 / 2.0 + 1.0 / 4.0);
       check(fabs((double)(hm) - (double)(expected)) <= (double)(TEST_TOLERANCE));
     }
@@ -181,7 +181,7 @@ spec("SIMD Computation") {
       double *data = malloc(n * sizeof(double));
       fill_random(data, n, 1.0, 100.0);
 
-      double hm = exprtk_harmonic_mean(data, n);
+      double hm = toad_harmonic_mean(data, n);
       check(hm > 0 && hm < 100.0);
 
       free(data);
@@ -194,7 +194,7 @@ spec("SIMD Computation") {
       double I[] = {1, 0, 0, 1}; // 2x2 identity
       double result[4];
 
-      exprtk_matmul(A, I, 2, 2, 2, result);
+      toad_matmul(A, I, 2, 2, 2, result);
 
       for (int i = 0; i < 4; i++) {
         check(fabs((double)(result[i]) - (double)(A[i])) <= (double)(TEST_TOLERANCE));
@@ -209,7 +209,7 @@ spec("SIMD Computation") {
       double expected[] = {19, 22, 43, 50};
       double result[4];
 
-      exprtk_matmul(A, B, 2, 2, 2, result);
+      toad_matmul(A, B, 2, 2, 2, result);
 
       for (int i = 0; i < 4; i++) {
         check(fabs((double)(result[i]) - (double)(expected[i])) <= (double)(TEST_TOLERANCE));
@@ -225,7 +225,7 @@ spec("SIMD Computation") {
       fill_random(A, n * n, -10.0, 10.0);
       fill_random(B, n * n, -10.0, 10.0);
 
-      exprtk_matmul(A, B, n, n, n, C);
+      toad_matmul(A, B, n, n, n, C);
 
       // Verify one element manually
       double expected = 0;
@@ -246,7 +246,7 @@ spec("SIMD Computation") {
       double expected[] = {1, 4, 7, 2, 5, 8, 3, 6, 9};
       double result[9];
 
-      exprtk_transpose(A, 3, 3, result);
+      toad_transpose(A, 3, 3, result);
 
       for (int i = 0; i < 9; i++) {
         check(fabs((double)(result[i]) - (double)(expected[i])) <= (double)(TEST_TOLERANCE));
@@ -258,7 +258,7 @@ spec("SIMD Computation") {
       double expected[] = {1, 4, 2, 5, 3, 6}; // 3x2
       double result[6];
 
-      exprtk_transpose(A, 2, 3, result);
+      toad_transpose(A, 2, 3, result);
 
       for (int i = 0; i < 6; i++) {
         check(fabs((double)(result[i]) - (double)(expected[i])) <= (double)(TEST_TOLERANCE));
@@ -271,7 +271,7 @@ spec("SIMD Computation") {
       double *B = malloc(rows * cols * sizeof(double));
 
       fill_random(A, rows * cols, -10.0, 10.0);
-      exprtk_transpose(A, rows, cols, B);
+      toad_transpose(A, rows, cols, B);
 
       // Verify: B[j * rows + i] = A[i * cols + j]
       check(fabs((double)(B[0 * rows + 0]) - (double)(A[0 * cols + 0])) <= (double)(TEST_TOLERANCE));
@@ -323,28 +323,28 @@ spec("SIMD Computation") {
   }
 
   describe("Vector Functions via Registry") {
-    it("should reverse a vector via exprtk_call_internal") {
+    it("should reverse a vector via toad_call_internal") {
       // Create environment with arena
-      exprtk_env_t env;
-      exprtk_env_init(&env);
+      toad_env_t env;
+      toad_env_init(&env);
 
       // Add math module to env
-      extern const exprtk_module_t *exprtk_module_math(void);
-      exprtk_env_add_module(&env, exprtk_module_math());
+      extern const toad_module_t *toad_module_math(void);
+      toad_env_add_module(&env, toad_module_math());
 
       double input[] = {1.0, 2.0, 3.0, 4.0, 5.0};
-      exprtk_value_t vec_arg = {.type = EXPRTK_VAL_VECTOR,
+      toad_value_t vec_arg = {.type = TOAD_VAL_VECTOR,
                                 .data.vector = {.data = input, .size = 5}};
 
-      exprtk_value_t result = exprtk_call_internal("vec.reverse", 1, &vec_arg, &env);
+      toad_value_t result = toad_call_internal("vec.reverse", 1, &vec_arg, &env);
 
-      printf("Result type: %d (expected %d for VECTOR)\n", result.type, EXPRTK_VAL_VECTOR);
-      if (result.type == EXPRTK_VAL_NUMBER) {
+      printf("Result type: %d (expected %d for VECTOR)\n", result.type, TOAD_VAL_VECTOR);
+      if (result.type == TOAD_VAL_NUMBER) {
         printf("Got number: %f\n", result.data.number);
       }
 
-      check((result.type) == (EXPRTK_VAL_VECTOR));
-      if (result.type == EXPRTK_VAL_VECTOR) {
+      check((result.type) == (TOAD_VAL_VECTOR));
+      if (result.type == TOAD_VAL_VECTOR) {
         check((result.data.vector.size) == (5));
         check_not_null(result.data.vector.data);
 
@@ -361,27 +361,27 @@ spec("SIMD Computation") {
         }
       }
 
-      exprtk_env_free(&env);
+      toad_env_free(&env);
     }
 
-    it("should generate vec.range via exprtk_call_internal") {
-      exprtk_env_t env;
-      exprtk_env_init(&env);
+    it("should generate vec.range via toad_call_internal") {
+      toad_env_t env;
+      toad_env_init(&env);
 
-      extern const exprtk_module_t *exprtk_module_math(void);
-      exprtk_env_add_module(&env, exprtk_module_math());
+      extern const toad_module_t *toad_module_math(void);
+      toad_env_add_module(&env, toad_module_math());
 
-      exprtk_value_t arg = {.type = EXPRTK_VAL_NUMBER, .data.number = 5.0};
+      toad_value_t arg = {.type = TOAD_VAL_NUMBER, .data.number = 5.0};
 
-      exprtk_value_t result = exprtk_call_internal("vec.range", 1, &arg, &env);
+      toad_value_t result = toad_call_internal("vec.range", 1, &arg, &env);
 
-      printf("Result type: %d (expected %d for VECTOR)\n", result.type, EXPRTK_VAL_VECTOR);
-      if (result.type == EXPRTK_VAL_NUMBER) {
+      printf("Result type: %d (expected %d for VECTOR)\n", result.type, TOAD_VAL_VECTOR);
+      if (result.type == TOAD_VAL_NUMBER) {
         printf("Got number: %f\n", result.data.number);
       }
 
-      check((result.type) == (EXPRTK_VAL_VECTOR));
-      if (result.type == EXPRTK_VAL_VECTOR) {
+      check((result.type) == (TOAD_VAL_VECTOR));
+      if (result.type == TOAD_VAL_VECTOR) {
         check((result.data.vector.size) == (5));
         check_not_null(result.data.vector.data);
 
@@ -398,7 +398,7 @@ spec("SIMD Computation") {
         }
       }
 
-      exprtk_env_free(&env);
+      toad_env_free(&env);
     }
   }
 }

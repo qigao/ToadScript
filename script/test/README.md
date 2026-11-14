@@ -1,6 +1,6 @@
-# TurboScript 测试套件
+# Toad 测试套件
 
-本目录包含 TurboScript 的完整测试套件，包括单元测试、集成测试、性能基准测试和 JIT 测试。
+本目录包含 Toad 的完整测试套件，包括单元测试、集成测试、性能基准测试和 JIT 测试。
 
 ---
 
@@ -8,15 +8,15 @@
 
 | 文件 | 描述 | 类型 |
 |------|------|------|
-| `test_turbo_script_basics.c` | 基础语言与运行时测试 | 集成测试 |
-| `test_turbo_script_quant.c` | 量化相关内置能力测试 | 集成测试 |
-| `test_turbo_script_scientific.c` | 科学计算、模板与 regex 测试 | 集成测试 |
-| `test_turbo_script_io.c` | IO 与插件相关测试 | 集成测试 |
-| `test_turbo_script_mir_core.c` | JIT 核心路径测试 | 单元测试 |
-| `test_turbo_script_mir_oop.c` | JIT OOP 路径测试 | 单元测试 |
-| `test_turbo_script_mir_advanced.c` | JIT 高级语义测试 | 单元测试 |
-| `bench_turbo_script.c` | 解释器性能基准 | 性能测试 |
-| `bench_turbo_script_mir.c` | JIT 性能基准 | 性能测试 |
+| `test_script_basics.c` | 基础语言与运行时测试 | 集成测试 |
+| `test_script_quant.c` | 量化相关内置能力测试 | 集成测试 |
+| `test_script_scientific.c` | 科学计算、模板与 regex 测试 | 集成测试 |
+| `test_script_io.c` | IO 与插件相关测试 | 集成测试 |
+| `test_script_mir_core.c` | JIT 核心路径测试 | 单元测试 |
+| `test_script_mir_oop.c` | JIT OOP 路径测试 | 单元测试 |
+| `test_script_mir_advanced.c` | JIT 高级语义测试 | 单元测试 |
+| `bench_script.c` | 解释器性能基准 | 性能测试 |
+| `bench_script_mir.c` | JIT 性能基准 | 性能测试 |
 
 ---
 
@@ -27,27 +27,27 @@
 ```bash
 cd build
 cmake ..
-cmake --build . --target test_turbo_script_scientific
-cmake --build . --target test_turbo_script_mir_core
-cmake --build . --target bench_turbo_script_mir
+cmake --build . --target test_script_scientific
+cmake --build . --target test_script_mir_core
+cmake --build . --target bench_script_mir
 ```
 
 ### 使用 Make (Linux/macOS)
 
 ```bash
 cd build
-make test_turbo_script_scientific
-make test_turbo_script_mir_core
-make bench_turbo_script_mir
+make test_script_scientific
+make test_script_mir_core
+make bench_script_mir
 ```
 
 ### 使用 MSBuild (Windows)
 
 ```powershell
 cd build
-msbuild turbo_script.sln /t:test_turbo_script_scientific
-msbuild turbo_script.sln /t:test_turbo_script_mir_core
-msbuild turbo_script.sln /t:bench_turbo_script_mir
+msbuild toad_script.sln /t:test_script_scientific
+msbuild toad_script.sln /t:test_script_mir_core
+msbuild toad_script.sln /t:bench_script_mir
 ```
 
 ---
@@ -65,13 +65,13 @@ ctest -V
 
 ```bash
 # JIT 编译器测试
-ctest -R "test_turbo_script_mir_(core|oop|advanced)" -V
+ctest -R "test_script_mir_(core|oop|advanced)" -V
 
 # 解释器拆分测试
-ctest -R "test_turbo_script_(basics|quant|scientific|io)" -V
+ctest -R "test_script_(basics|quant|scientific|io)" -V
 
 # regex 相关测试
-ctest -R test_turbo_script_scientific -V
+ctest -R test_script_scientific -V
 ```
 
 ### 直接运行可执行文件
@@ -80,12 +80,12 @@ ctest -R test_turbo_script_scientific -V
 cd build/bin
 
 # JIT 测试
-./test_turbo_script_mir_core
-./test_turbo_script_mir_oop
-./test_turbo_script_mir_advanced
+./test_script_mir_core
+./test_script_mir_oop
+./test_script_mir_advanced
 
 # 性能基准
-./bench_turbo_script_mir
+./bench_script_mir
 ```
 
 ---
@@ -96,12 +96,12 @@ cd build/bin
 
 ```bash
 cd build/bin
-./bench_turbo_script_mir
+./bench_script_mir
 ```
 
 **输出示例**：
 ```
-TurboScript JIT Performance Benchmarks
+Toad JIT Performance Benchmarks
 ======================================
 
 === Pure Loop (100k iterations) ===
@@ -130,7 +130,7 @@ Results:
 
 ```bash
 cd build/bin
-valgrind --leak-check=full --show-leak-kinds=all ./test_turbo_script_mir_core
+valgrind --leak-check=full --show-leak-kinds=all ./test_script_mir_core
 ```
 
 **预期输出**：
@@ -151,7 +151,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=ON
 cmake --build .
 
 # 运行测试
-./bin/test_turbo_script_mir_core
+./bin/test_script_mir_core
 ```
 
 ---
@@ -162,7 +162,7 @@ cmake --build .
 
 ```bash
 cd build/bin
-perf record -g ./bench_turbo_script_mir
+perf record -g ./bench_script_mir
 perf report
 ```
 
@@ -170,13 +170,13 @@ perf report
 
 ```bash
 cd build/bin
-instruments -t "Time Profiler" ./bench_turbo_script_mir
+instruments -t "Time Profiler" ./bench_script_mir
 ```
 
 ### 使用 Visual Studio Profiler (Windows)
 
 1. 在 Visual Studio 中打开解决方案
-2. 右键点击 `bench_turbo_script_mir` 项目
+2. 右键点击 `bench_script_mir` 项目
 3. 选择 "性能分析器" -> "CPU 使用率"
 4. 点击 "启动"
 
@@ -187,7 +187,7 @@ instruments -t "Time Profiler" ./bench_turbo_script_mir
 ### GitHub Actions 示例
 
 ```yaml
-name: TurboScript Tests
+name: Toad Tests
 
 on: [push, pull_request]
 
@@ -208,7 +208,7 @@ jobs:
       - name: Run Benchmarks
         run: |
           cd build/bin
-          ./bench_turbo_script_mir
+          ./bench_script_mir
 ```
 
 ---
@@ -242,11 +242,11 @@ open coverage_html/index.html
 
 ### 测试失败
 
-**问题**: `test_turbo_script_mir_core` 失败
+**问题**: `test_script_mir_core` 失败
 **解决方案**:
-1. 检查 MIR 库是否正确链接：`ldd ./test_turbo_script_mir_core`
+1. 检查 MIR 库是否正确链接：`ldd ./test_script_mir_core`
 2. 检查平台支持：MIR 仅支持 x86_64/aarch64/ppc64le/s390x/riscv64
-3. 查看错误日志：`./test_turbo_script_mir_core 2>&1 | tee test.log`
+3. 查看错误日志：`./test_script_mir_core 2>&1 | tee test.log`
 
 **问题**: 性能基准显示 JIT 比解释器慢
 **解决方案**:
@@ -257,7 +257,7 @@ open coverage_html/index.html
 **问题**: 内存泄漏
 **解决方案**:
 1. 使用 Valgrind 定位泄漏点
-2. 检查 `turbo_script_free()` 是否正确调用
+2. 检查 `toad_script_free()` 是否正确调用
 3. 检查 MIR 上下文是否正确清理
 
 ---
@@ -266,19 +266,19 @@ open coverage_html/index.html
 
 ### 添加 JIT 测试
 
-1. 按范围编辑 `test_turbo_script_mir_core.c`、`test_turbo_script_mir_oop.c` 或 `test_turbo_script_mir_advanced.c`
+1. 按范围编辑 `test_script_mir_core.c`、`test_script_mir_oop.c` 或 `test_script_mir_advanced.c`
 2. 添加新的 `it()` 块：
    ```c
    it("should handle new feature") {
-     check(turbo_script_run_jit(ctx, "x = 42;") == 0);
-     check(fabs(ts_get_num(ctx, "x") - 42.0) <= EPS);
+     check(toad_script_run_jit(ctx, "x = 42;") == 0);
+     check(fabs(toad_script_get_num(ctx, "x") - 42.0) <= EPS);
    }
    ```
 3. 重新编译并运行
 
 ### 添加性能基准
 
-1. 编辑 `bench_turbo_script_mir.c`
+1. 编辑 `bench_script_mir.c`
 2. 添加新的 `benchmark_t` 条目：
    ```c
    {.name = "New Benchmark",
@@ -292,12 +292,12 @@ open coverage_html/index.html
 
 ## 参考资料
 
-- [TurboScript JIT 指南](../../docs/jit-guide.md)
-- [TurboScript API 参考](../../docs/api-reference.md)
+- [Toad JIT 指南](../../docs/jit-guide.md)
+- [Toad API 参考](../../docs/api-reference.md)
 - [MIR 项目](https://github.com/vnmakarov/mir)
 - [TinyTest 文档](https://github.com/codeplea/tinytest)
 
 ---
 
-**最后更新**: 2026-05-19  
-**维护者**: TurboScript 开发团队
+**最后更新**: 2026-05-19
+**维护者**: Toad 开发团队

@@ -4,7 +4,7 @@
  */
 
 #include "tinytest.h"
-#include "simd_helpers.h"
+#include <toad/simd.h>
 #include <stdlib.h>
 #include <math.h>
 
@@ -65,9 +65,9 @@ spec("SIMD Helpers") {
             float pts[] = { 1.0f, 2.0f,  // Point 0 (1, 2)
                            -1.0f, 5.0f}; // Point 1 (-1, 5)
             float out[4];
-            
+
             simd_transform_points_f32(m, pts, out, 2);
-            
+
             // Expected Point 0: 2*1 + 0*2 + 10 = 12, 0*1 + 2*2 + 20 = 24
             check(fabs((double)(out[0]) - (double)(12.0)) <= (double)(TEST_TOLERANCE));
             check(fabs((double)(out[1]) - (double)(24.0)) <= (double)(TEST_TOLERANCE));
@@ -77,14 +77,14 @@ spec("SIMD Helpers") {
         }
 
         it("should compute AABB for points") {
-            float pts[] = { 10.0f, 20.0f, 
-                           -5.0f, 30.0f, 
+            float pts[] = { 10.0f, 20.0f,
+                           -5.0f, 30.0f,
                             25.0f, -10.0f,
                             0.0f, 0.0f };
             float min_xy[2], max_xy[2];
-            
+
             simd_aabb_points_f32(pts, 4, min_xy, max_xy);
-            
+
             check(fabs((double)(min_xy[0]) - (double)(-5.0)) <= (double)(TEST_TOLERANCE));
             check(fabs((double)(min_xy[1]) - (double)(-10.0)) <= (double)(TEST_TOLERANCE));
             check(fabs((double)(max_xy[0]) - (double)(25.0)) <= (double)(TEST_TOLERANCE));
@@ -96,10 +96,10 @@ spec("SIMD Helpers") {
             float t1[6] = {2.0f, 0.0f, 0.0f, 0.0f, 2.0f, 0.0f};
             // T2: Translate by (10, 20)
             float t2[6] = {1.0f, 0.0f, 10.0f, 0.0f, 1.0f, 20.0f};
-            
+
             float out[6];
             simd_compose_transforms_f32(t2, t1, out); // Translate * Scale
-            
+
             // Expected: [ 2.0 0.0 10.0 ]
             //           [ 0.0 2.0 20.0 ]
             check(fabs((double)(out[0]) - (double)(2.0)) <= (double)(TEST_TOLERANCE));

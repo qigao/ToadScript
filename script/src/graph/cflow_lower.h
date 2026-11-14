@@ -1,7 +1,7 @@
-#ifndef TURBO_SCRIPT_CFLOW_LOWER_H
-#define TURBO_SCRIPT_CFLOW_LOWER_H
+#ifndef TOAD_SCRIPT_CFLOW_LOWER_H
+#define TOAD_SCRIPT_CFLOW_LOWER_H
 
-#include <turboscript/types.h>
+#include <toad/types.h>
 #include "cflow_mir_kernel.h"
 #include <cflow/graph.h>
 #include <stdbool.h>
@@ -13,8 +13,8 @@ extern "C" {
 
 typedef struct ts_cflow_lowered_pipeline {
   cflow_graph graph;
-  const tbs_node_t *source_expr;
-  const tbs_node_t *reduce_seed_expr;
+  const toad_node_t *source_expr;
+  const toad_node_t *reduce_seed_expr;
   ts_cflow_mir_kernel_binding_t *kernel_bindings;
   size_t kernel_binding_count;
   size_t kernel_binding_capacity;
@@ -23,7 +23,7 @@ typedef struct ts_cflow_lowered_pipeline {
 } ts_cflow_lowered_pipeline_t;
 
 /*
- * Lower the first graphable TurboScript pipeline slice into a CFlow Surface
+ * Lower the first graphable Toad pipeline slice into a CFlow Surface
  * Graph. Pipe syntax is already normalized by the parser into nested function
  * calls, so this pass recognizes:
  *
@@ -31,34 +31,34 @@ typedef struct ts_cflow_lowered_pipeline {
  *   map(previous, fn)
  *   reduce(previous, seed, fn)
  *
- * The analysis path retains TurboScript's explicit reduce seed AST for
+ * The analysis path retains Toad's explicit reduce seed AST for
  * diagnostics. Executable lowering binds MIR callables and materializes a
  * literal numeric reduce seed through CFlow's canonical seeded fold.
  */
-bool ts_cflow_lower_pipeline(const tbs_node_t *expr,
+bool ts_cflow_lower_pipeline(const toad_node_t *expr,
                              ts_cflow_lowered_pipeline_t *out,
                              const char **error);
 
 /*
- * Runtime graphability analysis uses the current TurboScript context only to
+ * Runtime graphability analysis uses the current Toad context only to
  * resolve a variable source's concrete collection shape. It does not bind MIR
  * kernels or execute the graph. This keeps runtime type admission explicit
- * without treating tbs_node_t.inferred_type as semantic authority.
+ * without treating toad_node_t.inferred_type as semantic authority.
  */
 bool ts_cflow_lower_pipeline_runtime_analysis(
-    turbo_script_ctx_t *runtime_ctx, const tbs_node_t *expr,
+    toad_script_ctx_t *runtime_ctx, const toad_node_t *expr,
     ts_cflow_lowered_pipeline_t *out, const char **error);
 
 /*
  * Lower the same graphable slice while binding every supported script lambda
- * to a TurboScript-owned MIR kernel. MAP/FILTER are unary kernels; REDUCE is a
+ * to a Toad-owned MIR kernel. MAP/FILTER are unary kernels; REDUCE is a
  * binary kernel and uses CFlow's owned typed seed. The first executable reduce
  * slice accepts numeric literal seeds (including unary +/-) and rejects dynamic
  * seed expressions explicitly. This API never falls back to analysis-only
  * callables.
  */
-bool ts_cflow_lower_pipeline_executable(turbo_script_ctx_t *runtime_ctx,
-                                        const tbs_node_t *expr,
+bool ts_cflow_lower_pipeline_executable(toad_script_ctx_t *runtime_ctx,
+                                        const toad_node_t *expr,
                                         ts_cflow_lowered_pipeline_t *out,
                                         const char **error);
 
@@ -68,4 +68,4 @@ void ts_cflow_lowered_pipeline_destroy(ts_cflow_lowered_pipeline_t *pipeline);
 }
 #endif
 
-#endif /* TURBO_SCRIPT_CFLOW_LOWER_H */
+#endif /* TOAD_SCRIPT_CFLOW_LOWER_H */

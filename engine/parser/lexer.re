@@ -5,7 +5,7 @@
  */
 
 #include "lexer.h"
-#include <turboscript/detail/grammar_gen.h>
+#include <toad/detail/grammar_gen.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -23,38 +23,38 @@ static double parse_number(const char *start, const char *end) {
 static int regex_can_start_after(int token_type) {
     switch (token_type) {
         case 0:
-        case tbs_TOKEN_EQUAL:
-        case tbs_TOKEN_ASSIGN_ADD:
-        case tbs_TOKEN_ASSIGN_SUB:
-        case tbs_TOKEN_ASSIGN_MUL:
-        case tbs_TOKEN_ASSIGN_DIV:
-        case tbs_TOKEN_LPAREN:
-        case tbs_TOKEN_LBRACKET:
-        case tbs_TOKEN_LBRACE:
-        case tbs_TOKEN_COMMA:
-        case tbs_TOKEN_COLON:
-        case tbs_TOKEN_SEMICOLON:
-        case tbs_TOKEN_RETURN:
-        case tbs_TOKEN_THROW:
-        case tbs_TOKEN_CASE:
-        case tbs_TOKEN_QUESTION:
-        case tbs_TOKEN_ARROW:
-        case tbs_TOKEN_PLUS:
-        case tbs_TOKEN_MINUS:
-        case tbs_TOKEN_MULTIPLY:
-        case tbs_TOKEN_DIVIDE:
-        case tbs_TOKEN_MOD:
-        case tbs_TOKEN_POWER:
-        case tbs_TOKEN_EQ:
-        case tbs_TOKEN_NE:
-        case tbs_TOKEN_LT:
-        case tbs_TOKEN_LE:
-        case tbs_TOKEN_GT:
-        case tbs_TOKEN_GE:
-        case tbs_TOKEN_AND:
-        case tbs_TOKEN_OR:
-        case tbs_TOKEN_NOT:
-        case tbs_TOKEN_PIPE:
+        case toad_TOKEN_EQUAL:
+        case toad_TOKEN_ASSIGN_ADD:
+        case toad_TOKEN_ASSIGN_SUB:
+        case toad_TOKEN_ASSIGN_MUL:
+        case toad_TOKEN_ASSIGN_DIV:
+        case toad_TOKEN_LPAREN:
+        case toad_TOKEN_LBRACKET:
+        case toad_TOKEN_LBRACE:
+        case toad_TOKEN_COMMA:
+        case toad_TOKEN_COLON:
+        case toad_TOKEN_SEMICOLON:
+        case toad_TOKEN_RETURN:
+        case toad_TOKEN_THROW:
+        case toad_TOKEN_CASE:
+        case toad_TOKEN_QUESTION:
+        case toad_TOKEN_ARROW:
+        case toad_TOKEN_PLUS:
+        case toad_TOKEN_MINUS:
+        case toad_TOKEN_MULTIPLY:
+        case toad_TOKEN_DIVIDE:
+        case toad_TOKEN_MOD:
+        case toad_TOKEN_POWER:
+        case toad_TOKEN_EQ:
+        case toad_TOKEN_NE:
+        case toad_TOKEN_LT:
+        case toad_TOKEN_LE:
+        case toad_TOKEN_GT:
+        case toad_TOKEN_GE:
+        case toad_TOKEN_AND:
+        case toad_TOKEN_OR:
+        case toad_TOKEN_NOT:
+        case toad_TOKEN_PIPE:
             return 1;
         default:
             return 0;
@@ -100,11 +100,11 @@ static int scan_regex_literal(const char *start, const char *limit, const char *
     return -1;
 }
 
-static void lexer_note_token(tbs_lexer_t *lexer, int token_type) {
+static void lexer_note_token(toad_lexer_t *lexer, int token_type) {
     lexer->last_token = token_type;
 }
 
-int tbs_lexer_next(tbs_lexer_t *lexer, tbs_token_t *token) {
+int toad_lexer_next(toad_lexer_t *lexer, toad_token_t *token) {
     if (!lexer || !token) return -1;
 
     const char *YYCURSOR = lexer->cursor;
@@ -152,16 +152,16 @@ lex_start:
         }
 
         // Operators
-        "+" { RET(tbs_TOKEN_PLUS); }
-        "-" { RET(tbs_TOKEN_MINUS); }
-        "*" { RET(tbs_TOKEN_MULTIPLY); }
+        "+" { RET(toad_TOKEN_PLUS); }
+        "-" { RET(toad_TOKEN_MINUS); }
+        "*" { RET(toad_TOKEN_MULTIPLY); }
         "/" {
             if (regex_can_start_after(lexer->last_token)) {
                 const char *regex_end = NULL;
                 int regex_scan = scan_regex_literal(token_start, YYLIMIT, &regex_end);
                 if (regex_scan > 0) {
                     YYCURSOR = regex_end;
-                    RET(tbs_TOKEN_REGEX);
+                    RET(toad_TOKEN_REGEX);
                 }
                 if (regex_scan < 0) {
                     snprintf(lexer->error, sizeof(lexer->error),
@@ -169,119 +169,119 @@ lex_start:
                     return -1;
                 }
             }
-            RET(tbs_TOKEN_DIVIDE);
+            RET(toad_TOKEN_DIVIDE);
         }
-        "%" { RET(tbs_TOKEN_MOD); }
-        "^" { RET(tbs_TOKEN_POWER); }
-        "..." { RET(tbs_TOKEN_SPREAD); }
-        ".." { RET(tbs_TOKEN_DOTDOT); }
-        "."  { RET(tbs_TOKEN_DOT); }
-        "?." { RET(tbs_TOKEN_QUESTION_DOT); }
-        "?"  { RET(tbs_TOKEN_QUESTION); }
+        "%" { RET(toad_TOKEN_MOD); }
+        "^" { RET(toad_TOKEN_POWER); }
+        "..." { RET(toad_TOKEN_SPREAD); }
+        ".." { RET(toad_TOKEN_DOTDOT); }
+        "."  { RET(toad_TOKEN_DOT); }
+        "?." { RET(toad_TOKEN_QUESTION_DOT); }
+        "?"  { RET(toad_TOKEN_QUESTION); }
 
         // Comparison
-        "==" { RET(tbs_TOKEN_EQ); }
-        "=>" { RET(tbs_TOKEN_ARROW); }
-        "="  { RET(tbs_TOKEN_EQUAL); }
-        "!=" { RET(tbs_TOKEN_NE); }
-        "<>" { RET(tbs_TOKEN_NE); }
-        "<"  { RET(tbs_TOKEN_LT); }
-        "<=" { RET(tbs_TOKEN_LE); }
-        ">"  { RET(tbs_TOKEN_GT); }
-        ">=" { RET(tbs_TOKEN_GE); }
+        "==" { RET(toad_TOKEN_EQ); }
+        "=>" { RET(toad_TOKEN_ARROW); }
+        "="  { RET(toad_TOKEN_EQUAL); }
+        "!=" { RET(toad_TOKEN_NE); }
+        "<>" { RET(toad_TOKEN_NE); }
+        "<"  { RET(toad_TOKEN_LT); }
+        "<=" { RET(toad_TOKEN_LE); }
+        ">"  { RET(toad_TOKEN_GT); }
+        ">=" { RET(toad_TOKEN_GE); }
 
         // Assignment
 
-        "+=" { RET(tbs_TOKEN_ASSIGN_ADD); }
-        "-=" { RET(tbs_TOKEN_ASSIGN_SUB); }
-        "*=" { RET(tbs_TOKEN_ASSIGN_MUL); }
-        "/=" { RET(tbs_TOKEN_ASSIGN_DIV); }
+        "+=" { RET(toad_TOKEN_ASSIGN_ADD); }
+        "-=" { RET(toad_TOKEN_ASSIGN_SUB); }
+        "*=" { RET(toad_TOKEN_ASSIGN_MUL); }
+        "/=" { RET(toad_TOKEN_ASSIGN_DIV); }
 
         // Logic
-        "and" { RET(tbs_TOKEN_AND); }
-        "or"  { RET(tbs_TOKEN_OR); }
-        "not" { RET(tbs_TOKEN_NOT); }
-        "|>"  { RET(tbs_TOKEN_PIPE); }
-        "&&"  { RET(tbs_TOKEN_AND); }
-        "||"  { RET(tbs_TOKEN_OR); }
-        "!"   { RET(tbs_TOKEN_NOT); }
+        "and" { RET(toad_TOKEN_AND); }
+        "or"  { RET(toad_TOKEN_OR); }
+        "not" { RET(toad_TOKEN_NOT); }
+        "|>"  { RET(toad_TOKEN_PIPE); }
+        "&&"  { RET(toad_TOKEN_AND); }
+        "||"  { RET(toad_TOKEN_OR); }
+        "!"   { RET(toad_TOKEN_NOT); }
 
         // Control Flow
-        "if"       { RET(tbs_TOKEN_IF); }
-        "elif"     { RET(tbs_TOKEN_ELIF); }
-        "else"     { RET(tbs_TOKEN_ELSE); }
-        "while"    { RET(tbs_TOKEN_WHILE); }
-        "do"       { RET(tbs_TOKEN_DO); }
-        "for"      { RET(tbs_TOKEN_FOR); }
-        "break"    { RET(tbs_TOKEN_BREAK); }
-        "continue" { RET(tbs_TOKEN_CONTINUE); }
-        "return"   { RET(tbs_TOKEN_RETURN); }
-        "var"      { RET(tbs_TOKEN_VAR); }
-        "let"      { RET(tbs_TOKEN_VAR); }
-        "const"    { RET(tbs_TOKEN_CONST); }
+        "if"       { RET(toad_TOKEN_IF); }
+        "elif"     { RET(toad_TOKEN_ELIF); }
+        "else"     { RET(toad_TOKEN_ELSE); }
+        "while"    { RET(toad_TOKEN_WHILE); }
+        "do"       { RET(toad_TOKEN_DO); }
+        "for"      { RET(toad_TOKEN_FOR); }
+        "break"    { RET(toad_TOKEN_BREAK); }
+        "continue" { RET(toad_TOKEN_CONTINUE); }
+        "return"   { RET(toad_TOKEN_RETURN); }
+        "var"      { RET(toad_TOKEN_VAR); }
+        "let"      { RET(toad_TOKEN_VAR); }
+        "const"    { RET(toad_TOKEN_CONST); }
 
         // OOP Keywords
-        "class"       { RET(tbs_TOKEN_CLASS); }
-        "constructor" { RET(tbs_TOKEN_CONSTRUCTOR); }
-        "this"        { RET(tbs_TOKEN_THIS); }
-        "static"      { RET(tbs_TOKEN_STATIC); }
-        "extends"     { RET(tbs_TOKEN_EXTENDS); }
-        "implements"  { RET(tbs_TOKEN_IMPLEMENTS); }
-        "interface"   { RET(tbs_TOKEN_INTERFACE); }
-        "super"       { RET(tbs_TOKEN_SUPER); }
-        "new"         { RET(tbs_TOKEN_NEW); }
-        "instanceof"  { RET(tbs_TOKEN_INSTANCEOF); }
-        "abstract"    { RET(tbs_TOKEN_ABSTRACT); }
-        "override"    { RET(tbs_TOKEN_OVERRIDE); }
-        "final"       { RET(tbs_TOKEN_FINAL); }
-        "public"      { RET(tbs_TOKEN_PUBLIC); }
-        "protected"   { RET(tbs_TOKEN_PROTECTED); }
-        "private"     { RET(tbs_TOKEN_PRIVATE); }
-        "async"       { RET(tbs_TOKEN_ASYNC); }
-        "await"       { RET(tbs_TOKEN_AWAIT); }
+        "class"       { RET(toad_TOKEN_CLASS); }
+        "constructor" { RET(toad_TOKEN_CONSTRUCTOR); }
+        "this"        { RET(toad_TOKEN_THIS); }
+        "static"      { RET(toad_TOKEN_STATIC); }
+        "extends"     { RET(toad_TOKEN_EXTENDS); }
+        "implements"  { RET(toad_TOKEN_IMPLEMENTS); }
+        "interface"   { RET(toad_TOKEN_INTERFACE); }
+        "super"       { RET(toad_TOKEN_SUPER); }
+        "new"         { RET(toad_TOKEN_NEW); }
+        "instanceof"  { RET(toad_TOKEN_INSTANCEOF); }
+        "abstract"    { RET(toad_TOKEN_ABSTRACT); }
+        "override"    { RET(toad_TOKEN_OVERRIDE); }
+        "final"       { RET(toad_TOKEN_FINAL); }
+        "public"      { RET(toad_TOKEN_PUBLIC); }
+        "protected"   { RET(toad_TOKEN_PROTECTED); }
+        "private"     { RET(toad_TOKEN_PRIVATE); }
+        "async"       { RET(toad_TOKEN_ASYNC); }
+        "await"       { RET(toad_TOKEN_AWAIT); }
         // TODO: 协程语法暂时禁用
-        // "function*" { RET(tbs_TOKEN_FUNC_GENERATOR); }
-        // "func*"    { RET(tbs_TOKEN_FUNC_GENERATOR); }
-        "function" { RET(tbs_TOKEN_FUNC); }
-        "func"     { RET(tbs_TOKEN_FUNC); }
-        "map"      { RET(tbs_TOKEN_MAP); }
-        "struct"   { RET(tbs_TOKEN_MAP); }
-        "in"       { RET(tbs_TOKEN_IN); }
-        "null"     { RET(tbs_TOKEN_NULL); }
-        "nil"      { RET(tbs_TOKEN_NULL); }
-        "switch"   { RET(tbs_TOKEN_SWITCH); }
-        "case"     { RET(tbs_TOKEN_CASE); }
-        "default"  { RET(tbs_TOKEN_DEFAULT); }
-        "try"      { RET(tbs_TOKEN_TRY); }
-        "catch"    { RET(tbs_TOKEN_CATCH); }
-        "throw"    { RET(tbs_TOKEN_THROW); }
+        // "function*" { RET(toad_TOKEN_FUNC_GENERATOR); }
+        // "func*"    { RET(toad_TOKEN_FUNC_GENERATOR); }
+        "function" { RET(toad_TOKEN_FUNC); }
+        "func"     { RET(toad_TOKEN_FUNC); }
+        "map"      { RET(toad_TOKEN_MAP); }
+        "struct"   { RET(toad_TOKEN_MAP); }
+        "in"       { RET(toad_TOKEN_IN); }
+        "null"     { RET(toad_TOKEN_NULL); }
+        "nil"      { RET(toad_TOKEN_NULL); }
+        "switch"   { RET(toad_TOKEN_SWITCH); }
+        "case"     { RET(toad_TOKEN_CASE); }
+        "default"  { RET(toad_TOKEN_DEFAULT); }
+        "try"      { RET(toad_TOKEN_TRY); }
+        "catch"    { RET(toad_TOKEN_CATCH); }
+        "throw"    { RET(toad_TOKEN_THROW); }
         // TODO: 协程语法暂时禁用
-        // "yield"    { RET(tbs_TOKEN_YIELD); }
+        // "yield"    { RET(toad_TOKEN_YIELD); }
 
         // Structure
-        "{" { RET(tbs_TOKEN_LBRACE); }
-        "}" { RET(tbs_TOKEN_RBRACE); }
-        ";" { RET(tbs_TOKEN_SEMICOLON); }
-        ":" { RET(tbs_TOKEN_COLON); }
-        "..." { RET(tbs_TOKEN_SPREAD); }
+        "{" { RET(toad_TOKEN_LBRACE); }
+        "}" { RET(toad_TOKEN_RBRACE); }
+        ";" { RET(toad_TOKEN_SEMICOLON); }
+        ":" { RET(toad_TOKEN_COLON); }
+        "..." { RET(toad_TOKEN_SPREAD); }
 
         // Punctuation
-        "(" { RET(tbs_TOKEN_LPAREN); }
-        ")" { RET(tbs_TOKEN_RPAREN); }
-        "[" { RET(tbs_TOKEN_LBRACKET); }
-        "]" { RET(tbs_TOKEN_RBRACKET); }
-        "," { RET(tbs_TOKEN_COMMA); }
+        "(" { RET(toad_TOKEN_LPAREN); }
+        ")" { RET(toad_TOKEN_RPAREN); }
+        "[" { RET(toad_TOKEN_LBRACKET); }
+        "]" { RET(toad_TOKEN_RBRACKET); }
+        "," { RET(toad_TOKEN_COMMA); }
 
         "\"" ([^"\\] | "\\" .)* "\"" {
             token->start = token_start;
             token->length = (size_t)(YYCURSOR - token_start);
-            RET(tbs_TOKEN_STRING);
+            RET(toad_TOKEN_STRING);
         }
 
         "`" ([^`\\] | "\\" .)* "`" {
             token->start = token_start;
             token->length = (size_t)(YYCURSOR - token_start);
-            RET(tbs_TOKEN_TEMPLATE);
+            RET(toad_TOKEN_TEMPLATE);
         }
 
         "//" [^\n]* {
@@ -331,7 +331,7 @@ lex_start:
             }
 
             if (is_integer) {
-                token->type = tbs_TOKEN_INTEGER;
+                token->type = toad_TOKEN_INTEGER;
                 char buf[32];
                 size_t len = token->length;
                 if (len >= sizeof(buf)) len = sizeof(buf) - 1;
@@ -339,7 +339,7 @@ lex_start:
                 buf[len] = '\0';
                 token->num_value = (double)strtoll(buf, NULL, 10);
             } else {
-                token->type = tbs_TOKEN_NUMBER;
+                token->type = toad_TOKEN_NUMBER;
                 token->num_value = parse_number(token_start, YYCURSOR);
             }
 
@@ -350,20 +350,20 @@ lex_start:
         }
 
         ident {
-            token->type = tbs_TOKEN_VARIABLE;
+            token->type = toad_TOKEN_VARIABLE;
             token->start = token_start;
             token->length = (size_t)(YYCURSOR - token_start);
             token->line = lexer->line;
             token->column = lexer->column;
             lexer->column += (int)token->length;
             lexer->cursor = YYCURSOR;
-            lexer_note_token(lexer, tbs_TOKEN_VARIABLE);
-            return tbs_TOKEN_VARIABLE;
+            lexer_note_token(lexer, toad_TOKEN_VARIABLE);
+            return toad_TOKEN_VARIABLE;
         }
 
         * {
             // Unexpected
-            // token->type = tbs_TOKEN_ERROR;
+            // token->type = toad_TOKEN_ERROR;
             // lexer->cursor = YYCURSOR;
             // return -1;
             // Skip unknown chars for now or error?
@@ -373,7 +373,7 @@ lex_start:
     */
 }
 
-void tbs_lexer_init(tbs_lexer_t *lexer, const char *input, size_t length) {
+void toad_lexer_init(toad_lexer_t *lexer, const char *input, size_t length) {
     if (!lexer) return;
     lexer->input = input;
     lexer->cursor = input;

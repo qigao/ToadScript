@@ -1,4 +1,4 @@
-#include "ts_plugin.h" /* TurboScript canonical plugin-loader fixture. */
+#include <toad/plugin.h> /* Toad canonical plugin-loader fixture. */
 #include <limits.h>
 
 #ifndef FIXTURE_PLUGIN_NAME
@@ -390,14 +390,14 @@ static void loader_fixture_unload(void *self, void *instance) {
 
 static char loader_fixture_token;
 
-static const ts_plugin_module_vtable loader_fixture_vtable = {
+static const toad_plugin_module_vtable loader_fixture_vtable = {
     .implementation = FIXTURE_PLUGIN_NAME,
     .capabilities = 0u,
     .load = loader_fixture_load,
     .unload = loader_fixture_unload,
 };
 
-static ts_plugin_module loader_fixture_module = {
+static toad_plugin_module loader_fixture_module = {
     .self = &loader_fixture_token,
     .vtable = &loader_fixture_vtable,
 };
@@ -405,12 +405,12 @@ static ts_plugin_module loader_fixture_module = {
 static const cmeta_plugin_export loader_fixture_export = {
     .struct_size = CMETA_PLUGIN_EXPORT_SIZE,
     .kind = CMETA_PLUGIN_EXPORT_INTERFACE,
-    .contract_version = TS_PLUGIN_MODULE_CONTRACT_VERSION,
+    .contract_version = TOAD_PLUGIN_MODULE_CONTRACT_VERSION,
     .capabilities = 0u,
-    .export_id = TS_PLUGIN_MODULE_EXPORT_ID,
-    .contract_id = TS_PLUGIN_MODULE_CONTRACT_ID,
+    .export_id = TOAD_PLUGIN_MODULE_EXPORT_ID,
+    .contract_id = TOAD_PLUGIN_MODULE_CONTRACT_ID,
     .value.interface = {
-        .desc = &ts_plugin_module_interface_meta,
+        .desc = &toad_plugin_module_interface_meta,
         .value = &loader_fixture_module,
     },
 };

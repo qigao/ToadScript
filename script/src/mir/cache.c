@@ -1,6 +1,6 @@
 /**
  * @file cache.c
- * @brief JIT compilation cache management for TurboScript MIR backend
+ * @brief JIT compilation cache management for Toad MIR backend
  *
  * This module implements a simple direct-mapped cache with LRU-like access tracking.
  * Cache entries map script hash to compiled native function pointers.
@@ -67,11 +67,11 @@ uint64_t ts_mir_compute_hash(const char *script) {
  * - Updates access_count for LRU tracking
  * - Updates cache_hit_count or cache_miss_count in stats
  *
- * @param ctx TurboScript context
+ * @param ctx Toad context
  * @param script Script source code
  * @return Compiled function pointer, or NULL on cache miss
  */
-void *ts_mir_cache_lookup(turbo_script_ctx_t *ctx, const char *script) {
+void *ts_mir_cache_lookup(toad_script_ctx_t *ctx, const char *script) {
   if (!ctx || !script) return NULL;
 
   uint64_t hash = ts_mir_compute_hash(script);
@@ -118,11 +118,11 @@ void *ts_mir_cache_lookup(turbo_script_ctx_t *ctx, const char *script) {
  * Note: This is a direct-mapped cache, so insertion always succeeds
  * by evicting the previous entry at the computed slot.
  *
- * @param ctx TurboScript context
+ * @param ctx Toad context
  * @param script Script source code
  * @param fn_ptr Compiled native function pointer
  */
-void ts_mir_cache_insert(turbo_script_ctx_t *ctx, const char *script, void *fn_ptr) {
+void ts_mir_cache_insert(toad_script_ctx_t *ctx, const char *script, void *fn_ptr) {
   if (!ctx || !script || !fn_ptr) return;
 
   uint64_t hash = ts_mir_compute_hash(script);
@@ -149,10 +149,10 @@ void ts_mir_cache_insert(turbo_script_ctx_t *ctx, const char *script, void *fn_p
  * sophisticated eviction policy. Currently unused because the cache
  * is direct-mapped.
  *
- * @param ctx TurboScript context
+ * @param ctx Toad context
  * @return Slot index with minimum access_count, or 0 if all empty
  */
-int ts_mir_cache_find_lru_slot(turbo_script_ctx_t *ctx) {
+int ts_mir_cache_find_lru_slot(toad_script_ctx_t *ctx) {
   if (!ctx) return 0;
 
   int lru_slot = 0;
@@ -181,11 +181,11 @@ int ts_mir_cache_find_lru_slot(turbo_script_ctx_t *ctx) {
  * caution. Clearing the cache will force recompilation of all scripts.
  *
  * Note: This does NOT free MIR-generated native code, which is owned
- * by the MIR context and cleaned up during turbo_script_free().
+ * by the MIR context and cleaned up during toad_script_free().
  *
- * @param ctx TurboScript context
+ * @param ctx Toad context
  */
-void ts_mir_cache_clear(turbo_script_ctx_t *ctx) {
+void ts_mir_cache_clear(toad_script_ctx_t *ctx) {
   if (!ctx) return;
 
   for (int i = 0; i < TS_JIT_CACHE_SIZE; i++) {

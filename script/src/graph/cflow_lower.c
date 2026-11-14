@@ -1,8 +1,8 @@
 #include "cflow_lower.h"
 #include "cmeta_bridge.h"
 #include "../internal.h"
-#include <turboscript/engine.h>
-#include <turboscript/grammar.h>
+#include <toad/engine.h>
+#include <toad/grammar.h>
 
 #include <cflow/function_projection.h>
 
@@ -66,42 +66,42 @@ static bool ts_cflow_reserve_kernel_binding(
   return true;
 }
 
-static bool ts_cflow_numeric_literal_value(const tbs_node_t *node,
+static bool ts_cflow_numeric_literal_value(const toad_node_t *node,
                                            double *out) {
   double value;
 
   if (!node || !out) return false;
-  if (node->type == TBS_NODE_NUMBER) {
+  if (node->type == TOAD_NODE_NUMBER) {
     *out = node->data.number;
     return true;
   }
-  if (node->type == TBS_NODE_INTEGER) {
+  if (node->type == TOAD_NODE_INTEGER) {
     *out = (double)node->data.integer;
     return true;
   }
 
-  /* TurboScript represents unary +/- as a BINARY_OP with a NULL left operand.
+  /* Toad represents unary +/- as a BINARY_OP with a NULL left operand.
    * Keep executable seed admission deliberately narrower than general constant
    * folding so dynamic seed evaluation remains a language-runtime concern. */
-  if (node->type != TBS_NODE_BINARY_OP ||
+  if (node->type != TOAD_NODE_BINARY_OP ||
       node->data.binary.left != NULL ||
-      (node->data.binary.op != tbs_TOKEN_PLUS &&
-       node->data.binary.op != tbs_TOKEN_MINUS) ||
+      (node->data.binary.op != toad_TOKEN_PLUS &&
+       node->data.binary.op != toad_TOKEN_MINUS) ||
       !ts_cflow_numeric_literal_value(node->data.binary.right, &value))
     return false;
 
-  *out = node->data.binary.op == tbs_TOKEN_MINUS ? -value : value;
+  *out = node->data.binary.op == toad_TOKEN_MINUS ? -value : value;
   return true;
 }
 
-static bool ts_cflow_numeric_source_literal(const tbs_node_t *node) {
+static bool ts_cflow_numeric_source_literal(const toad_node_t *node) {
   double value;
   return ts_cflow_numeric_literal_value(node, &value);
 }
 
-static bool ts_cflow_vector_source(const tbs_node_t *node) {
+static bool ts_cflow_vector_source(const toad_node_t *node) {
   size_t i;
-  if (!node || node->type != TBS_NODE_VECTOR) return false;
+  if (!node || node->type != TOAD_NODE_VECTOR) return false;
   for (i = 0; i < node->data.vector.count; ++i) {
     if (!ts_cflow_numeric_source_literal(node->data.vector.elements[i]))
       return false;
@@ -109,17 +109,17 @@ static bool ts_cflow_vector_source(const tbs_node_t *node) {
   return true;
 }
 
-static bool ts_cflow_runtime_numeric_value(const tbs_value_t *value) {
+static bool ts_cflow_runtime_numeric_value(const toad_value_t *value) {
   return value &&
-         (value->type == TBS_VAL_NUMBER ||
-          value->type == TBS_VAL_INTEGER);
+         (value->type == TOAD_VAL_NUMBER ||
+          value->type == TOAD_VAL_INTEGER);
 }
 
 static bool ts_cflow_runtime_numeric_collection_value(
-    const tbs_value_t *value) {
+    const toad_value_t *value) {
   if (!value) return false;
-  if (value->type == TBS_VAL_VECTOR) return true;
-  if (value->type != TBS_VAL_LIST) return false;
+  if (value->type == TOAD_VAL_VECTOR) return true;
+  if (value->type != TOAD_VAL_LIST) return false;
 
   for (size_t i = 0; i < value->data.list.count; ++i) {
     if (!ts_cflow_runtime_numeric_value(&value->data.list.items[i]))
@@ -129,44 +129,44 @@ static bool ts_cflow_runtime_numeric_collection_value(
 }
 
 static bool ts_cflow_runtime_materialized_stream_source(
-    const tbs_value_t *value, tbs_value_t *source_out) {
-  tbs_value_t kind;
-  tbs_value_t marker;
-  tbs_value_t source;
-  static const char marker_text[] = "TurboScript.Stream.v1";
+    const toad_value_t *value, toad_value_t *source_out) {
+  toad_value_t kind;
+  toad_value_t marker;
+  toad_value_t source;
+  static const char marker_text[] = "Toad.Stream.v1";
 
-  if (!value || !source_out || !tbs_value_is_object_like(value) ||
-      !tbs_map_has(value, "__ts_stream_kind") ||
-      !tbs_map_has(value, "__ts_cflow_materialized") ||
-      !tbs_map_has(value, "source"))
+  if (!value || !source_out || !toad_value_is_object_like(value) ||
+      !toad_map_has(value, "__ts_stream_kind") ||
+      !toad_map_has(value, "__ts_cflow_materialized") ||
+      !toad_map_has(value, "source"))
     return false;
 
-  kind = tbs_map_get(value, "__ts_stream_kind");
-  marker = tbs_map_get(value, "__ts_cflow_materialized");
-  if (kind.type != TBS_VAL_STRING ||
+  kind = toad_map_get(value, "__ts_stream_kind");
+  marker = toad_map_get(value, "__ts_cflow_materialized");
+  if (kind.type != TOAD_VAL_STRING ||
       kind.data.string.len != sizeof(marker_text) - 1u ||
       memcmp(kind.data.string.data, marker_text, sizeof(marker_text) - 1u) != 0 ||
       !ts_cflow_runtime_numeric_value(&marker) ||
-      ((marker.type == TBS_VAL_NUMBER && marker.data.number == 0.0) ||
-       (marker.type == TBS_VAL_INTEGER && marker.data.integer == 0)))
+      ((marker.type == TOAD_VAL_NUMBER && marker.data.number == 0.0) ||
+       (marker.type == TOAD_VAL_INTEGER && marker.data.integer == 0)))
     return false;
 
-  source = tbs_map_get(value, "source");
+  source = toad_map_get(value, "source");
   if (!ts_cflow_runtime_numeric_collection_value(&source)) return false;
   *source_out = source;
   return true;
 }
 
 static bool ts_cflow_runtime_numeric_collection_source(
-    turbo_script_ctx_t *runtime_ctx, const tbs_node_t *node) {
-  tbs_value_t value;
-  tbs_value_t source;
+    toad_script_ctx_t *runtime_ctx, const toad_node_t *node) {
+  toad_value_t value;
+  toad_value_t source;
 
-  if (!runtime_ctx || !node || node->type != TBS_NODE_VARIABLE ||
+  if (!runtime_ctx || !node || node->type != TOAD_NODE_VARIABLE ||
       !node->data.variable.name)
     return false;
 
-  value = tbs_env_get(&runtime_ctx->env, node->data.variable.name);
+  value = toad_env_get(&runtime_ctx->env, node->data.variable.name);
   if (ts_cflow_runtime_numeric_collection_value(&value)) return true;
   return ts_cflow_runtime_materialized_stream_source(&value, &source);
 }
@@ -200,50 +200,50 @@ static bool ts_cflow_plugin_callable_invoke(
 }
 
 static int ts_cflow_plugin_function_view(
-    turbo_script_ctx_t *runtime_ctx, const char *export_id,
-    ts_plugin_function_view_t *out) {
+    toad_script_ctx_t *runtime_ctx, const char *export_id,
+    toad_plugin_function_view_t *out) {
   if (out) memset(out, 0, sizeof(*out));
   if (!runtime_ctx || !export_id || !out) return 0;
 
   for (size_t i = 0u; i < runtime_ctx->plugin_count; ++i) {
     if (runtime_ctx->plugins[i] &&
-        ts_plugin_find_bound_function(
+        toad_plugin_find_bound_function(
             runtime_ctx->plugins[i], export_id, out))
       return 1;
   }
   return 0;
 }
 
-static const tbs_node_t *ts_cflow_plugin_lambda_body(
-    const tbs_node_t *lambda) {
-  const tbs_node_t *body;
-  if (!lambda || lambda->type != TBS_NODE_FUNCTION_EXPRESSION)
+static const toad_node_t *ts_cflow_plugin_lambda_body(
+    const toad_node_t *lambda) {
+  const toad_node_t *body;
+  if (!lambda || lambda->type != TOAD_NODE_FUNCTION_EXPRESSION)
     return NULL;
   body = lambda->data.func_def.body;
-  if (body && body->type == TBS_NODE_BLOCK &&
+  if (body && body->type == TOAD_NODE_BLOCK &&
       body->data.block.count == 1u)
     body = body->data.block.statements[0];
-  if (body && body->type == TBS_NODE_FLOW &&
-      body->data.flow.type == tbs_TOKEN_RETURN)
+  if (body && body->type == TOAD_NODE_FLOW &&
+      body->data.flow.type == toad_TOKEN_RETURN)
     body = body->data.flow.value;
   return body;
 }
 
 static bool ts_cflow_try_append_plugin_function(
-    turbo_script_ctx_t *runtime_ctx,
+    toad_script_ctx_t *runtime_ctx,
     ts_cflow_lowered_pipeline_t *out,
-    const tbs_node_t *lambda,
+    const toad_node_t *lambda,
     ts_cmeta_lambda_role_t role,
     cflow_op op,
     bool *matched,
     const char **error) {
-  const tbs_node_t *body;
-  const tbs_node_t *object;
-  const tbs_node_t *argument;
-  const tbs_node_t *parameter;
+  const toad_node_t *body;
+  const toad_node_t *object;
+  const toad_node_t *argument;
+  const toad_node_t *parameter;
   char export_id[256];
   int written;
-  ts_plugin_function_view_t view = {0};
+  toad_plugin_function_view_t view = {0};
   const cmeta_function_desc *function;
   const cmeta_function_abi_desc *abi;
   ts_cflow_plugin_callable_capture_t capture;
@@ -254,12 +254,12 @@ static bool ts_cflow_try_append_plugin_function(
   if (matched) *matched = false;
   if (!runtime_ctx || !out || !lambda ||
       role != TS_CMETA_LAMBDA_MAP || op != CFLOW_OP_MAP ||
-      lambda->type != TBS_NODE_FUNCTION_EXPRESSION ||
+      lambda->type != TOAD_NODE_FUNCTION_EXPRESSION ||
       lambda->data.func_def.arg_count != 1u)
     return false;
 
   body = ts_cflow_plugin_lambda_body(lambda);
-  if (!body || body->type != TBS_NODE_MEMBER_CALL ||
+  if (!body || body->type != TOAD_NODE_MEMBER_CALL ||
       !body->data.member_call.object ||
       !body->data.member_call.method ||
       body->data.member_call.arg_count != 1u)
@@ -268,11 +268,11 @@ static bool ts_cflow_try_append_plugin_function(
   object = body->data.member_call.object;
   argument = body->data.member_call.args[0];
   parameter = lambda->data.func_def.arg_params[0];
-  if (!object || object->type != TBS_NODE_VARIABLE ||
+  if (!object || object->type != TOAD_NODE_VARIABLE ||
       !object->data.variable.name ||
-      !argument || argument->type != TBS_NODE_VARIABLE ||
+      !argument || argument->type != TOAD_NODE_VARIABLE ||
       !argument->data.variable.name ||
-      !parameter || parameter->type != TBS_NODE_VARIABLE ||
+      !parameter || parameter->type != TOAD_NODE_VARIABLE ||
       !parameter->data.variable.name ||
       strcmp(argument->data.variable.name,
              parameter->data.variable.name) != 0)
@@ -331,10 +331,10 @@ static bool ts_cflow_try_append_plugin_function(
 }
 
 static bool ts_cflow_append_callable(
-    turbo_script_ctx_t *runtime_ctx, bool executable_mode,
-    ts_cflow_lowered_pipeline_t *out, const tbs_node_t *lambda,
+    toad_script_ctx_t *runtime_ctx, bool executable_mode,
+    ts_cflow_lowered_pipeline_t *out, const toad_node_t *lambda,
     ts_cmeta_lambda_role_t role, cflow_op op,
-    const tbs_node_t *reduce_seed_expr, const char **error) {
+    const toad_node_t *reduce_seed_expr, const char **error) {
   ts_cmeta_lambda_contract_t contract;
   ts_cflow_mir_kernel_binding_t binding = {0};
   const char *analysis_error = NULL;
@@ -400,9 +400,9 @@ static bool ts_cflow_append_callable(
   return true;
 }
 
-static bool ts_cflow_lower_node(turbo_script_ctx_t *runtime_ctx,
+static bool ts_cflow_lower_node(toad_script_ctx_t *runtime_ctx,
                                 bool executable_mode,
-                                const tbs_node_t *expr,
+                                const toad_node_t *expr,
                                 ts_cflow_lowered_pipeline_t *out,
                                 const char **error) {
   const char *name;
@@ -423,9 +423,9 @@ static bool ts_cflow_lower_node(turbo_script_ctx_t *runtime_ctx,
     return true;
   }
 
-  if (expr->type == TBS_NODE_MEMBER_CALL &&
+  if (expr->type == TOAD_NODE_MEMBER_CALL &&
       expr->data.member_call.method) {
-    const tbs_node_t *object = expr->data.member_call.object;
+    const toad_node_t *object = expr->data.member_call.object;
     name = expr->data.member_call.method;
 
     /* vector.stream() is a language facade boundary, not a graph node. */
@@ -440,7 +440,7 @@ static bool ts_cflow_lower_node(turbo_script_ctx_t *runtime_ctx,
     /* stream.of(vector) is represented by the parser as a module-style
      * member call on the 'stream' namespace. */
     if (strcmp(name, "of") == 0 && object &&
-        object->type == TBS_NODE_VARIABLE &&
+        object->type == TOAD_NODE_VARIABLE &&
         object->data.variable.name &&
         strcmp(object->data.variable.name, "stream") == 0) {
       if (expr->data.member_call.arg_count != 1u) {
@@ -496,7 +496,7 @@ static bool ts_cflow_lower_node(turbo_script_ctx_t *runtime_ctx,
     return false;
   }
 
-  if (expr->type != TBS_NODE_FUNCTION_CALL ||
+  if (expr->type != TOAD_NODE_FUNCTION_CALL ||
       !expr->data.function.name) {
     if (error) *error =
         "graphable pipeline must start from a numeric in-memory source";
@@ -552,8 +552,8 @@ static bool ts_cflow_lower_node(turbo_script_ctx_t *runtime_ctx,
 }
 
 static bool ts_cflow_lower_pipeline_impl(
-    turbo_script_ctx_t *runtime_ctx, bool executable_mode,
-    const tbs_node_t *expr, ts_cflow_lowered_pipeline_t *out,
+    toad_script_ctx_t *runtime_ctx, bool executable_mode,
+    const toad_node_t *expr, ts_cflow_lowered_pipeline_t *out,
     const char **error) {
   const char *validation_error = NULL;
 
@@ -585,14 +585,14 @@ static bool ts_cflow_lower_pipeline_impl(
   return true;
 }
 
-bool ts_cflow_lower_pipeline(const tbs_node_t *expr,
+bool ts_cflow_lower_pipeline(const toad_node_t *expr,
                              ts_cflow_lowered_pipeline_t *out,
                              const char **error) {
   return ts_cflow_lower_pipeline_impl(NULL, false, expr, out, error);
 }
 
 bool ts_cflow_lower_pipeline_runtime_analysis(
-    turbo_script_ctx_t *runtime_ctx, const tbs_node_t *expr,
+    toad_script_ctx_t *runtime_ctx, const toad_node_t *expr,
     ts_cflow_lowered_pipeline_t *out, const char **error) {
   if (!runtime_ctx) {
     if (error) *error = "runtime CFlow analysis requires a context";
@@ -601,8 +601,8 @@ bool ts_cflow_lower_pipeline_runtime_analysis(
   return ts_cflow_lower_pipeline_impl(runtime_ctx, false, expr, out, error);
 }
 
-bool ts_cflow_lower_pipeline_executable(turbo_script_ctx_t *runtime_ctx,
-                                        const tbs_node_t *expr,
+bool ts_cflow_lower_pipeline_executable(toad_script_ctx_t *runtime_ctx,
+                                        const toad_node_t *expr,
                                         ts_cflow_lowered_pipeline_t *out,
                                         const char **error) {
   return ts_cflow_lower_pipeline_impl(runtime_ctx, true, expr, out, error);

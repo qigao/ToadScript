@@ -6,7 +6,7 @@
  * preventing use of standard C scalar loops on non-AVX architectures.
  */
 
-#include "simd_helpers.h"
+#include <toad/simd.h>
 #include "linalg.h"
 #define SIMDE_ENABLE_NATIVE_ALIASES
 #include <simde/x86/avx2.h>
@@ -15,7 +15,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <limits.h>
-#include "exprtk_module.h"
+#include <toad/module.h>
 
 
 #if defined(_MSC_VER)
@@ -505,7 +505,7 @@ int compare_rank_items(const void *a, const void *b) {
     return 0;
 }
 
-double exprtk_median(const double *data, size_t n, mem_pool_t *arena) {
+double toad_median(const double *data, size_t n, mem_pool_t *arena) {
     if (n == 0) return 0;
     double *sorted = (double*)mem_alloc(arena, n * sizeof(double));
     memcpy(sorted, data, n * sizeof(double));
@@ -516,7 +516,7 @@ double exprtk_median(const double *data, size_t n, mem_pool_t *arena) {
     return res;
 }
 
-double exprtk_percentile(const double *data, size_t n, double p, mem_pool_t *arena) {
+double toad_percentile(const double *data, size_t n, double p, mem_pool_t *arena) {
     if (n == 0) return 0;
     p /= 100.0;
     double *sorted = (double*)mem_alloc(arena, n * sizeof(double));
@@ -534,7 +534,7 @@ double exprtk_percentile(const double *data, size_t n, double p, mem_pool_t *are
     return res;
 }
 
-double exprtk_geometric_mean(const double *data, size_t n) {
+double toad_geometric_mean(const double *data, size_t n) {
     if (n == 0) return 0;
     double sum_log = 0;
     if (n < SIMD_THRESHOLD) {
@@ -553,7 +553,7 @@ double exprtk_geometric_mean(const double *data, size_t n) {
     return exp(sum_log / (double)n);
 }
 
-double exprtk_harmonic_mean(const double *data, size_t n) {
+double toad_harmonic_mean(const double *data, size_t n) {
     if (n == 0) return 0;
     double sum_inv = 0;
     if (n < SIMD_THRESHOLD) {
@@ -578,7 +578,7 @@ double exprtk_harmonic_mean(const double *data, size_t n) {
     return (double)n / sum_inv;
 }
 
-double exprtk_skewness(const double *data, size_t n) {
+double toad_skewness(const double *data, size_t n) {
     if (n < 3) return 0;
     double mean, var;
     simd_mean_variance(data, n, &mean, &var);
@@ -610,7 +610,7 @@ double exprtk_skewness(const double *data, size_t n) {
     return ((double)n / ((double)(n - 1) * (double)(n - 2))) * (m3 / (std_dev * std_dev * std_dev));
 }
 
-double exprtk_kurtosis(const double *data, size_t n) {
+double toad_kurtosis(const double *data, size_t n) {
     if (n < 4) return 0;
     double mean, var;
     simd_mean_variance(data, n, &mean, &var);
@@ -663,7 +663,7 @@ static void simd_col_float_to_row_major_double(const float *src, size_t rows, si
             dst[r * cols + c] = (double)src[r + c * rows];
 }
 
-double exprtk_fibonacci(int n) {
+double toad_fibonacci(int n) {
     if (n <= 0) return 0;
     if (n == 1) return 1;
     double a = 0, b = 1;
@@ -671,13 +671,13 @@ double exprtk_fibonacci(int n) {
     return b;
 }
 
-long long exprtk_gcd(long long u, long long v) {
+long long toad_gcd(long long u, long long v) {
     u = llabs(u); v = llabs(v);
     while (v != 0) { long long r = u % v; u = v; v = r; }
     return u;
 }
 
-double exprtk_normal_rand(double mu, double sigma) {
+double toad_normal_rand(double mu, double sigma) {
     static int have_next = 0;
     static double next_val = 0;
     if (have_next) {
@@ -695,15 +695,15 @@ double exprtk_normal_rand(double mu, double sigma) {
     }
 }
 
-double exprtk_det2(const double *A) { return A[0]*A[3] - A[1]*A[2]; }
-double exprtk_det3(const double *A) {
-    return A[0] * (A[4]*A[8] - A[5]*A[7]) - 
-           A[1] * (A[3]*A[8] - A[5]*A[6]) + 
+double toad_det2(const double *A) { return A[0]*A[3] - A[1]*A[2]; }
+double toad_det3(const double *A) {
+    return A[0] * (A[4]*A[8] - A[5]*A[7]) -
+           A[1] * (A[3]*A[8] - A[5]*A[6]) +
            A[2] * (A[3]*A[7] - A[4]*A[6]);
 }
 
-int exprtk_inv2(const double *A, double *out) {
-    double det = exprtk_det2(A);
+int toad_inv2(const double *A, double *out) {
+    double det = toad_det2(A);
     if (fabs(det) < 1e-15) return 0;
     double idet = 1.0 / det;
     out[0] = A[3] * idet; out[1] = -A[1] * idet;
@@ -711,8 +711,8 @@ int exprtk_inv2(const double *A, double *out) {
     return 1;
 }
 
-int exprtk_inv3(const double *A, double *out) {
-    double det = exprtk_det3(A);
+int toad_inv3(const double *A, double *out) {
+    double det = toad_det3(A);
     if (fabs(det) < 1e-15) return 0;
     double idet = 1.0 / det;
     out[0] = (A[4]*A[8] - A[5]*A[7]) * idet;
@@ -727,7 +727,7 @@ int exprtk_inv3(const double *A, double *out) {
     return 1;
 }
 
-void exprtk_matmul(const double *A, const double *B, size_t m, size_t k, size_t n, double *out) {
+void toad_matmul(const double *A, const double *B, size_t m, size_t k, size_t n, double *out) {
     if (!A || !B || !out || m == 0 || k == 0 || n == 0 ||
         m > SIZE_MAX / n)
         return;
@@ -759,7 +759,7 @@ void exprtk_matmul(const double *A, const double *B, size_t m, size_t k, size_t 
     }
 }
 
-void exprtk_transpose(const double *A, size_t rows, size_t cols, double *out) {
+void toad_transpose(const double *A, size_t rows, size_t cols, double *out) {
     const size_t BLOCK = 8;
     for (size_t i = 0; i < rows; i += BLOCK) {
         for (size_t j = 0; j < cols; j += BLOCK) {
@@ -772,7 +772,7 @@ void exprtk_transpose(const double *A, size_t rows, size_t cols, double *out) {
     }
 }
 
-int exprtk_eig2(const double *A, double *ev) {
+int toad_eig2(const double *A, double *ev) {
     double tr = A[0] + A[3];
     double det = A[0] * A[3] - A[1] * A[2];
     double disc = tr * tr - 4.0 * det;
@@ -783,7 +783,7 @@ int exprtk_eig2(const double *A, double *ev) {
     return 1;
 }
 
-int exprtk_eig3(const double *A, double *ev) {
+int toad_eig3(const double *A, double *ev) {
     double c2 = A[0] + A[4] + A[8];
     double c1 = A[0] * A[4] - A[1] * A[3] + A[0] * A[8] - A[2] * A[6] + A[4] * A[8] - A[5] * A[7];
     double c0 = A[0] * (A[4] * A[8] - A[5] * A[7]) - A[1] * (A[3] * A[8] - A[5] * A[6]) + A[2] * (A[3] * A[7] - A[4] * A[6]);
@@ -857,7 +857,7 @@ void simd_clip(const double *in, double *out, size_t n, double lo, double hi) {
     }
 }
 
-double exprtk_trace2(const double *A) { return A[0] + A[3]; }
+double toad_trace2(const double *A) { return A[0] + A[3]; }
 
 ols_result_t ols_fit(const double *y, const double *x, size_t n) {
     ols_result_t r = {0};
@@ -1134,7 +1134,7 @@ float simd_min_f32(const float *arr, size_t n) {
 
 void simd_transform_points_f32(const float m[6], const float* in, float* out, size_t n) {
     if (n == 0) return;
-    
+
     __m256 v_m0 = _mm256_set1_ps(m[0]);
     __m256 v_m1 = _mm256_set1_ps(m[1]);
     __m256 v_m2 = _mm256_set1_ps(m[2]); // tx
@@ -1147,26 +1147,26 @@ void simd_transform_points_f32(const float m[6], const float* in, float* out, si
     for (; i + 8 <= n; i += 8) {
         __m256 v0 = _mm256_loadu_ps(&in[i * 2]);
         __m256 v1 = _mm256_loadu_ps(&in[i * 2 + 8]);
-        
+
         // Deinterleave: X=[x0..x7], Y=[y0..y7]
         __m256 x_unord = _mm256_shuffle_ps(v0, v1, 0x88); // [x0 x1 x4 x5 | x2 x3 x6 x7]
         __m256 y_unord = _mm256_shuffle_ps(v0, v1, 0xDD); // [y0 y1 y4 y5 | y2 y3 y6 y7]
-        
+
         // Fix order using 64-bit swaps (permute4x64)
         __m256 x = _mm256_castpd_ps(_mm256_permute4x64_pd(_mm256_castps_pd(x_unord), 0xD8));
         __m256 y = _mm256_castpd_ps(_mm256_permute4x64_pd(_mm256_castps_pd(y_unord), 0xD8));
-        
+
         // Transform: x' = m0*x + m1*y + m2, y' = m3*x + m4*y + m5
         __m256 rx = _mm256_fmadd_ps(v_m0, x, _mm256_fmadd_ps(v_m1, y, v_m2));
         __m256 ry = _mm256_fmadd_ps(v_m3, x, _mm256_fmadd_ps(v_m4, y, v_m5));
-        
+
         // Interleave back
         __m256 w0 = _mm256_unpacklo_ps(rx, ry); // [x0 y0 x1 y1 | x4 y4 x5 y5]
         __m256 w1 = _mm256_unpackhi_ps(rx, ry); // [x2 y2 x3 y3 | x6 y6 x7 y7]
-        
+
         __m256 v0_out = _mm256_permute2f128_ps(w0, w1, 0x20); // Lane 0: w0.lo, Lane 1: w1.lo -> [x0 y0 x1 y1 x2 y2 x3 y3]
         __m256 v1_out = _mm256_permute2f128_ps(w0, w1, 0x31); // Lane 0: w0.hi, Lane 1: w1.hi -> [x4 y4 x5 y5 x6 y6 x7 y7]
-        
+
         _mm256_storeu_ps(&out[i * 2], v0_out);
         _mm256_storeu_ps(&out[i * 2 + 8], v1_out);
     }
@@ -1189,7 +1189,7 @@ void simd_compose_transforms_f32(const float m1[6], const float m2[6], float out
 
 void simd_aabb_points_f32(const float* points, size_t n, float out_min[2], float out_max[2]) {
     if (n == 0) { out_min[0] = out_min[1] = out_max[0] = out_max[1] = 0; return; }
-    
+
     float min_x = points[0], min_y = points[1], max_x = points[0], max_y = points[1];
     size_t i = 0;
 
@@ -1200,7 +1200,7 @@ void simd_aabb_points_f32(const float* points, size_t n, float out_min[2], float
         for (; i + 8 <= n; i += 8) {
             __m256 v0 = _mm256_loadu_ps(&points[i * 2]);
             __m256 v1 = _mm256_loadu_ps(&points[i * 2 + 8]);
-            
+
             __m256 x_unord = _mm256_shuffle_ps(v0, v1, 0x88);
             __m256 y_unord = _mm256_shuffle_ps(v0, v1, 0xDD);
             __m256 x = _mm256_castpd_ps(_mm256_permute4x64_pd(_mm256_castps_pd(x_unord), 0xD8));
@@ -1209,11 +1209,11 @@ void simd_aabb_points_f32(const float* points, size_t n, float out_min[2], float
             v_min_x = _mm256_min_ps(v_min_x, x); v_min_y = _mm256_min_ps(v_min_y, y);
             v_max_x = _mm256_max_ps(v_max_x, x); v_max_y = _mm256_max_ps(v_max_y, y);
         }
-        
+
         float tx[8], ty[8], tX[8], tY[8];
         _mm256_storeu_ps(tx, v_min_x); _mm256_storeu_ps(ty, v_min_y);
         _mm256_storeu_ps(tX, v_max_x); _mm256_storeu_ps(tY, v_max_y);
-        
+
         for (int k = 0; k < 8; k++) {
             if (tx[k] < min_x) min_x = tx[k]; if (ty[k] < min_y) min_y = ty[k];
             if (tX[k] > max_x) max_x = tX[k]; if (tY[k] > max_y) max_y = tY[k];

@@ -1,8 +1,8 @@
-#ifndef TURBO_SCRIPT_CFLOW_RUNTIME_H
-#define TURBO_SCRIPT_CFLOW_RUNTIME_H
+#ifndef TOAD_SCRIPT_CFLOW_RUNTIME_H
+#define TOAD_SCRIPT_CFLOW_RUNTIME_H
 
-#include <turboscript/types.h>
-#include <turboscript/script.h>
+#include <toad/types.h>
+#include <toad/script.h>
 #include <stddef.h>
 
 #ifdef __cplusplus
@@ -32,7 +32,7 @@ typedef enum ts_cflow_runtime_status_e {
  * stream.text(expr).split(sep).count()/collect()/toList(). Source and split
  * separator expressions are evaluated once. Slice descriptors borrow text
  * only for synchronous Plan evaluation, and list terminals copy strings into
- * TurboScript-owned storage before the CFlow result/source text are released.
+ * Toad-owned storage before the CFlow result/source text are released.
  * Legacy newline/CRLF/trailing-empty-line and split empty-token semantics are
  * preserved.
  *
@@ -48,12 +48,12 @@ typedef enum ts_cflow_runtime_status_e {
  * MAP/FILTER shapes remain legacy and are rejected before source evaluation.
  */
 ts_cflow_runtime_status_t ts_cflow_runtime_try_scalar_terminal(
-    turbo_script_ctx_t *ctx, const tbs_node_t *expr, tbs_value_t *out,
+    toad_script_ctx_t *ctx, const toad_node_t *expr, toad_value_t *out,
     char *error, size_t error_size);
 
 /*
  * Execute an admitted numeric non-terminal stream pipeline eagerly through
- * CFlow and return a TurboScript-owned Stream.v1 envelope whose source is the
+ * CFlow and return a Toad-owned Stream.v1 envelope whose source is the
  * typed materialized result. This is the cross-statement bridge: it carries no
  * AST, MIR kernel, Graph, or Plan pointers in the script-visible value.
  *
@@ -62,11 +62,11 @@ ts_cflow_runtime_status_t ts_cflow_runtime_try_scalar_terminal(
  * legacy barrier; failures after admission are errors and never fall back.
  */
 ts_cflow_runtime_status_t ts_cflow_runtime_try_materialized_stream(
-    turbo_script_ctx_t *ctx, const tbs_node_t *expr, tbs_value_t *out,
+    toad_script_ctx_t *ctx, const toad_node_t *expr, toad_value_t *out,
     char *error, size_t error_size);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* TURBO_SCRIPT_CFLOW_RUNTIME_H */
+#endif /* TOAD_SCRIPT_CFLOW_RUNTIME_H */

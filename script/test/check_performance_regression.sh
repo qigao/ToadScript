@@ -1,11 +1,11 @@
 #!/bin/bash
-# Performance regression check script for TurboScript JIT
+# Performance regression check script for Toad JIT
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="${SCRIPT_DIR}/../../build"
-BENCH_EXEC="${BUILD_DIR}/bin/bench_turbo_script_mir"
+BENCH_EXEC="${BUILD_DIR}/bin/bench_script_mir"
 
 # Colors
 RED='\033[0;31m'
@@ -18,7 +18,7 @@ MIN_SPEEDUP=8.0      # Minimum acceptable speedup (JIT vs Interpreter)
 REGRESSION_THRESHOLD=0.9  # 10% regression is acceptable
 
 echo "========================================"
-echo "TurboScript JIT Performance Regression Check"
+echo "Toad JIT Performance Regression Check"
 echo "========================================"
 echo ""
 
@@ -26,7 +26,7 @@ echo ""
 if [ ! -f "$BENCH_EXEC" ]; then
     echo -e "${RED}Error: Benchmark executable not found at $BENCH_EXEC${NC}"
     echo "Please build the project first:"
-    echo "  cd build && cmake --build . --target bench_turbo_script_mir"
+    echo "  cd build && cmake --build . --target bench_script_mir"
     exit 1
 fi
 
@@ -61,12 +61,12 @@ MAX_FOUND=0
 while IFS= read -r speedup; do
     TOTAL=$(echo "$TOTAL + $speedup" | bc)
     COUNT=$((COUNT + 1))
-    
+
     # Check min
     if (( $(echo "$speedup < $MIN_FOUND" | bc -l) )); then
         MIN_FOUND=$speedup
     fi
-    
+
     # Check max
     if (( $(echo "$speedup > $MAX_FOUND" | bc -l) )); then
         MAX_FOUND=$speedup
@@ -105,9 +105,9 @@ BASELINE_FILE="${SCRIPT_DIR}/performance_baseline.txt"
 if [ -f "$BASELINE_FILE" ]; then
     echo "Comparing with baseline..."
     BASELINE_AVG=$(cat "$BASELINE_FILE")
-    
+
     RATIO=$(echo "scale=2; $AVG_SPEEDUP / $BASELINE_AVG" | bc)
-    
+
     if (( $(echo "$RATIO < $REGRESSION_THRESHOLD" | bc -l) )); then
         echo -e "${RED}❌ REGRESSION DETECTED!${NC}"
         echo "   Current average ($AVG_SPEEDUP) is ${RATIO}x of baseline ($BASELINE_AVG)"
@@ -134,14 +134,14 @@ else
     echo -e "${RED}✗ Performance regression detected!${NC}"
     echo ""
     echo "Possible causes:"
-    echo "  1. Unsupported nodes or helper paths in hot code (check test_turbo_script_mir)"
+    echo "  1. Unsupported nodes or helper paths in hot code (check test_script_mir)"
     echo "  2. Compilation overhead increased"
     echo "  3. MIR backend regression"
     echo "  4. System load (try running again)"
     echo ""
     echo "Debugging steps:"
-    echo "  1. Run: ./test_turbo_script_mir"
-    echo "  2. Check: git diff HEAD~1 turbo_script/src/turbo_script_mir.c"
-    echo "  3. Profile: perf record -g ./bench_turbo_script_mir"
+    echo "  1. Run: ./test_script_mir"
+    echo "  2. Check: git diff HEAD~1 script/src/mir.c"
+    echo "  3. Profile: perf record -g ./bench_script_mir"
     exit 1
 fi

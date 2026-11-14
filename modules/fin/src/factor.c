@@ -10,7 +10,7 @@
  */
 
 #include "fin.h"
-#include <turboscript/simd.h>
+#include <toad/simd.h>
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
@@ -27,7 +27,7 @@
  *
  * Example: [3.0, 1.0, 4.0, 1.5, 2.0] → [2, 0, 4, 1, 3]
  */
-size_t tbs_vec_rank(const double *in, size_t n, double *out, mem_pool_t *arena) {
+size_t toad_vec_rank(const double *in, size_t n, double *out, mem_pool_t *arena) {
     if (!in || !out || n == 0) return 0;
 
     /* Create index-value pairs */
@@ -74,7 +74,7 @@ size_t tbs_vec_rank(const double *in, size_t n, double *out, mem_pool_t *arena) 
  *
  * Example: [1, 2, 3, 4, 5] → [-1.414, -0.707, 0, 0.707, 1.414]
  */
-size_t tbs_vec_zscore(const double *in, size_t n, double *out, mem_pool_t *arena) {
+size_t toad_vec_zscore(const double *in, size_t n, double *out, mem_pool_t *arena) {
     (void)arena;
     if (!in || !out || n == 0) return 0;
     if (n == 1) {
@@ -118,7 +118,7 @@ size_t tbs_vec_zscore(const double *in, size_t n, double *out, mem_pool_t *arena
  *
  * Example: [1, 2, 3, 100], limit=0.25 → [1.75, 2, 3, 3.25]
  */
-size_t tbs_vec_winsorize(const double *in, size_t n, double limit_pct,
+size_t toad_vec_winsorize(const double *in, size_t n, double limit_pct,
                              double *out, mem_pool_t *arena) {
     if (!in || !out || n == 0) return 0;
     if (limit_pct <= 0.0 || limit_pct >= 0.5) {
@@ -164,7 +164,7 @@ size_t tbs_vec_winsorize(const double *in, size_t n, double limit_pct,
  *
  * Example: [1, 2, 3, 4, 5] → [0, 0.25, 0.5, 0.75, 1.0]
  */
-size_t tbs_vec_standardize(const double *in, size_t n, double *out, mem_pool_t *arena) {
+size_t toad_vec_standardize(const double *in, size_t n, double *out, mem_pool_t *arena) {
     (void)arena;
     if (!in || !out || n == 0) return 0;
     if (n == 1) {
@@ -204,7 +204,7 @@ size_t tbs_vec_standardize(const double *in, size_t n, double *out, mem_pool_t *
  *
  * Formula: skew = E[(X - μ)³] / σ³
  */
-double tbs_vec_skewness(const double *in, size_t n) {
+double toad_vec_skewness(const double *in, size_t n) {
     if (!in || n < 3) return 0.0;
 
     /* Calculate mean and std */
@@ -234,7 +234,7 @@ double tbs_vec_skewness(const double *in, size_t n) {
  *
  * Formula: kurt = E[(X - μ)⁴] / σ⁴ - 3
  */
-double tbs_vec_kurtosis(const double *in, size_t n) {
+double toad_vec_kurtosis(const double *in, size_t n) {
     if (!in || n < 4) return 0.0;
 
     /* Calculate mean and std */
@@ -266,7 +266,7 @@ double tbs_vec_kurtosis(const double *in, size_t n) {
  *
  * @param bins Number of bins for histogram
  */
-double tbs_vec_entropy(const double *in, size_t n, size_t bins) {
+double toad_vec_entropy(const double *in, size_t n, size_t bins) {
     if (!in || n == 0 || bins == 0) return 0.0;
     if (bins > n) bins = n;
 
@@ -311,7 +311,7 @@ double tbs_vec_entropy(const double *in, size_t n, size_t bins) {
  *
  * Used for volatility forecasting and risk management.
  */
-double tbs_vec_rvar(const double *in, size_t n) {
+double toad_vec_rvar(const double *in, size_t n) {
     if (!in || n == 0) return 0.0;
     return simd_norm_sq(in, n) / n;
 }
@@ -321,10 +321,10 @@ double tbs_vec_rvar(const double *in, size_t n) {
  *
  * Measures asymmetry in realized distribution.
  */
-double tbs_vec_rskew(const double *in, size_t n) {
+double toad_vec_rskew(const double *in, size_t n) {
     if (!in || n < 3) return 0.0;
 
-    double rv = tbs_vec_rvar(in, n);
+    double rv = toad_vec_rvar(in, n);
     if (rv < 1e-10) return 0.0;
 
     double m3 = 0.0;
@@ -341,10 +341,10 @@ double tbs_vec_rskew(const double *in, size_t n) {
  *
  * Measures tail risk in realized distribution.
  */
-double tbs_vec_rkurt(const double *in, size_t n) {
+double toad_vec_rkurt(const double *in, size_t n) {
     if (!in || n < 4) return 0.0;
 
-    double rv = tbs_vec_rvar(in, n);
+    double rv = toad_vec_rvar(in, n);
     if (rv < 1e-10) return 0.0;
 
     double m4 = 0.0;
@@ -371,7 +371,7 @@ double tbs_vec_rkurt(const double *in, size_t n) {
  * @param amount Dollar volume array (price * volume)
  * @param n Number of periods
  */
-double tbs_vec_illiq(const double *ret, const double *amount, size_t n) {
+double toad_vec_illiq(const double *ret, const double *amount, size_t n) {
     if (!ret || !amount || n == 0) return 0.0;
 
     double illiq = 0.0;
@@ -398,7 +398,7 @@ double tbs_vec_illiq(const double *ret, const double *amount, size_t n) {
  * @param segment_len Length of each segment
  * @param segment_idx Which segment to analyze (0-based)
  */
-double tbs_vec_vol_ratio(const double *vol, size_t n, size_t segment_len, size_t segment_idx) {
+double toad_vec_vol_ratio(const double *vol, size_t n, size_t segment_len, size_t segment_idx) {
     if (!vol || n == 0 || segment_len == 0) return 1.0;
 
     size_t start = segment_idx * segment_len;
@@ -426,7 +426,7 @@ double tbs_vec_vol_ratio(const double *vol, size_t n, size_t segment_len, size_t
  * Higher values indicate stronger trend.
  * Range: [0, 1]
  */
-double tbs_vec_trend_strength(const double *price, size_t n) {
+double toad_vec_trend_strength(const double *price, size_t n) {
     if (!price || n < 3) return 0.0;
 
     /* Calculate linear regression */
@@ -472,7 +472,7 @@ double tbs_vec_trend_strength(const double *price, size_t n) {
  * 1 = perfectly efficient (straight line)
  * 0 = completely random walk
  */
-double tbs_vec_efficiency(const double *price, size_t n) {
+double toad_vec_efficiency(const double *price, size_t n) {
     if (!price || n < 2) return 0.0;
 
     /* Net movement */
@@ -502,7 +502,7 @@ double tbs_vec_efficiency(const double *price, size_t n) {
  * @param np Number of periods
  * @param out Output array (length np)
  */
-size_t tbs_vec_csad(const double *rets, size_t na, size_t np, double *out, mem_pool_t *arena) {
+size_t toad_vec_csad(const double *rets, size_t na, size_t np, double *out, mem_pool_t *arena) {
     if (!rets || !out || na == 0 || np == 0) return 0;
 
     double *cross_mean = MEM_ALLOC_ARRAY(arena, double, np);
@@ -539,7 +539,7 @@ size_t tbs_vec_csad(const double *rets, size_t na, size_t np, double *out, mem_p
  * @param period Rolling window size
  * @param out Output array (length n)
  */
-size_t tbs_vec_quantile(const double *in, size_t n, size_t period, double *out, mem_pool_t *arena) {
+size_t toad_vec_quantile(const double *in, size_t n, size_t period, double *out, mem_pool_t *arena) {
     if (!in || !out || n == 0 || period == 0) return 0;
     if (period > n) period = n;
 
@@ -577,7 +577,7 @@ size_t tbs_vec_quantile(const double *in, size_t n, size_t period, double *out, 
  * @param n Length
  * @param window_size Window for calculation
  */
-double tbs_vec_fvd(const double *vol, size_t n, size_t window_size) {
+double toad_vec_fvd(const double *vol, size_t n, size_t window_size) {
     if (!vol || n < window_size || window_size < 2) return 0.0;
 
     /* Calculate path length at different scales */
@@ -605,7 +605,7 @@ double tbs_vec_fvd(const double *vol, size_t n, size_t window_size) {
  * Positive: more positive jumps
  * Negative: more negative jumps
  */
-double tbs_vec_rsj(const double *ret, size_t n) {
+double toad_vec_rsj(const double *ret, size_t n) {
     if (!ret || n < 2) return 0.0;
 
     double pos_jump = 0.0, neg_jump = 0.0;
@@ -641,7 +641,7 @@ double tbs_vec_rsj(const double *ret, size_t n) {
  * @param ret_pm Afternoon returns
  * @param n Number of days
  */
-double tbs_vec_apm(const double *ret_am, const double *ret_pm, size_t n) {
+double toad_vec_apm(const double *ret_am, const double *ret_pm, size_t n) {
     if (!ret_am || !ret_pm || n == 0) return 0.0;
 
     double am_sum = simd_sum(ret_am, n);
@@ -662,7 +662,7 @@ double tbs_vec_apm(const double *ret_am, const double *ret_pm, size_t n) {
  * @param period Rolling window
  * @param out Output array
  */
-size_t tbs_vec_cgo(const double *p, const double *v, size_t n, size_t period, double *out, mem_pool_t *arena) {
+size_t toad_vec_cgo(const double *p, const double *v, size_t n, size_t period, double *out, mem_pool_t *arena) {
     if (!p || !v || !out || n == 0 || period == 0) return 0;
     if (period > n) period = n;
 
@@ -711,7 +711,7 @@ size_t tbs_vec_cgo(const double *p, const double *v, size_t n, size_t period, do
  * @param n Number of periods
  * @param delta Decay parameter (typically 0.5-1.0)
  */
-double tbs_vec_salience(const double *ret, const double *mkt_ret, size_t n, double delta) {
+double toad_vec_salience(const double *ret, const double *mkt_ret, size_t n, double delta) {
     if (!ret || !mkt_ret || n == 0) return 0.0;
     if (delta <= 0.0) delta = 0.7; // Default
 
@@ -746,7 +746,7 @@ double tbs_vec_salience(const double *ret, const double *mkt_ret, size_t n, doub
  * @param n Number of periods
  * @param delta Lag parameter (typically 1-5 days)
  */
-double tbs_vec_str(const double *ret, const double *mkt_ret, size_t n, double delta) {
+double toad_vec_str(const double *ret, const double *mkt_ret, size_t n, double delta) {
     if (!ret || !mkt_ret || n < 2) return 0.0;
 
     size_t lag = (size_t)delta;

@@ -1,16 +1,16 @@
 /**
  * @file internal.h
- * @brief Internal TurboScript definitions
+ * @brief Internal Toad definitions
  */
 
-#ifndef TURBO_SCRIPT_INTERNAL_H
-#define TURBO_SCRIPT_INTERNAL_H
+#ifndef TOAD_SCRIPT_INTERNAL_H
+#define TOAD_SCRIPT_INTERNAL_H
 
-#include <turboscript/module.h>
-#include <turboscript/plugin_loader.h>
+#include <toad/module.h>
+#include <toad/plugin_loader.h>
 #include "memory/buffer.h"
 #include "salts/coro_executor.h"
-#include <turboscript/script.h>
+#include <toad/script.h>
 #include <mir.h>
 #include <cstl.h>
 #include <stdatomic.h>
@@ -25,8 +25,8 @@ typedef struct ts_host_call_budget_s ts_host_call_budget_t;
 
 typedef struct imported_module_s {
   char *name;
-  tbs_node_t *expr;
-  tbs_value_t exports;
+  toad_node_t *expr;
+  toad_value_t exports;
   int has_exports;
   int isolated;
   struct imported_module_s *next;
@@ -48,19 +48,19 @@ typedef struct {
   uint64_t var_sync_count;        // 变量同步次数
 } ts_jit_stats_t;
 
-/* Verify that the internal ts_jit_stats_t and the public turbo_script_jit_stats_t
+/* Verify that the internal ts_jit_stats_t and the public toad_script_jit_stats_t
  * have identical layout.  Both structs are identical by definition; this assert
  * catches any accidental divergence before the pointer cast in
- * turbo_script_get_jit_stats() can produce undefined behaviour. */
+ * toad_script_get_jit_stats() can produce undefined behaviour. */
 #ifdef __cplusplus
-static_assert(sizeof(ts_jit_stats_t) == sizeof(turbo_script_jit_stats_t),
-              "ts_jit_stats_t and turbo_script_jit_stats_t must have the same size");
+static_assert(sizeof(ts_jit_stats_t) == sizeof(toad_script_jit_stats_t),
+              "ts_jit_stats_t and toad_script_jit_stats_t must have the same size");
 #else
-_Static_assert(sizeof(ts_jit_stats_t) == sizeof(turbo_script_jit_stats_t),
-               "ts_jit_stats_t and turbo_script_jit_stats_t must have the same size");
+_Static_assert(sizeof(ts_jit_stats_t) == sizeof(toad_script_jit_stats_t),
+               "ts_jit_stats_t and toad_script_jit_stats_t must have the same size");
 #endif
 
-struct turbo_script_ctx_s {
+struct toad_script_ctx_s {
   atomic_uint ref_count;
   atomic_int closing;
   /* Immutable TLS address captured by the creating thread. Host ABI entry
@@ -71,34 +71,34 @@ struct turbo_script_ctx_s {
   size_t host_callback_depth;
   /* Borrowed only for the synchronous owner-thread call. It is the context-wide
    * reentrancy fact source used by Host callback adapters. */
-  struct turbo_script_instance_s *active_host_instance;
+  struct toad_script_instance_s *active_host_instance;
   uint64_t next_instance_generation;
   /* Instance initialization resolves immutable export slots once. Steady
    * calls index this table and never repeat a function-name lookup. */
-  tbs_func_t **host_export_functions;
+  toad_func_t **host_export_functions;
   size_t host_export_function_count;
   /* Borrowed only while one synchronous Host export call is executing. */
   ts_host_call_budget_t *active_host_budget;
   /* Optional context-wide cooperative interrupt used by legacy run APIs. */
-  turbo_script_interrupt_fn interrupt;
+  toad_script_interrupt_fn interrupt;
   void *interrupt_user_data;
-  tbs_env_t env;
-  tbs_node_t *expr;
+  toad_env_t env;
+  toad_node_t *expr;
   char *expr_source;
   /* 1 when ctx->expr is already tracked in compiled_asts[] (owned by that array).
-   * In that case turbo_script_free and ts_prepare_expr must NOT call tbs_free(ctx->expr)
+   * In that case toad_script_free and ts_prepare_expr must NOT call toad_free(ctx->expr)
    * directly — compiled_asts[] cleanup handles it. */
   int expr_in_compiled_asts;
   imported_module_t *imports;
   mem_pool_t scratch_arena;
   char *current_script_dir;
   const char *current_import_name;
-  tbs_value_t current_import_exports;
+  toad_value_t current_import_exports;
   int current_import_has_exports;
-  tbs_env_t *current_import_env;
+  toad_env_t *current_import_env;
   char error_msg[1024];
-  turbo_script_error_code_t error_code;
-  turbo_script_memory_policy_t memory_policy;
+  toad_script_error_code_t error_code;
+  toad_script_memory_policy_t memory_policy;
   size_t peak_context_bytes;
   int memory_exhausted;
 
@@ -109,14 +109,14 @@ struct turbo_script_ctx_s {
 
   /* JIT compiling tracking to prevent memory leak and data race */
   int mir_mod_idx;
-  tbs_node_t **compiled_asts;
+  toad_node_t **compiled_asts;
   size_t compiled_ast_count;
   size_t compiled_ast_capacity;
 
   /* Plugin handles */
-  turbo_script_plugin_authorizer_fn plugin_authorizer;
+  toad_script_plugin_authorizer_fn plugin_authorizer;
   void *plugin_authorizer_data;
-  ts_plugin_handle_t *plugins[TS_MAX_PLUGINS];
+  toad_plugin_handle_t *plugins[TS_MAX_PLUGINS];
   char *loaded_names[TS_MAX_PLUGINS];
   size_t plugin_count;
 
@@ -148,53 +148,53 @@ struct turbo_script_ctx_s {
   int jit_stats_enabled; // 是否启用统计
 };
 
-struct turbo_script_compiled_s {
+struct toad_script_compiled_s {
   char *source;
 };
 
-tbs_node_t *turbo_script_parse_with_error(turbo_script_ctx_t *ctx, const char *script);
+toad_node_t *toad_script_parse_with_error(toad_script_ctx_t *ctx, const char *script);
 /* Internal deterministic seam: fails the parser arena allocation. */
-tbs_node_t *turbo_script_parse_with_error_test_oom(turbo_script_ctx_t *ctx, const char *script);
+toad_node_t *toad_script_parse_with_error_test_oom(toad_script_ctx_t *ctx, const char *script);
 
 /* Built-in module accessors */
-void turbo_script_register_modules(void);
-void turbo_script_register_mir(struct turbo_script_ctx_s *ctx);
-tbs_value_t turbo_script_mir_eval_node(const tbs_node_t *node, tbs_env_t *env);
-int turbo_script_mir_exec_script_body(tbs_func_t *func, tbs_env_t *local_env,
-                                      tbs_env_t *caller_env, tbs_value_t *out);
+void toad_script_register_modules(void);
+void toad_script_register_mir(struct toad_script_ctx_s *ctx);
+toad_value_t toad_script_mir_eval_node(const toad_node_t *node, toad_env_t *env);
+int toad_script_mir_exec_script_body(toad_func_t *func, toad_env_t *local_env,
+                                      toad_env_t *caller_env, toad_value_t *out);
 
 void ts_mir_owned_string_blocks_destroy(struct ts_mir_owned_string_block_s *block);
 
 /* Internal JIT API - for testing and advanced use */
-TURBO_SCRIPT_C_API int turbo_script_compile_mir(turbo_script_ctx_t *ctx, const char *script);
-TURBO_SCRIPT_C_API int turbo_script_compile_mir_ast(turbo_script_ctx_t *ctx, tbs_node_t *ast,
+TOAD_SCRIPT_C_API int toad_script_compile_mir(toad_script_ctx_t *ctx, const char *script);
+TOAD_SCRIPT_C_API int toad_script_compile_mir_ast(toad_script_ctx_t *ctx, toad_node_t *ast,
                                                     const char *script);
-TURBO_SCRIPT_C_API int turbo_script_exec_jit(turbo_script_ctx_t *ctx);
-TURBO_SCRIPT_C_API int turbo_script_compile_mir_interp(turbo_script_ctx_t *ctx, const char *script);
-TURBO_SCRIPT_C_API int turbo_script_compile_mir_interp_ast(turbo_script_ctx_t *ctx,
-                                                           tbs_node_t *ast, const char *script);
-TURBO_SCRIPT_C_API int turbo_script_exec_mir_interp(turbo_script_ctx_t *ctx);
-TURBO_SCRIPT_C_API int turbo_script_exec_mir_interp_result(turbo_script_ctx_t *ctx,
+TOAD_SCRIPT_C_API int toad_script_exec_jit(toad_script_ctx_t *ctx);
+TOAD_SCRIPT_C_API int toad_script_compile_mir_interp(toad_script_ctx_t *ctx, const char *script);
+TOAD_SCRIPT_C_API int toad_script_compile_mir_interp_ast(toad_script_ctx_t *ctx,
+                                                           toad_node_t *ast, const char *script);
+TOAD_SCRIPT_C_API int toad_script_exec_mir_interp(toad_script_ctx_t *ctx);
+TOAD_SCRIPT_C_API int toad_script_exec_mir_interp_result(toad_script_ctx_t *ctx,
                                                            double *result_out);
-TURBO_SCRIPT_C_API int turbo_script_run_mir_interp(turbo_script_ctx_t *ctx, const char *script);
+TOAD_SCRIPT_C_API int toad_script_run_mir_interp(toad_script_ctx_t *ctx, const char *script);
 
 /* Internal REPL helper */
-int turbo_script_repl_run(turbo_script_ctx_t *ctx, const char *script);
+int toad_run(toad_script_ctx_t *ctx, const char *script);
 
 /* Context references protect accepted executor tasks during deferred shutdown. */
-void ts_context_retain(turbo_script_ctx_t *ctx);
-void ts_context_release(turbo_script_ctx_t *ctx);
-int ts_context_is_owner_thread(const turbo_script_ctx_t *ctx);
+void ts_context_retain(toad_script_ctx_t *ctx);
+void ts_context_release(toad_script_ctx_t *ctx);
+int ts_context_is_owner_thread(const toad_script_ctx_t *ctx);
 
 /* Returns the caller environment owned by the currently running managed task,
  * or the root environment when execution is not inside one. */
-tbs_env_t *ts_task_execution_env(turbo_script_ctx_t *ctx);
+toad_env_t *ts_task_execution_env(toad_script_ctx_t *ctx);
 
 /* Point-in-time bytes retained by managed task environments. */
-size_t ts_task_memory_used(turbo_script_ctx_t *ctx);
-size_t ts_task_memory_max_used(turbo_script_ctx_t *ctx);
+size_t ts_task_memory_used(toad_script_ctx_t *ctx);
+size_t ts_task_memory_max_used(toad_script_ctx_t *ctx);
 
 /* Apply scratch reclamation and hard context quota checks after execution. */
-int ts_memory_finish_run(turbo_script_ctx_t *ctx, int result);
+int ts_memory_finish_run(toad_script_ctx_t *ctx, int result);
 
-#endif /* TURBO_SCRIPT_INTERNAL_H */
+#endif /* TOAD_SCRIPT_INTERNAL_H */

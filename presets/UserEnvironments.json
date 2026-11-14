@@ -12,14 +12,18 @@
         "SALTS_BASE_VERSION": "$penv{SALTS_BASE_VERSION}",
         "VCPKG_INSTALLED_DIR": "$penv{VCPKG_INSTALLED_DIR}",
         "VCPKG_TARGET_TRIPLET": "$penv{VCPKG_TARGET_TRIPLET}",
-        "SALTS_BASE_ROOT": "$penv{SALTS_BASE_ROOT}"
+        "SALTS_BASE_ROOT": "$penv{SALTS_BASE_ROOT}",
+        "VCPKG_CACHE_REPOSITORY_ROOT": "$penv{VCPKG_CACHE_REPOSITORY_ROOT}",
+        "VCPKG_BINARY_SOURCES": "$penv{VCPKG_BINARY_SOURCES}"
       },
       "cacheVariables": {
         "VCPKG_INSTALLED_DIR": "$env{VCPKG_INSTALLED_DIR}",
         "VCPKG_TARGET_TRIPLET": "$env{VCPKG_TARGET_TRIPLET}",
-        "CMAKE_INSTALL_PREFIX": "$env{INSTALL_PREFIX}"
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_CACHE_REPOSITORY_ROOT}/cmake/QigaoVcpkgToolchain.cmake",
+        "VCPKG_OVERLAY_PORTS": "$env{VCPKG_CACHE_REPOSITORY_ROOT}/ports",
+        "VCPKG_OVERLAY_TRIPLETS": "$env{VCPKG_CACHE_REPOSITORY_ROOT}/triplets"
       },
-      "description": "Consume the explicit preinstalled vcpkg-cache SDK; configure runs no resolver or port build"
+      "description": "Use the selected versioned vcpkg-cache toolchain and restored SDK roots"
     },
     {
       "name": "llvm-mingw-native-environment",
@@ -40,9 +44,9 @@
         "native-runtime"
       ],
       "environment": {
-        "VCPKG_TARGET_TRIPLET": "$env{MSVC_TARGET_TRIPLET}",
-        "INSTALL_PREFIX": "$env{MSVC_INSTALL_PREFIX}"
-      }
+        "VCPKG_TARGET_TRIPLET": "$env{MSVC_TARGET_TRIPLET}"
+      },
+      "cacheVariables": {}
     },
     {
       "name": "llvm-native-environment",
@@ -52,9 +56,9 @@
         "native-runtime"
       ],
       "environment": {
-        "VCPKG_TARGET_TRIPLET": "$env{LLVM_NATIVE_TARGET_TRIPLET}",
-        "INSTALL_PREFIX": "$env{LLVM_NATIVE_INSTALL_PREFIX}"
-      }
+        "VCPKG_TARGET_TRIPLET": "$env{LLVM_NATIVE_TARGET_TRIPLET}"
+      },
+      "cacheVariables": {}
     },
     {
       "name": "gcc-environment",
@@ -64,8 +68,7 @@
         "native-runtime"
       ],
       "environment": {
-        "VCPKG_TARGET_TRIPLET": "$env{GCC_TARGET_TRIPLET}",
-        "INSTALL_PREFIX": "$env{GCC_INSTALL_PREFIX}"
+        "VCPKG_TARGET_TRIPLET": "$env{GCC_TARGET_TRIPLET}"
       },
       "cacheVariables": {
         "CMAKE_C_COMPILER": "$env{GCC_C_COMPILER}",
@@ -79,9 +82,8 @@
         "vcpkg-cache",
         "llvm-mingw-runtime"
       ],
-      "environment": {
-        "INSTALL_PREFIX": "$env{LLVM_MINGW_X64_INSTALL_PREFIX}"
-      }
+      "environment": {},
+      "cacheVariables": {}
     },
     {
       "name": "llvm-mingw-arm64-environment",
@@ -90,23 +92,25 @@
         "vcpkg-cache",
         "llvm-mingw-runtime"
       ],
-      "environment": {
-        "INSTALL_PREFIX": "$env{LLVM_MINGW_ARM64_INSTALL_PREFIX}"
-      }
+      "environment": {},
+      "cacheVariables": {}
     },
     {
       "name": "android-toolchain-environment",
       "hidden": true,
-      "inherits": "vcpkg-cache"
+      "inherits": "vcpkg-cache",
+      "cacheVariables": {
+        "VCPKG_CHAINLOAD_TOOLCHAIN_FILE": "$env{ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake"
+      }
     },
     {
       "name": "android-environment",
       "hidden": true,
       "inherits": "android-toolchain-environment",
       "environment": {
-        "VCPKG_TARGET_TRIPLET": "$env{ANDROID_TARGET_TRIPLET}",
-        "INSTALL_PREFIX": "$env{ANDROID_INSTALL_PREFIX}"
-      }
+        "VCPKG_TARGET_TRIPLET": "$env{ANDROID_TARGET_TRIPLET}"
+      },
+      "cacheVariables": {}
     },
     {
       "name": "android-arm64-environment",
@@ -114,9 +118,8 @@
       "inherits": [
         "android-toolchain-environment"
       ],
-      "environment": {
-        "INSTALL_PREFIX": "$env{ANDROID_ARM64_INSTALL_PREFIX}"
-      }
+      "environment": {},
+      "cacheVariables": {}
     },
     {
       "name": "android-x64-environment",
@@ -124,9 +127,8 @@
       "inherits": [
         "android-toolchain-environment"
       ],
-      "environment": {
-        "INSTALL_PREFIX": "$env{ANDROID_X64_INSTALL_PREFIX}"
-      }
+      "environment": {},
+      "cacheVariables": {}
     },
     {
       "name": "llvm-mingw-runtime",
@@ -134,7 +136,7 @@
       "inherits": "native-runtime",
       "environment": {
         "LLVM_MINGW_ROOT": "$penv{LLVM_MINGW_ROOT}",
-        "PATH": "${sourceDir}/build/${presetName}/bin${pathListSep}$env{VCPKG_INSTALLED_DIR}/$env{VCPKG_TARGET_TRIPLET}/$env{VCPKG_CONFIGURATION_SUBDIR}bin${pathListSep}$env{VCPKG_INSTALLED_DIR}/$env{VCPKG_TARGET_TRIPLET}/bin${pathListSep}$env{SALTS_BASE_ROOT}/bin${pathListSep}$env{LLVM_MINGW_ROOT}/$env{LLVM_MINGW_TARGET}/bin${pathListSep}$env{LLVM_MINGW_ROOT}/bin${pathListSep}$penv{PATH}"
+        "PATH": "${sourceDir}/build/${presetName}/bin${pathListSep}$env{VCPKG_INSTALLED_DIR}/$env{VCPKG_TARGET_TRIPLET}/$env{VCPKG_CONFIGURATION_SUBDIR}bin${pathListSep}$env{VCPKG_INSTALLED_DIR}/$env{VCPKG_TARGET_TRIPLET}/bin${pathListSep}$env{SALTS_BASE_ROOT}/bin${pathListSep}$env{CMETA_ROOT}/bin${pathListSep}$env{SALTS_UTILS_ROOT}/bin${pathListSep}$env{SALTSCORE_ROOT}/bin${pathListSep}$env{CHTTP_ROOT}/bin${pathListSep}$env{TURBODB_ROOT}/bin${pathListSep}$env{LLVM_MINGW_ROOT}/$env{LLVM_MINGW_TARGET}/bin${pathListSep}$env{LLVM_MINGW_ROOT}/bin${pathListSep}$penv{PATH}"
       }
     }
   ]

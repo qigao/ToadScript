@@ -1,7 +1,7 @@
 #include "cflow_text_kernel.h"
 
 #include "../mir/internal.h"
-#include <turboscript/grammar.h>
+#include <toad/grammar.h>
 
 #include <cflow/function_projection.h>
 #include <cmeta/function.h>
@@ -22,41 +22,41 @@ struct ts_cflow_text_kernel_s {
 _Static_assert(sizeof(ts_cflow_text_kernel_t *) <= CMETA_CAPTURE_INLINE,
                "text MIR kernel pointer must fit CMeta inline capture");
 
-static const tbs_node_t *ts_cflow_text_lambda_value(
-    const tbs_node_t *lambda) {
-  const tbs_node_t *body;
+static const toad_node_t *ts_cflow_text_lambda_value(
+    const toad_node_t *lambda) {
+  const toad_node_t *body;
 
-  if (!lambda || lambda->type != TBS_NODE_FUNCTION_EXPRESSION ||
+  if (!lambda || lambda->type != TOAD_NODE_FUNCTION_EXPRESSION ||
       lambda->data.func_def.arg_count != 1u ||
       !lambda->data.func_def.arg_params ||
       !lambda->data.func_def.arg_params[0] ||
-      lambda->data.func_def.arg_params[0]->type != TBS_NODE_VARIABLE ||
+      lambda->data.func_def.arg_params[0]->type != TOAD_NODE_VARIABLE ||
       !lambda->data.func_def.arg_params[0]->data.variable.name)
     return NULL;
 
   body = lambda->data.func_def.body;
   if (!body) return NULL;
 
-  if (body->type == TBS_NODE_BLOCK) {
+  if (body->type == TOAD_NODE_BLOCK) {
     if (body->data.block.count != 1u || !body->data.block.statements)
       return NULL;
     body = body->data.block.statements[0];
   }
 
-  if (body && body->type == TBS_NODE_FLOW &&
-      body->data.flow.type == tbs_TOKEN_RETURN)
+  if (body && body->type == TOAD_NODE_FLOW &&
+      body->data.flow.type == toad_TOKEN_RETURN)
     body = body->data.flow.value;
 
   return body;
 }
 
 static bool ts_cflow_text_lambda_is_length_map(
-    const tbs_node_t *lambda) {
-  const tbs_node_t *body = ts_cflow_text_lambda_value(lambda);
-  const tbs_node_t *param;
-  const tbs_node_t *object;
+    const toad_node_t *lambda) {
+  const toad_node_t *body = ts_cflow_text_lambda_value(lambda);
+  const toad_node_t *param;
+  const toad_node_t *object;
 
-  if (!body || body->type != TBS_NODE_MEMBER_CALL ||
+  if (!body || body->type != TOAD_NODE_MEMBER_CALL ||
       !body->data.member_call.method ||
       strcmp(body->data.member_call.method, "length") != 0 ||
       body->data.member_call.arg_count != 0u)
@@ -64,43 +64,43 @@ static bool ts_cflow_text_lambda_is_length_map(
 
   param = lambda->data.func_def.arg_params[0];
   object = body->data.member_call.object;
-  return object && object->type == TBS_NODE_VARIABLE &&
+  return object && object->type == TOAD_NODE_VARIABLE &&
          object->data.variable.name &&
          strcmp(object->data.variable.name,
                 param->data.variable.name) == 0;
 }
 
 static bool ts_cflow_text_node_is_param_length(
-    const tbs_node_t *node,
+    const toad_node_t *node,
     const char *param_name) {
-  const tbs_node_t *object;
+  const toad_node_t *object;
   if (!node || !param_name ||
-      node->type != TBS_NODE_MEMBER_CALL ||
+      node->type != TOAD_NODE_MEMBER_CALL ||
       !node->data.member_call.method ||
       strcmp(node->data.member_call.method, "length") != 0 ||
       node->data.member_call.arg_count != 0u)
     return false;
   object = node->data.member_call.object;
-  return object && object->type == TBS_NODE_VARIABLE &&
+  return object && object->type == TOAD_NODE_VARIABLE &&
          object->data.variable.name &&
          strcmp(object->data.variable.name, param_name) == 0;
 }
 
-static bool ts_cflow_text_node_is_zero(const tbs_node_t *node) {
+static bool ts_cflow_text_node_is_zero(const toad_node_t *node) {
   return node &&
-         ((node->type == TBS_NODE_INTEGER &&
+         ((node->type == TOAD_NODE_INTEGER &&
            node->data.integer == 0) ||
-          (node->type == TBS_NODE_NUMBER &&
+          (node->type == TOAD_NODE_NUMBER &&
            node->data.number == 0.0));
 }
 
 static bool ts_cflow_text_lambda_is_nonempty_filter(
-    const tbs_node_t *lambda) {
-  const tbs_node_t *body = ts_cflow_text_lambda_value(lambda);
-  const tbs_node_t *param;
+    const toad_node_t *lambda) {
+  const toad_node_t *body = ts_cflow_text_lambda_value(lambda);
+  const toad_node_t *param;
 
-  if (!body || body->type != TBS_NODE_BINARY_OP ||
-      body->data.binary.op != tbs_TOKEN_GT ||
+  if (!body || body->type != TOAD_NODE_BINARY_OP ||
+      body->data.binary.op != toad_TOKEN_GT ||
       !body->data.binary.left || !body->data.binary.right)
     return false;
 
@@ -308,7 +308,7 @@ static bool ts_cflow_text_nonempty_kernel_compile(
 }
 
 bool ts_cflow_text_length_map_bind(
-    const tbs_node_t *lambda,
+    const toad_node_t *lambda,
     ts_cflow_text_kernel_binding_t *out,
     const char **error) {
   ts_cflow_text_kernel_t *kernel = NULL;
@@ -361,7 +361,7 @@ static bool ts_cflow_text_function_reflection_init(
 
   memset(out, 0, sizeof(*out));
 
-  out->input_ptr_type.name = "TurboScript.LineSlice.v1 *";
+  out->input_ptr_type.name = "Toad.LineSlice.v1 *";
   out->input_ptr_type.size = sizeof(ts_cflow_line_slice_t *);
   out->input_ptr_type.align = _Alignof(ts_cflow_line_slice_t *);
   out->input_ptr_type.kind = CMETA_T_POINTER;
@@ -396,7 +396,7 @@ bool ts_cflow_text_length_map_reflect(
     const ts_cflow_text_kernel_binding_t *binding,
     ts_cflow_text_function_reflection_t *out) {
   return ts_cflow_text_function_reflection_init(
-      binding, "TurboScript.LineSlice.length",
+      binding, "Toad.LineSlice.length",
       &cmeta_type_double, out);
 }
 
@@ -441,7 +441,7 @@ bool ts_cflow_text_length_map_graph_add(
 }
 
 bool ts_cflow_text_nonempty_filter_bind(
-    const tbs_node_t *lambda,
+    const toad_node_t *lambda,
     ts_cflow_text_kernel_binding_t *out,
     const char **error) {
   ts_cflow_text_kernel_t *kernel = NULL;
@@ -489,7 +489,7 @@ bool ts_cflow_text_nonempty_filter_reflect(
     const ts_cflow_text_kernel_binding_t *binding,
     ts_cflow_text_function_reflection_t *out) {
   return ts_cflow_text_function_reflection_init(
-      binding, "TurboScript.LineSlice.nonempty",
+      binding, "Toad.LineSlice.nonempty",
       &cmeta_type_bool, out);
 }
 

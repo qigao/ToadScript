@@ -1,60 +1,60 @@
 /**
- * @file exprtk_mod_stats.c
+ * @file toad_mod_stats.c
  * @brief Stats module: median/percentile/skewness/kurtosis/geometric_mean/
  *        harmonic_mean/zscore/wmean/wvar/ewma/ewmvar/covariance/cumsum/
  *        cumprod/rank/histogram
  */
-#include "exprtk_module.h"
-#include "exprtk.h"
-#include "simd_helpers.h"
+#include <toad/module.h>
+#include <toad/engine.h>
+#include <toad/simd.h>
 
 
 
-static exprtk_value_t fn_median(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_median(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR)
-        return exprtk_val_num(exprtk_median(args[0].data.vector.data, args[0].data.vector.size, arena));
-    return exprtk_val_num(0);
+    if (argc == 1 && args[0].type == TOAD_VAL_VECTOR)
+        return toad_val_num(toad_median(args[0].data.vector.data, args[0].data.vector.size, arena));
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_percentile(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_percentile(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_NUMBER)
-        return exprtk_val_num(exprtk_percentile(args[0].data.vector.data, args[0].data.vector.size, args[1].data.number, arena));
-    return exprtk_val_num(0);
+    if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_NUMBER)
+        return toad_val_num(toad_percentile(args[0].data.vector.data, args[0].data.vector.size, args[1].data.number, arena));
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_skewness(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_skewness(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR)
-        return exprtk_val_num(exprtk_skewness(args[0].data.vector.data, args[0].data.vector.size));
-    return exprtk_val_num(0);
+    if (argc == 1 && args[0].type == TOAD_VAL_VECTOR)
+        return toad_val_num(toad_skewness(args[0].data.vector.data, args[0].data.vector.size));
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_kurtosis(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_kurtosis(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR)
-        return exprtk_val_num(exprtk_kurtosis(args[0].data.vector.data, args[0].data.vector.size));
-    return exprtk_val_num(0);
+    if (argc == 1 && args[0].type == TOAD_VAL_VECTOR)
+        return toad_val_num(toad_kurtosis(args[0].data.vector.data, args[0].data.vector.size));
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_geometric_mean(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_geometric_mean(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR)
-        return exprtk_val_num(exprtk_geometric_mean(args[0].data.vector.data, args[0].data.vector.size));
-    return exprtk_val_num(0);
+    if (argc == 1 && args[0].type == TOAD_VAL_VECTOR)
+        return toad_val_num(toad_geometric_mean(args[0].data.vector.data, args[0].data.vector.size));
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_harmonic_mean(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_harmonic_mean(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR)
-        return exprtk_val_num(exprtk_harmonic_mean(args[0].data.vector.data, args[0].data.vector.size));
-    return exprtk_val_num(0);
+    if (argc == 1 && args[0].type == TOAD_VAL_VECTOR)
+        return toad_val_num(toad_harmonic_mean(args[0].data.vector.data, args[0].data.vector.size));
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_zscore(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_zscore(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+    if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
         size_t n = args[0].data.vector.size;
         if (n >= 2) {
             // Use SIMD-optimized mean and variance calculation
@@ -67,31 +67,31 @@ static exprtk_value_t fn_zscore(size_t argc, exprtk_value_t *args, exprtk_env_t 
                 if (res) {
                     // Use SIMD-optimized z-score calculation
                     simd_zscore_avx(args[0].data.vector.data, res, n, mean, sd);
-                    return exprtk_val_vec(res, n);
+                    return toad_val_vec(res, n);
                 }
             }
         }
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_wmean(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_wmean(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_VECTOR) {
+    if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR) {
         size_t n = args[0].data.vector.size;
         if (n > 0 && args[1].data.vector.size >= n) {
             // Use SIMD-optimized operations
             double sw = simd_sum_avx(args[1].data.vector.data, n);
             double swx = simd_dot_avx(args[1].data.vector.data, args[0].data.vector.data, n);
-            if (fabs(sw) > 1e-15) return exprtk_val_num(swx / sw);
+            if (fabs(sw) > 1e-15) return toad_val_num(swx / sw);
         }
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_wvar(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_wvar(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_VECTOR) {
+    if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR) {
         size_t n = args[0].data.vector.size;
         if (n >= 2 && args[1].data.vector.size >= n) {
             double sw = 0, swx = 0;
@@ -99,16 +99,16 @@ static exprtk_value_t fn_wvar(size_t argc, exprtk_value_t *args, exprtk_env_t *e
             if (fabs(sw) > 1e-15) {
                 double wm = swx / sw, num = 0;
                 for (size_t i = 0; i < n; ++i) { double d = args[0].data.vector.data[i] - wm; num += args[1].data.vector.data[i] * d * d; }
-                return exprtk_val_num(num / sw);
+                return toad_val_num(num / sw);
             }
         }
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_ewma(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_ewma(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_NUMBER) {
+    if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_NUMBER) {
         size_t n = args[0].data.vector.size;
         double alpha = args[1].data.number;
         if (alpha > 1.0) alpha = 2.0 / (alpha + 1.0);
@@ -118,16 +118,16 @@ static exprtk_value_t fn_ewma(size_t argc, exprtk_value_t *args, exprtk_env_t *e
                 res[0] = args[0].data.vector.data[0];
                 for (size_t i = 1; i < n; ++i)
                     res[i] = alpha * args[0].data.vector.data[i] + (1.0 - alpha) * res[i - 1];
-                return exprtk_val_vec(res, n);
+                return toad_val_vec(res, n);
             }
         }
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_ewmvar(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_ewmvar(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_NUMBER) {
+    if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_NUMBER) {
         size_t n = args[0].data.vector.size;
         double alpha = args[1].data.number;
         if (alpha > 1.0) alpha = 2.0 / (alpha + 1.0);
@@ -141,16 +141,16 @@ static exprtk_value_t fn_ewmvar(size_t argc, exprtk_value_t *args, exprtk_env_t 
                     ema = alpha * args[0].data.vector.data[i] + (1.0 - alpha) * ema;
                     res[i] = (1.0 - alpha) * (res[i - 1] + alpha * diff * diff);
                 }
-                return exprtk_val_vec(res, n);
+                return toad_val_vec(res, n);
             }
         }
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_covariance(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_covariance(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_VECTOR) {
+    if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_VECTOR) {
         size_t n = args[0].data.vector.size;
         if (n >= 2 && args[1].data.vector.size >= n) {
             // Use SIMD-optimized sum
@@ -164,47 +164,47 @@ static exprtk_value_t fn_covariance(size_t argc, exprtk_value_t *args, exprtk_en
             double sxy = simd_dot_avx(args[0].data.vector.data, args[1].data.vector.data, n);
             double cov = (sxy - n * mx * my) / (double)(n - 1);
 
-            return exprtk_val_num(cov);
+            return toad_val_num(cov);
         }
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_cumsum(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_cumsum(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+    if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
         size_t n = args[0].data.vector.size;
         if (n > 0) {
             double *res = MEM_ALLOC_ARRAY(arena, double, n);
             if (res) {
                 res[0] = args[0].data.vector.data[0];
                 for (size_t i = 1; i < n; ++i) res[i] = res[i - 1] + args[0].data.vector.data[i];
-                return exprtk_val_vec(res, n);
+                return toad_val_vec(res, n);
             }
         }
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_cumprod(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_cumprod(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+    if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
         size_t n = args[0].data.vector.size;
         if (n > 0) {
             double *res = MEM_ALLOC_ARRAY(arena, double, n);
             if (res) {
                 res[0] = args[0].data.vector.data[0];
                 for (size_t i = 1; i < n; ++i) res[i] = res[i - 1] * args[0].data.vector.data[i];
-                return exprtk_val_vec(res, n);
+                return toad_val_vec(res, n);
             }
         }
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_rank(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_rank(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc == 1 && args[0].type == EXPRTK_VAL_VECTOR) {
+    if (argc == 1 && args[0].type == TOAD_VAL_VECTOR) {
         size_t n = args[0].data.vector.size;
         if (n > 0) {
             double *res = MEM_ALLOC_ARRAY(arena, double, n);
@@ -220,16 +220,16 @@ static exprtk_value_t fn_rank(size_t argc, exprtk_value_t *args, exprtk_env_t *e
                     for (size_t k = i; k < j; ++k) res[items[k].idx] = avg_rank;
                     i = j;
                 }
-                return exprtk_val_vec(res, n);
+                return toad_val_vec(res, n);
             }
         }
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_histogram(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_histogram(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc == 2 && args[0].type == EXPRTK_VAL_VECTOR && args[1].type == EXPRTK_VAL_NUMBER) {
+    if (argc == 2 && args[0].type == TOAD_VAL_VECTOR && args[1].type == TOAD_VAL_NUMBER) {
         size_t n = args[0].data.vector.size;
         size_t nbins = (size_t)args[1].data.number;
         if (n > 0 && nbins > 0) {
@@ -252,14 +252,14 @@ static exprtk_value_t fn_histogram(size_t argc, exprtk_value_t *args, exprtk_env
                         res[b] += 1.0;
                     }
                 }
-                return exprtk_val_vec(res, nbins);
+                return toad_val_vec(res, nbins);
             }
         }
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
-static const exprtk_func_entry_t stats_entries[] = {
+static const toad_func_entry_t stats_entries[] = {
     { "covariance",     fn_covariance },
     { "cumprod",        fn_cumprod },
     { "cumsum",         fn_cumsum },
@@ -278,8 +278,8 @@ static const exprtk_func_entry_t stats_entries[] = {
     { "zscore",         fn_zscore },
 };
 
-static const exprtk_module_t stats_module = {
+static const toad_module_t stats_module = {
     "stats", stats_entries, sizeof(stats_entries) / sizeof(stats_entries[0])
 };
 
-const exprtk_module_t *exprtk_module_stats(void) { return &stats_module; }
+const toad_module_t *toad_module_stats(void) { return &stats_module; }

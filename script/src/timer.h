@@ -1,14 +1,14 @@
-#ifndef TURBO_SCRIPT_TIMER_H
-#define TURBO_SCRIPT_TIMER_H
+#ifndef TOAD_SCRIPT_TIMER_H
+#define TOAD_SCRIPT_TIMER_H
 
 #include "internal.h"
 
 enum { TS_TIMER_DEFAULT_CAPACITY = 64 };
 
-int ts_timer_scheduler_init(turbo_script_ctx_t *ctx, size_t capacity);
-void ts_timer_scheduler_shutdown(turbo_script_ctx_t *ctx);
-void ts_timer_scheduler_destroy(turbo_script_ctx_t *ctx);
-void ts_timer_register_functions(turbo_script_ctx_t *ctx);
-size_t ts_timer_scheduler_capacity(turbo_script_ctx_t *ctx);
+int ts_timer_scheduler_init(toad_script_ctx_t *ctx, size_t capacity);
+void ts_timer_scheduler_shutdown(toad_script_ctx_t *ctx);
+void ts_timer_scheduler_destroy(toad_script_ctx_t *ctx);
+void ts_timer_register_functions(toad_script_ctx_t *ctx);
+size_t ts_timer_scheduler_capacity(toad_script_ctx_t *ctx);
 
-#endif /* TURBO_SCRIPT_TIMER_H */
+#endif /* TOAD_SCRIPT_TIMER_H */

@@ -21,24 +21,24 @@ typedef struct {
 } fuzzy_utf8_offsets_t;
 
 typedef struct {
-    tbs_value_t list;
+    toad_value_t list;
     mem_pool_t *arena;
     vstr text;
     const fuzzy_utf8_offsets_t *offsets;
-    const tbs_value_t *patterns;
+    const toad_value_t *patterns;
     size_t pattern_count;
     int utf8_positions;
 } fuzzy_collect_ctx_t;
 
-static int fuzzy_is_number(tbs_value_t value) {
-    return value.type == TBS_VAL_NUMBER || value.type == TBS_VAL_INTEGER;
+static int fuzzy_is_number(toad_value_t value) {
+    return value.type == TOAD_VAL_NUMBER || value.type == TOAD_VAL_INTEGER;
 }
 
-static double fuzzy_number_value(tbs_value_t value) {
-    return value.type == TBS_VAL_INTEGER ? (double)value.data.integer : value.data.number;
+static double fuzzy_number_value(toad_value_t value) {
+    return value.type == TOAD_VAL_INTEGER ? (double)value.data.integer : value.data.number;
 }
 
-static int fuzzy_int_arg(const tbs_value_t *arg, int *out) {
+static int fuzzy_int_arg(const toad_value_t *arg, int *out) {
     double value;
     if (!arg || !out || !fuzzy_is_number(*arg)) return 0;
     value = fuzzy_number_value(*arg);
@@ -47,7 +47,7 @@ static int fuzzy_int_arg(const tbs_value_t *arg, int *out) {
     return 1;
 }
 
-static int fuzzy_size_arg(const tbs_value_t *arg, size_t *out) {
+static int fuzzy_size_arg(const toad_value_t *arg, size_t *out) {
     double value;
     if (!arg || !out || !fuzzy_is_number(*arg)) return 0;
     value = fuzzy_number_value(*arg);
@@ -56,14 +56,14 @@ static int fuzzy_size_arg(const tbs_value_t *arg, size_t *out) {
     return 1;
 }
 
-static tbs_value_t fuzzy_copy_string(mem_pool_t *arena, const char *data, size_t len) {
+static toad_value_t fuzzy_copy_string(mem_pool_t *arena, const char *data, size_t len) {
     char *buf;
-    if (!arena) return tbs_val_str(vstr_from_buf("", 0));
+    if (!arena) return toad_val_str(vstr_from_buf("", 0));
     buf = (char *)mem_alloc(arena, len + 1);
-    if (!buf) return tbs_val_str(vstr_from_buf("", 0));
+    if (!buf) return toad_val_str(vstr_from_buf("", 0));
     if (len > 0 && data) memcpy(buf, data, len);
     buf[len] = '\0';
-    return tbs_val_str(vstr_from_buf(buf, len));
+    return toad_val_str(vstr_from_buf(buf, len));
 }
 
 static int fuzzy_parse_flags(vstr flags, int literal_default, int *out) {
@@ -92,10 +92,10 @@ static int fuzzy_parse_flags(vstr flags, int literal_default, int *out) {
     return 1;
 }
 
-static int fuzzy_flags_arg(size_t argc, tbs_value_t *args, size_t index,
+static int fuzzy_flags_arg(size_t argc, toad_value_t *args, size_t index,
                            int literal_default, int *out) {
     if (argc <= index) return fuzzy_parse_flags(vstr_from_buf("", 0), literal_default, out);
-    if (args[index].type != TBS_VAL_STRING) return 0;
+    if (args[index].type != TOAD_VAL_STRING) return 0;
     return fuzzy_parse_flags(args[index].data.string, literal_default, out);
 }
 
@@ -192,55 +192,55 @@ static size_t fuzzy_offset_to_byte(const fuzzy_collect_ctx_t *ctx, size_t offset
     return ctx->offsets->byte_offsets[offset];
 }
 
-static tbs_value_t fuzzy_result(mem_pool_t *arena, vstr text, int matched,
+static toad_value_t fuzzy_result(mem_pool_t *arena, vstr text, int matched,
                                    size_t start, size_t end, const regamatch_t *amatch) {
-    tbs_value_t map = tbs_val_map();
-    tbs_map_set(&map, "matched", tbs_val_num(matched ? 1.0 : 0.0));
-    tbs_map_set(&map, "start", tbs_val_int(matched ? (int64_t)start : -1));
-    tbs_map_set(&map, "end", tbs_val_int(matched ? (int64_t)end : -1));
-    tbs_map_set(&map, "utf8_start",
-                   tbs_val_int(matched ? fuzzy_utf8_index(text, start) : -1));
-    tbs_map_set(&map, "utf8_end",
-                   tbs_val_int(matched ? fuzzy_utf8_index(text, end) : -1));
-    tbs_map_set(&map, "text",
+    toad_value_t map = toad_val_map();
+    toad_map_set(&map, "matched", toad_val_num(matched ? 1.0 : 0.0));
+    toad_map_set(&map, "start", toad_val_int(matched ? (int64_t)start : -1));
+    toad_map_set(&map, "end", toad_val_int(matched ? (int64_t)end : -1));
+    toad_map_set(&map, "utf8_start",
+                   toad_val_int(matched ? fuzzy_utf8_index(text, start) : -1));
+    toad_map_set(&map, "utf8_end",
+                   toad_val_int(matched ? fuzzy_utf8_index(text, end) : -1));
+    toad_map_set(&map, "text",
                    matched ? fuzzy_copy_string(arena, text.data + start, end - start)
-                           : tbs_val_str(vstr_from_buf("", 0)));
+                           : toad_val_str(vstr_from_buf("", 0)));
     if (amatch) {
-        tbs_map_set(&map, "cost", tbs_val_int(matched ? amatch->cost : -1));
-        tbs_map_set(&map, "insertions", tbs_val_int(matched ? amatch->num_ins : -1));
-        tbs_map_set(&map, "deletions", tbs_val_int(matched ? amatch->num_del : -1));
-        tbs_map_set(&map, "substitutions", tbs_val_int(matched ? amatch->num_subst : -1));
+        toad_map_set(&map, "cost", toad_val_int(matched ? amatch->cost : -1));
+        toad_map_set(&map, "insertions", toad_val_int(matched ? amatch->num_ins : -1));
+        toad_map_set(&map, "deletions", toad_val_int(matched ? amatch->num_del : -1));
+        toad_map_set(&map, "substitutions", toad_val_int(matched ? amatch->num_subst : -1));
     }
     return map;
 }
 
-static tbs_value_t fuzzy_no_match(mem_pool_t *arena, vstr text, int approximate) {
+static toad_value_t fuzzy_no_match(mem_pool_t *arena, vstr text, int approximate) {
     regamatch_t amatch;
     memset(&amatch, 0, sizeof(amatch));
     return fuzzy_result(arena, text, 0, 0, 0, approximate ? &amatch : NULL);
 }
 
-static tbs_value_t fuzzy_match_map(mem_pool_t *arena, vstr text, size_t start, size_t end,
+static toad_value_t fuzzy_match_map(mem_pool_t *arena, vstr text, size_t start, size_t end,
                                       size_t utf8_start, size_t utf8_end, size_t distance) {
-    tbs_value_t map = tbs_val_map();
+    toad_value_t map = toad_val_map();
     if (end > text.len) end = text.len;
     if (start > end) start = end;
-    tbs_map_set(&map, "matched", tbs_val_num(1.0));
-    tbs_map_set(&map, "start", tbs_val_int((int64_t)start));
-    tbs_map_set(&map, "end", tbs_val_int((int64_t)end));
-    tbs_map_set(&map, "utf8_start", tbs_val_int((int64_t)utf8_start));
-    tbs_map_set(&map, "utf8_end", tbs_val_int((int64_t)utf8_end));
-    tbs_map_set(&map, "text", fuzzy_copy_string(arena, text.data + start, end - start));
-    tbs_map_set(&map, "distance", tbs_val_int((int64_t)distance));
+    toad_map_set(&map, "matched", toad_val_num(1.0));
+    toad_map_set(&map, "start", toad_val_int((int64_t)start));
+    toad_map_set(&map, "end", toad_val_int((int64_t)end));
+    toad_map_set(&map, "utf8_start", toad_val_int((int64_t)utf8_start));
+    toad_map_set(&map, "utf8_end", toad_val_int((int64_t)utf8_end));
+    toad_map_set(&map, "text", fuzzy_copy_string(arena, text.data + start, end - start));
+    toad_map_set(&map, "distance", toad_val_int((int64_t)distance));
     return map;
 }
 
-static int fuzzy_mode_arg(size_t argc, tbs_value_t *args, size_t index, int *utf8_mode) {
+static int fuzzy_mode_arg(size_t argc, toad_value_t *args, size_t index, int *utf8_mode) {
     vstr mode;
     if (!utf8_mode) return 0;
     *utf8_mode = 1;
     if (argc <= index) return 1;
-    if (args[index].type != TBS_VAL_STRING) return 0;
+    if (args[index].type != TOAD_VAL_STRING) return 0;
     mode = args[index].data.string;
     if (mode.len == 4 && memcmp(mode.data, "utf8", 4) == 0) {
         *utf8_mode = 1;
@@ -255,8 +255,8 @@ static int fuzzy_mode_arg(size_t argc, tbs_value_t *args, size_t index, int *utf
     return 0;
 }
 
-static tbs_value_t fuzzy_exact(size_t argc, tbs_value_t *args,
-                                  tbs_env_t *env, mem_pool_t *arena) {
+static toad_value_t fuzzy_exact(size_t argc, toad_value_t *args,
+                                  toad_env_t *env, mem_pool_t *arena) {
     fuzzy_wtext_t pattern;
     fuzzy_wtext_t text;
     regex_t regex;
@@ -265,8 +265,8 @@ static tbs_value_t fuzzy_exact(size_t argc, tbs_value_t *args,
     int rc;
     (void)env;
 
-    if ((argc != 2 && argc != 3) || args[0].type != TBS_VAL_STRING ||
-        args[1].type != TBS_VAL_STRING ||
+    if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_STRING ||
+        args[1].type != TOAD_VAL_STRING ||
         !fuzzy_flags_arg(argc, args, 2, 0, &cflags)) {
         return fuzzy_no_match(arena, vstr_from_buf("", 0), 0);
     }
@@ -293,8 +293,8 @@ static tbs_value_t fuzzy_exact(size_t argc, tbs_value_t *args,
     return fuzzy_no_match(arena, args[1].data.string, 0);
 }
 
-static tbs_value_t fuzzy_match_impl(size_t argc, tbs_value_t *args,
-                                       tbs_env_t *env, mem_pool_t *arena,
+static toad_value_t fuzzy_match_impl(size_t argc, toad_value_t *args,
+                                       toad_env_t *env, mem_pool_t *arena,
                                        int literal_default) {
     fuzzy_wtext_t pattern;
     fuzzy_wtext_t text;
@@ -308,8 +308,8 @@ static tbs_value_t fuzzy_match_impl(size_t argc, tbs_value_t *args,
     int rc;
     (void)env;
 
-    if (argc < 2 || argc > 4 || args[0].type != TBS_VAL_STRING ||
-        args[1].type != TBS_VAL_STRING) {
+    if (argc < 2 || argc > 4 || args[0].type != TOAD_VAL_STRING ||
+        args[1].type != TOAD_VAL_STRING) {
         return fuzzy_no_match(arena, vstr_from_buf("", 0), 1);
     }
 
@@ -357,17 +357,17 @@ static bool fuzzy_lev_collect(size_t start, size_t end, size_t distance, void *u
     fuzzy_collect_ctx_t *ctx = (fuzzy_collect_ctx_t *)user_data;
     size_t byte_start = fuzzy_offset_to_byte(ctx, start);
     size_t byte_end = fuzzy_offset_to_byte(ctx, end);
-    tbs_value_t item = fuzzy_match_map(ctx->arena, ctx->text, byte_start, byte_end,
+    toad_value_t item = fuzzy_match_map(ctx->arena, ctx->text, byte_start, byte_end,
                                           ctx->utf8_positions ? start : fuzzy_utf8_index(ctx->text, byte_start),
                                           ctx->utf8_positions ? end : fuzzy_utf8_index(ctx->text, byte_end),
                                           distance);
-    tbs_list_push(&ctx->list, item);
+    toad_list_push(&ctx->list, item);
     return true;
 }
 
-static tbs_value_t fuzzy_levenshtein_impl(size_t argc, tbs_value_t *args,
-                                             tbs_env_t *env, mem_pool_t *arena) {
-    tbs_value_t list = tbs_val_list_empty();
+static toad_value_t fuzzy_levenshtein_impl(size_t argc, toad_value_t *args,
+                                             toad_env_t *env, mem_pool_t *arena) {
+    toad_value_t list = toad_val_list_empty();
     fuzzy_collect_ctx_t collect;
     fuzzy_utf8_offsets_t offsets;
     size_t max_distance;
@@ -375,8 +375,8 @@ static tbs_value_t fuzzy_levenshtein_impl(size_t argc, tbs_value_t *args,
     int rc;
     (void)env;
 
-    if ((argc != 3 && argc != 4) || args[0].type != TBS_VAL_STRING ||
-        args[1].type != TBS_VAL_STRING || !fuzzy_size_arg(&args[2], &max_distance) ||
+    if ((argc != 3 && argc != 4) || args[0].type != TOAD_VAL_STRING ||
+        args[1].type != TOAD_VAL_STRING || !fuzzy_size_arg(&args[2], &max_distance) ||
         !fuzzy_mode_arg(argc, args, 3, &utf8_mode)) {
         return list;
     }
@@ -409,17 +409,17 @@ static tbs_value_t fuzzy_levenshtein_impl(size_t argc, tbs_value_t *args,
     return collect.list;
 }
 
-static int fuzzy_patterns_from_list(const tbs_value_t *value, const tbs_value_t **patterns,
+static int fuzzy_patterns_from_list(const toad_value_t *value, const toad_value_t **patterns,
                                     size_t *count) {
     if (!value || !patterns || !count) return 0;
-    if (value->type == TBS_VAL_STRING) {
+    if (value->type == TOAD_VAL_STRING) {
         *patterns = value;
         *count = 1;
         return 1;
     }
-    if (value->type != TBS_VAL_LIST) return 0;
+    if (value->type != TOAD_VAL_LIST) return 0;
     for (size_t i = 0; i < value->data.list.count; ++i) {
-        if (value->data.list.items[i].type != TBS_VAL_STRING) return 0;
+        if (value->data.list.items[i].type != TOAD_VAL_STRING) return 0;
     }
     *patterns = value->data.list.items;
     *count = value->data.list.count;
@@ -430,31 +430,31 @@ static bool fuzzy_ac_collect(uint32_t pattern_id, size_t start, size_t end, void
     fuzzy_collect_ctx_t *ctx = (fuzzy_collect_ctx_t *)user_data;
     size_t byte_start = fuzzy_offset_to_byte(ctx, start);
     size_t byte_end = fuzzy_offset_to_byte(ctx, end);
-    tbs_value_t item = fuzzy_match_map(ctx->arena, ctx->text, byte_start, byte_end,
+    toad_value_t item = fuzzy_match_map(ctx->arena, ctx->text, byte_start, byte_end,
                                           ctx->utf8_positions ? start : fuzzy_utf8_index(ctx->text, byte_start),
                                           ctx->utf8_positions ? end : fuzzy_utf8_index(ctx->text, byte_end),
                                           0);
-    tbs_map_set(&item, "pattern_id", tbs_val_int((int64_t)pattern_id));
+    toad_map_set(&item, "pattern_id", toad_val_int((int64_t)pattern_id));
     if (pattern_id < ctx->pattern_count) {
         vstr pattern = ctx->patterns[pattern_id].data.string;
-        tbs_map_set(&item, "pattern", fuzzy_copy_string(ctx->arena, pattern.data, pattern.len));
+        toad_map_set(&item, "pattern", fuzzy_copy_string(ctx->arena, pattern.data, pattern.len));
     }
-    tbs_list_push(&ctx->list, item);
+    toad_list_push(&ctx->list, item);
     return true;
 }
 
-static tbs_value_t fuzzy_ac_impl(size_t argc, tbs_value_t *args,
-                                    tbs_env_t *env, mem_pool_t *arena) {
-    tbs_value_t list = tbs_val_list_empty();
+static toad_value_t fuzzy_ac_impl(size_t argc, toad_value_t *args,
+                                    toad_env_t *env, mem_pool_t *arena) {
+    toad_value_t list = toad_val_list_empty();
     fuzzy_collect_ctx_t collect;
     fuzzy_utf8_offsets_t offsets;
-    const tbs_value_t *patterns = NULL;
+    const toad_value_t *patterns = NULL;
     size_t pattern_count = 0;
     int utf8_mode;
     int rc;
     (void)env;
 
-    if ((argc != 2 && argc != 3) || args[1].type != TBS_VAL_STRING ||
+    if ((argc != 2 && argc != 3) || args[1].type != TOAD_VAL_STRING ||
         !fuzzy_patterns_from_list(&args[0], &patterns, &pattern_count) ||
         !fuzzy_mode_arg(argc, args, 2, &utf8_mode)) {
         return list;
@@ -504,42 +504,42 @@ static tbs_value_t fuzzy_ac_impl(size_t argc, tbs_value_t *args,
     return collect.list;
 }
 
-static tbs_value_t fn_regex_search(size_t argc, tbs_value_t *args,
-                                      tbs_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_regex_search(size_t argc, toad_value_t *args,
+                                      toad_env_t *env, mem_pool_t *arena) {
     return fuzzy_exact(argc, args, env, arena);
 }
 
-static tbs_value_t fn_fuzzy_search(size_t argc, tbs_value_t *args,
-                                      tbs_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_fuzzy_search(size_t argc, toad_value_t *args,
+                                      toad_env_t *env, mem_pool_t *arena) {
     return fuzzy_match_impl(argc, args, env, arena, 1);
 }
 
-static tbs_value_t fn_fuzzy_regex_search(size_t argc, tbs_value_t *args,
-                                            tbs_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_fuzzy_regex_search(size_t argc, toad_value_t *args,
+                                            toad_env_t *env, mem_pool_t *arena) {
     return fuzzy_match_impl(argc, args, env, arena, 0);
 }
 
-static tbs_value_t fn_levenshtein(size_t argc, tbs_value_t *args,
-                                     tbs_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_levenshtein(size_t argc, toad_value_t *args,
+                                     toad_env_t *env, mem_pool_t *arena) {
     return fuzzy_levenshtein_impl(argc, args, env, arena);
 }
 
-static tbs_value_t fn_ac(size_t argc, tbs_value_t *args,
-                            tbs_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_ac(size_t argc, toad_value_t *args,
+                            toad_env_t *env, mem_pool_t *arena) {
     return fuzzy_ac_impl(argc, args, env, arena);
 }
 
-static tbs_value_t fn_tre_version(size_t argc, tbs_value_t *args,
-                                     tbs_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_tre_version(size_t argc, toad_value_t *args,
+                                     toad_env_t *env, mem_pool_t *arena) {
     const char *version;
     (void)args;
     (void)env;
-    if (argc != 0) return tbs_val_str(vstr_from_buf("", 0));
+    if (argc != 0) return toad_val_str(vstr_from_buf("", 0));
     version = tre_version();
     return fuzzy_copy_string(arena, version, strlen(version));
 }
 
-static const tbs_func_entry_t fuzzy_entries[] = {
+static const toad_func_entry_t fuzzy_entries[] = {
     {"search", fn_fuzzy_search},
     {"regex", fn_regex_search},
     {"regex_search", fn_regex_search},
@@ -553,10 +553,10 @@ static const tbs_func_entry_t fuzzy_entries[] = {
     {"tre_version", fn_tre_version},
 };
 
-static const tbs_module_t fuzzy_module = {
+static const toad_module_t fuzzy_module = {
     .module_name = "fuzzy",
     .entries = fuzzy_entries,
     .count = sizeof(fuzzy_entries) / sizeof(fuzzy_entries[0]),
 };
 
-const tbs_module_t *tbs_module_fuzzy(void) { return &fuzzy_module; }
+const toad_module_t *toad_module_fuzzy(void) { return &fuzzy_module; }

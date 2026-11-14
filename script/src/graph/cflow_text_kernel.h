@@ -1,7 +1,7 @@
-#ifndef TURBO_SCRIPT_CFLOW_TEXT_KERNEL_H
-#define TURBO_SCRIPT_CFLOW_TEXT_KERNEL_H
+#ifndef TOAD_SCRIPT_CFLOW_TEXT_KERNEL_H
+#define TOAD_SCRIPT_CFLOW_TEXT_KERNEL_H
 
-#include <turboscript/types.h>
+#include <toad/types.h>
 #include "cflow_text.h"
 
 #include <cflow/graph.h>
@@ -34,7 +34,7 @@ typedef struct ts_cflow_text_function_reflection {
  *   line => line.length()
  *
  * Logical CFlow type:
- *   TurboScript.LineSlice.v1 -> double
+ *   Toad.LineSlice.v1 -> double
  *
  * The executable adapter is erased at the CMeta callable boundary
  * (meta.sig == CMETA_SIG_INVALID), but CFlow admission supplies exact
@@ -47,7 +47,7 @@ typedef struct ts_cflow_text_function_reflection {
  * coerced through double and no Engine runtime value layout crosses the ABI.
  */
 bool ts_cflow_text_length_map_bind(
-    const tbs_node_t *lambda,
+    const toad_node_t *lambda,
     ts_cflow_text_kernel_binding_t *out,
     const char **error);
 
@@ -72,7 +72,7 @@ bool ts_cflow_text_length_map_graph_add(
  *   line => line.length() > 0
  *
  * Logical CFlow type:
- *   TurboScript.LineSlice.v1 -> bool
+ *   Toad.LineSlice.v1 -> bool
  *
  * MIR ABI uses an integer predicate carrier:
  *   int64_t kernel(const char *data, int64_t len)
@@ -81,7 +81,7 @@ bool ts_cflow_text_length_map_graph_add(
  * FILTER projection preserves LineSlice as the Graph output element type.
  */
 bool ts_cflow_text_nonempty_filter_bind(
-    const tbs_node_t *lambda,
+    const toad_node_t *lambda,
     ts_cflow_text_kernel_binding_t *out,
     const char **error);
 
@@ -101,4 +101,4 @@ void ts_cflow_text_kernel_binding_destroy(
 }
 #endif
 
-#endif /* TURBO_SCRIPT_CFLOW_TEXT_KERNEL_H */
+#endif /* TOAD_SCRIPT_CFLOW_TEXT_KERNEL_H */

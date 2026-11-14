@@ -1,11 +1,11 @@
 /**
- * @file exprtk_mod_string.c
+ * @file toad_mod_string.c
  * @brief String module: lower/upper/trim/ltrim/rtrim/contains/starts_with/
  *        ends_with/index_of/substr/replace/reverse/assert/
  *        tokenize/split/token_count/to_num/to_str/to_int/to_double/to_bool
  */
-#include "exprtk_module.h"
-#include "exprtk.h"
+#include <toad/module.h>
+#include <toad/engine.h>
 #include "core/base64.h"
 #include "mustache.h"
 #include "core/tstr.h"
@@ -112,24 +112,24 @@ static bool mod_to_bool_v(vstr s, bool *out) {
     return false;
 }
 
-static int mod_is_number(exprtk_value_t value) {
-    return value.type == EXPRTK_VAL_NUMBER || value.type == EXPRTK_VAL_INTEGER;
+static int mod_is_number(toad_value_t value) {
+    return value.type == TOAD_VAL_NUMBER || value.type == TOAD_VAL_INTEGER;
 }
 
-static double mod_number_value(exprtk_value_t value) {
-    return value.type == EXPRTK_VAL_INTEGER ? (double)value.data.integer : value.data.number;
+static double mod_number_value(toad_value_t value) {
+    return value.type == TOAD_VAL_INTEGER ? (double)value.data.integer : value.data.number;
 }
 
-static size_t mod_number_to_index(exprtk_value_t value) {
+static size_t mod_number_to_index(toad_value_t value) {
     double n = mod_number_value(value);
     return n <= 0.0 ? 0 : (size_t)n;
 }
 
-static long long mod_number_to_signed(exprtk_value_t value) {
+static long long mod_number_to_signed(toad_value_t value) {
     return (long long)mod_number_value(value);
 }
 
-static size_t mod_normalize_byte_index(vstr s, exprtk_value_t value) {
+static size_t mod_normalize_byte_index(vstr s, toad_value_t value) {
     long long index = mod_number_to_signed(value);
     if (index < 0) index = (long long)s.len + index;
     if (index < 0) return 0;
@@ -165,25 +165,25 @@ static int mod_utf8_is_boundary(vstr s, size_t byte_offset) {
            (byte_offset < s.len && ((unsigned char)s.data[byte_offset] & 0xC0) != 0x80);
 }
 
-static exprtk_value_t mod_copy_string(mem_pool_t *arena, const char *data, size_t len) {
+static toad_value_t mod_copy_string(mem_pool_t *arena, const char *data, size_t len) {
     char *buf = (char *)mem_alloc(arena, len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     if (len > 0 && data) memcpy(buf, data, len);
     buf[len] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, len));
+    return toad_val_str(vstr_from_buf(buf, len));
 }
 
-static int mod_list_append_string(exprtk_value_t *list, mem_pool_t *arena,
+static int mod_list_append_string(toad_value_t *list, mem_pool_t *arena,
                                   const char *data, size_t len) {
-    exprtk_value_t item = mod_copy_string(arena, data, len);
-    if (item.type != EXPRTK_VAL_STRING) return 0;
-    exprtk_list_push(list, item);
+    toad_value_t item = mod_copy_string(arena, data, len);
+    if (item.type != TOAD_VAL_STRING) return 0;
+    toad_list_push(list, item);
     return 1;
 }
 
-static exprtk_value_t mod_copy_tstr(mem_pool_t *arena, tstr s) {
-    exprtk_value_t value;
-    if (!s) return exprtk_val_num(0);
+static toad_value_t mod_copy_tstr(mem_pool_t *arena, tstr s) {
+    toad_value_t value;
+    if (!s) return toad_val_num(0);
     value = mod_copy_string(arena, s, tstr_len(s));
     tstr_free(s);
     return value;
@@ -236,7 +236,7 @@ static size_t mod_string_byte_offset(vstr s, size_t units) {
     return mod_utf8_valid_view(s) ? mod_utf8_byte_offset(s, units) : (units > s.len ? s.len : units);
 }
 
-static size_t mod_normalize_unit_index(size_t unit_count, exprtk_value_t value) {
+static size_t mod_normalize_unit_index(size_t unit_count, toad_value_t value) {
     long long index = mod_number_to_signed(value);
     if (index < 0) index = (long long)unit_count + index;
     if (index < 0) return 0;
@@ -330,273 +330,273 @@ static int mod_utf8_contains_ci(vstr haystack, vstr needle) {
     return 0;
 }
 
-static exprtk_value_t mod_utf8_map_case(mem_pool_t *arena, vstr s, int to_upper) {
+static toad_value_t mod_utf8_map_case(mem_pool_t *arena, vstr s, int to_upper) {
     vstr rest = s;
     tstr out = tstr_new();
     uint32_t cp;
-    if (!out) return exprtk_val_num(0);
+    if (!out) return toad_val_num(0);
     while (rest.len > 0) {
         if (!vstr_utf8_next(&rest, &cp)) {
             tstr_free(out);
-            return exprtk_val_num(0);
+            return toad_val_num(0);
         }
         out = tstr_utf8_append_cp(out, to_upper ? mod_utf8_upper_cp(cp) : mod_utf8_lower_cp(cp));
-        if (!out) return exprtk_val_num(0);
+        if (!out) return toad_val_num(0);
     }
     return mod_copy_tstr(arena, out);
 }
 
-static exprtk_value_t fn_size(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_size(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc == 1 && args[0].type == EXPRTK_VAL_STRING)
-        return exprtk_val_num((double)args[0].data.string.len);
-    return exprtk_val_num(0);
+    if (argc == 1 && args[0].type == TOAD_VAL_STRING)
+        return toad_val_num((double)args[0].data.string.len);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_lower(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_lower(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc == 1 && args[0].type == EXPRTK_VAL_STRING) {
+    if (argc == 1 && args[0].type == TOAD_VAL_STRING) {
         vstr s = args[0].data.string;
         char *buf = mem_alloc(arena, s.len);
         if (buf) {
             for (size_t i = 0; i < s.len; ++i) buf[i] = (char)tolower((unsigned char)s.data[i]);
-            return exprtk_val_str(vstr_from_buf(buf, s.len));
+            return toad_val_str(vstr_from_buf(buf, s.len));
         }
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_upper(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_upper(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc == 1 && args[0].type == EXPRTK_VAL_STRING) {
+    if (argc == 1 && args[0].type == TOAD_VAL_STRING) {
         vstr s = args[0].data.string;
         char *buf = mem_alloc(arena, s.len);
         if (buf) {
             for (size_t i = 0; i < s.len; ++i) buf[i] = (char)toupper((unsigned char)s.data[i]);
-            return exprtk_val_str(vstr_from_buf(buf, s.len));
+            return toad_val_str(vstr_from_buf(buf, s.len));
         }
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_trim(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_trim(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc == 1 && args[0].type == EXPRTK_VAL_STRING)
-        return exprtk_val_str(vstr_trim(args[0].data.string, " \t\r\n"));
-    return exprtk_val_num(0);
+    if (argc == 1 && args[0].type == TOAD_VAL_STRING)
+        return toad_val_str(vstr_trim(args[0].data.string, " \t\r\n"));
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_ltrim(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_ltrim(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc == 1 && args[0].type == EXPRTK_VAL_STRING)
-        return exprtk_val_str(vstr_trim_left(args[0].data.string, " \t\r\n"));
-    return exprtk_val_num(0);
+    if (argc == 1 && args[0].type == TOAD_VAL_STRING)
+        return toad_val_str(vstr_trim_left(args[0].data.string, " \t\r\n"));
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_rtrim(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_rtrim(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc == 1 && args[0].type == EXPRTK_VAL_STRING)
-        return exprtk_val_str(vstr_trim_right(args[0].data.string, " \t\r\n"));
-    return exprtk_val_num(0);
+    if (argc == 1 && args[0].type == TOAD_VAL_STRING)
+        return toad_val_str(vstr_trim_right(args[0].data.string, " \t\r\n"));
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_is_empty(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_is_empty(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    return exprtk_val_num(argc == 1 && args[0].type == EXPRTK_VAL_STRING &&
+    return toad_val_num(argc == 1 && args[0].type == TOAD_VAL_STRING &&
                           args[0].data.string.len == 0 ? 1.0 : 0.0);
 }
 
-static exprtk_value_t fn_is_blank(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_is_blank(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     vstr s = args[0].data.string;
     for (size_t i = 0; i < s.len; ++i) {
-        if (!isspace((unsigned char)s.data[i])) return exprtk_val_num(0);
+        if (!isspace((unsigned char)s.data[i])) return toad_val_num(0);
     }
-    return exprtk_val_num(1);
+    return toad_val_num(1);
 }
 
-static exprtk_value_t fn_is_ascii(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_is_ascii(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     vstr s = args[0].data.string;
     for (size_t i = 0; i < s.len; ++i) {
-        if ((unsigned char)s.data[i] > 0x7F) return exprtk_val_num(0);
+        if ((unsigned char)s.data[i] > 0x7F) return toad_val_num(0);
     }
-    return exprtk_val_num(1);
+    return toad_val_num(1);
 }
 
-static exprtk_value_t fn_is_hex(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_is_hex(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING || args[0].data.string.len == 0)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING || args[0].data.string.len == 0)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     for (size_t i = 0; i < s.len; ++i) {
-        if (!isxdigit((unsigned char)s.data[i])) return exprtk_val_num(0);
+        if (!isxdigit((unsigned char)s.data[i])) return toad_val_num(0);
     }
-    return exprtk_val_num(1);
+    return toad_val_num(1);
 }
 
-static exprtk_value_t fn_is_printable(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_is_printable(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     vstr s = args[0].data.string;
     for (size_t i = 0; i < s.len; ++i) {
         unsigned char c = (unsigned char)s.data[i];
-        if (c >= 0x80) return exprtk_val_num(0);
+        if (c >= 0x80) return toad_val_num(0);
         if (!isprint(c) && c != '\t' && c != '\n' && c != '\r' && c != '\v' && c != '\f')
-            return exprtk_val_num(0);
+            return toad_val_num(0);
     }
-    return exprtk_val_num(1);
+    return toad_val_num(1);
 }
 
-static exprtk_value_t fn_is_digit(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_is_digit(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING || args[0].data.string.len == 0)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING || args[0].data.string.len == 0)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     for (size_t i = 0; i < s.len; ++i) {
-        if (!isdigit((unsigned char)s.data[i])) return exprtk_val_num(0);
+        if (!isdigit((unsigned char)s.data[i])) return toad_val_num(0);
     }
-    return exprtk_val_num(1);
+    return toad_val_num(1);
 }
 
-static exprtk_value_t fn_is_alpha(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_is_alpha(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING || args[0].data.string.len == 0)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING || args[0].data.string.len == 0)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     for (size_t i = 0; i < s.len; ++i) {
-        if (!isalpha((unsigned char)s.data[i])) return exprtk_val_num(0);
+        if (!isalpha((unsigned char)s.data[i])) return toad_val_num(0);
     }
-    return exprtk_val_num(1);
+    return toad_val_num(1);
 }
 
-static exprtk_value_t fn_is_alnum(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_is_alnum(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING || args[0].data.string.len == 0)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING || args[0].data.string.len == 0)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     for (size_t i = 0; i < s.len; ++i) {
-        if (!isalnum((unsigned char)s.data[i])) return exprtk_val_num(0);
+        if (!isalnum((unsigned char)s.data[i])) return toad_val_num(0);
     }
-    return exprtk_val_num(1);
+    return toad_val_num(1);
 }
 
-static exprtk_value_t fn_is_space(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_is_space(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING || args[0].data.string.len == 0)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING || args[0].data.string.len == 0)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     for (size_t i = 0; i < s.len; ++i) {
-        if (!isspace((unsigned char)s.data[i])) return exprtk_val_num(0);
+        if (!isspace((unsigned char)s.data[i])) return toad_val_num(0);
     }
-    return exprtk_val_num(1);
+    return toad_val_num(1);
 }
 
-static exprtk_value_t fn_is_lower(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_is_lower(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING || args[0].data.string.len == 0)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING || args[0].data.string.len == 0)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     int has_cased = 0;
     for (size_t i = 0; i < s.len; ++i) {
         unsigned char c = (unsigned char)s.data[i];
-        if (isupper(c)) return exprtk_val_num(0);
+        if (isupper(c)) return toad_val_num(0);
         if (islower(c)) has_cased = 1;
     }
-    return exprtk_val_num(has_cased ? 1.0 : 0.0);
+    return toad_val_num(has_cased ? 1.0 : 0.0);
 }
 
-static exprtk_value_t fn_is_upper(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_is_upper(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING || args[0].data.string.len == 0)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING || args[0].data.string.len == 0)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     int has_cased = 0;
     for (size_t i = 0; i < s.len; ++i) {
         unsigned char c = (unsigned char)s.data[i];
-        if (islower(c)) return exprtk_val_num(0);
+        if (islower(c)) return toad_val_num(0);
         if (isupper(c)) has_cased = 1;
     }
-    return exprtk_val_num(has_cased ? 1.0 : 0.0);
+    return toad_val_num(has_cased ? 1.0 : 0.0);
 }
 
-static exprtk_value_t fn_contains(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_contains(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc == 2 && args[0].type == EXPRTK_VAL_STRING && args[1].type == EXPRTK_VAL_STRING)
-        return exprtk_val_num(vstr_contains(args[0].data.string, args[1].data.string) ? 1.0 : 0.0);
-    return exprtk_val_num(0);
+    if (argc == 2 && args[0].type == TOAD_VAL_STRING && args[1].type == TOAD_VAL_STRING)
+        return toad_val_num(vstr_contains(args[0].data.string, args[1].data.string) ? 1.0 : 0.0);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_starts_with(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_starts_with(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc == 2 && args[0].type == EXPRTK_VAL_STRING && args[1].type == EXPRTK_VAL_STRING)
-        return exprtk_val_num(vstr_starts_with(args[0].data.string, args[1].data.string) ? 1.0 : 0.0);
-    return exprtk_val_num(0);
+    if (argc == 2 && args[0].type == TOAD_VAL_STRING && args[1].type == TOAD_VAL_STRING)
+        return toad_val_num(vstr_starts_with(args[0].data.string, args[1].data.string) ? 1.0 : 0.0);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_ends_with(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_ends_with(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc == 2 && args[0].type == EXPRTK_VAL_STRING && args[1].type == EXPRTK_VAL_STRING)
-        return exprtk_val_num(vstr_ends_with(args[0].data.string, args[1].data.string) ? 1.0 : 0.0);
-    return exprtk_val_num(0);
+    if (argc == 2 && args[0].type == TOAD_VAL_STRING && args[1].type == TOAD_VAL_STRING)
+        return toad_val_num(vstr_ends_with(args[0].data.string, args[1].data.string) ? 1.0 : 0.0);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_index_of(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_index_of(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc == 2 && args[0].type == EXPRTK_VAL_STRING && args[1].type == EXPRTK_VAL_STRING) {
+    if (argc == 2 && args[0].type == TOAD_VAL_STRING && args[1].type == TOAD_VAL_STRING) {
         size_t pos = vstr_find(args[0].data.string, args[1].data.string);
-        return exprtk_val_num(pos == VSTR_NPOS ? -1.0 : (double)pos);
+        return toad_val_num(pos == VSTR_NPOS ? -1.0 : (double)pos);
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_last_index_of(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_last_index_of(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc == 2 && args[0].type == EXPRTK_VAL_STRING && args[1].type == EXPRTK_VAL_STRING) {
+    if (argc == 2 && args[0].type == TOAD_VAL_STRING && args[1].type == TOAD_VAL_STRING) {
         size_t pos = vstr_rfind(args[0].data.string, args[1].data.string);
-        return exprtk_val_num(pos == VSTR_NPOS ? -1.0 : (double)pos);
+        return toad_val_num(pos == VSTR_NPOS ? -1.0 : (double)pos);
     }
-    return exprtk_val_num(-1);
+    return toad_val_num(-1);
 }
 
-static exprtk_value_t fn_find(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_find(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if ((argc == 2 || argc == 3) && args[0].type == EXPRTK_VAL_STRING &&
-        args[1].type == EXPRTK_VAL_STRING && (argc == 2 || mod_is_number(args[2]))) {
+    if ((argc == 2 || argc == 3) && args[0].type == TOAD_VAL_STRING &&
+        args[1].type == TOAD_VAL_STRING && (argc == 2 || mod_is_number(args[2]))) {
         vstr s = args[0].data.string;
         size_t start = argc == 3 ? mod_number_to_index(args[2]) : 0;
-        if (start > s.len) return exprtk_val_num(-1);
+        if (start > s.len) return toad_val_num(-1);
         vstr hay = vstr_from_buf(s.data + start, s.len - start);
         size_t pos = vstr_find(hay, args[1].data.string);
-        return exprtk_val_num(pos == VSTR_NPOS ? -1.0 : (double)(start + pos));
+        return toad_val_num(pos == VSTR_NPOS ? -1.0 : (double)(start + pos));
     }
-    return exprtk_val_num(-1);
+    return toad_val_num(-1);
 }
 
-static exprtk_value_t fn_rfind(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_rfind(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if ((argc == 2 || argc == 3) && args[0].type == EXPRTK_VAL_STRING &&
-        args[1].type == EXPRTK_VAL_STRING && (argc == 2 || mod_is_number(args[2]))) {
+    if ((argc == 2 || argc == 3) && args[0].type == TOAD_VAL_STRING &&
+        args[1].type == TOAD_VAL_STRING && (argc == 2 || mod_is_number(args[2]))) {
         vstr s = args[0].data.string;
         size_t end = argc == 3 ? mod_number_to_index(args[2]) : s.len;
         if (end > s.len) end = s.len;
         vstr hay = vstr_from_buf(s.data, end);
         size_t pos = vstr_rfind(hay, args[1].data.string);
-        return exprtk_val_num(pos == VSTR_NPOS ? -1.0 : (double)pos);
+        return toad_val_num(pos == VSTR_NPOS ? -1.0 : (double)pos);
     }
-    return exprtk_val_num(-1);
+    return toad_val_num(-1);
 }
 
-static exprtk_value_t fn_find_all(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_find_all(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
 
     vstr s = args[0].data.string;
     vstr sub = args[1].data.string;
-    exprtk_value_t list = exprtk_val_list_empty();
+    toad_value_t list = toad_val_list_empty();
     if (sub.len == 0) return list;
 
     size_t cursor = 0;
@@ -604,20 +604,20 @@ static exprtk_value_t fn_find_all(size_t argc, exprtk_value_t *args, exprtk_env_
         size_t found = vstr_find(vstr_from_buf(s.data + cursor, s.len - cursor), sub);
         if (found == VSTR_NPOS) break;
         size_t pos = cursor + found;
-        exprtk_list_push(&list, exprtk_val_num((double)pos));
+        toad_list_push(&list, toad_val_num((double)pos));
         cursor = pos + sub.len;
     }
     return list;
 }
 
-static exprtk_value_t fn_find_all_overlapping(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_find_all_overlapping(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
 
     vstr s = args[0].data.string;
     vstr sub = args[1].data.string;
-    exprtk_value_t list = exprtk_val_list_empty();
+    toad_value_t list = toad_val_list_empty();
     if (sub.len == 0) return list;
 
     size_t cursor = 0;
@@ -625,25 +625,25 @@ static exprtk_value_t fn_find_all_overlapping(size_t argc, exprtk_value_t *args,
         size_t found = vstr_find(vstr_from_buf(s.data + cursor, s.len - cursor), sub);
         if (found == VSTR_NPOS) break;
         size_t pos = cursor + found;
-        exprtk_list_push(&list, exprtk_val_num((double)pos));
+        toad_list_push(&list, toad_val_num((double)pos));
         cursor = pos + 1;
     }
     return list;
 }
 
-static exprtk_value_t fn_substr(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_substr(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if ((argc == 2 || argc == 3) && args[0].type == EXPRTK_VAL_STRING) {
+    if ((argc == 2 || argc == 3) && args[0].type == TOAD_VAL_STRING) {
         size_t start = (size_t)args[1].data.number;
         size_t len = (argc == 3) ? (size_t)args[2].data.number : VSTR_NPOS;
-        return exprtk_val_str(vstr_sub(args[0].data.string, start, len));
+        return toad_val_str(vstr_sub(args[0].data.string, start, len));
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_slice(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_slice(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if ((argc == 2 || argc == 3) && args[0].type == EXPRTK_VAL_STRING &&
+    if ((argc == 2 || argc == 3) && args[0].type == TOAD_VAL_STRING &&
         mod_is_number(args[1]) && (argc == 2 || mod_is_number(args[2]))) {
         vstr s = args[0].data.string;
         double start_num = mod_number_value(args[1]);
@@ -657,23 +657,23 @@ static exprtk_value_t fn_slice(size_t argc, exprtk_value_t *args, exprtk_env_t *
         if (end < start) end = start;
         return mod_copy_string(arena, s.data + start, (size_t)(end - start));
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_char_at(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_char_at(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc == 2 && args[0].type == EXPRTK_VAL_STRING && mod_is_number(args[1])) {
+    if (argc == 2 && args[0].type == TOAD_VAL_STRING && mod_is_number(args[1])) {
         vstr s = args[0].data.string;
         size_t index = mod_number_to_index(args[1]);
-        if (index >= s.len) return exprtk_val_str(vstr_from_buf("", 0));
+        if (index >= s.len) return toad_val_str(vstr_from_buf("", 0));
         return mod_copy_string(arena, s.data + index, 1);
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_replace(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_replace(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc == 3 && args[0].type == EXPRTK_VAL_STRING && args[1].type == EXPRTK_VAL_STRING && args[2].type == EXPRTK_VAL_STRING) {
+    if (argc == 3 && args[0].type == TOAD_VAL_STRING && args[1].type == TOAD_VAL_STRING && args[2].type == TOAD_VAL_STRING) {
         vstr s = args[0].data.string;
         vstr old_v = args[1].data.string;
         vstr new_v = args[2].data.string;
@@ -702,65 +702,65 @@ static exprtk_value_t fn_replace(size_t argc, exprtk_value_t *args, exprtk_env_t
                 last_src += p + old_v.len;
             }
             if (last_src < s.len) memcpy(dest, s.data + last_src, s.len - last_src);
-            return exprtk_val_str(vstr_from_buf(buf, new_len));
+            return toad_val_str(vstr_from_buf(buf, new_len));
         }
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
-static exprtk_value_t fn_reverse(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_reverse(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc == 1 && args[0].type == EXPRTK_VAL_STRING) {
+    if (argc == 1 && args[0].type == TOAD_VAL_STRING) {
         vstr s = args[0].data.string;
         char *buf = mem_alloc(arena, s.len);
         if (buf) {
             for (size_t i = 0; i < s.len; ++i) buf[i] = s.data[s.len - 1 - i];
-            return exprtk_val_str(vstr_from_buf(buf, s.len));
+            return toad_val_str(vstr_from_buf(buf, s.len));
         }
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
 /* utf8_valid(str) -> number: validate UTF-8 byte sequence */
-static exprtk_value_t fn_utf8_valid(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_utf8_valid(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
-    return exprtk_val_num(mod_utf8_valid_view(args[0].data.string) ? 1.0 : 0.0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
+    return toad_val_num(mod_utf8_valid_view(args[0].data.string) ? 1.0 : 0.0);
 }
 
 /* utf8_len(str) -> number: codepoint length */
-static exprtk_value_t fn_utf8_len(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_utf8_len(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
-    if (!mod_utf8_valid_view(s)) return exprtk_val_num(-1.0);
-    return exprtk_val_num((double)vstr_utf8_len(s));
+    if (!mod_utf8_valid_view(s)) return toad_val_num(-1.0);
+    return toad_val_num((double)vstr_utf8_len(s));
 }
 
 /* utf8_index_of(str, needle) -> number: codepoint index, -1 if not found */
-static exprtk_value_t fn_utf8_index_of(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_utf8_index_of(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr needle = args[1].data.string;
-    if (!mod_utf8_valid_view(s) || !mod_utf8_valid_view(needle)) return exprtk_val_num(-1.0);
+    if (!mod_utf8_valid_view(s) || !mod_utf8_valid_view(needle)) return toad_val_num(-1.0);
     size_t pos = vstr_find(s, needle);
-    if (pos == VSTR_NPOS) return exprtk_val_num(-1.0);
-    return exprtk_val_num((double)mod_utf8_codepoint_count_before(s, pos));
+    if (pos == VSTR_NPOS) return toad_val_num(-1.0);
+    return toad_val_num((double)mod_utf8_codepoint_count_before(s, pos));
 }
 
 /* utf8_substr(str, start, [len]) -> string: codepoint slice */
-static exprtk_value_t fn_utf8_substr(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_utf8_substr(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_STRING || !mod_is_number(args[1]))
-        return exprtk_val_num(0);
-    if (argc == 3 && !mod_is_number(args[2])) return exprtk_val_num(0);
+    if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_STRING || !mod_is_number(args[1]))
+        return toad_val_num(0);
+    if (argc == 3 && !mod_is_number(args[2])) return toad_val_num(0);
 
     vstr s = args[0].data.string;
-    if (!mod_utf8_valid_view(s)) return exprtk_val_num(0);
+    if (!mod_utf8_valid_view(s)) return toad_val_num(0);
 
     size_t start = mod_number_to_index(args[1]);
     size_t start_byte = mod_utf8_byte_offset(s, start);
@@ -772,14 +772,14 @@ static exprtk_value_t fn_utf8_substr(size_t argc, exprtk_value_t *args, exprtk_e
     return mod_copy_string(arena, s.data + start_byte, end_byte - start_byte);
 }
 
-static exprtk_value_t fn_utf8_slice(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_utf8_slice(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_STRING || !mod_is_number(args[1]))
-        return exprtk_val_num(0);
-    if (argc == 3 && !mod_is_number(args[2])) return exprtk_val_num(0);
+    if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_STRING || !mod_is_number(args[1]))
+        return toad_val_num(0);
+    if (argc == 3 && !mod_is_number(args[2])) return toad_val_num(0);
 
     vstr s = args[0].data.string;
-    if (!mod_utf8_valid_view(s)) return exprtk_val_num(0);
+    if (!mod_utf8_valid_view(s)) return toad_val_num(0);
     size_t units = vstr_utf8_len(s);
     size_t start = mod_normalize_unit_index(units, args[1]);
     size_t end = argc == 3 ? mod_normalize_unit_index(units, args[2]) : units;
@@ -789,88 +789,88 @@ static exprtk_value_t fn_utf8_slice(size_t argc, exprtk_value_t *args, exprtk_en
     return mod_copy_string(arena, s.data + start_byte, end_byte - start_byte);
 }
 
-static exprtk_value_t fn_from_codepoint(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_from_codepoint(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
     tstr out = tstr_new();
-    if (!out) return exprtk_val_num(0);
+    if (!out) return toad_val_num(0);
     for (size_t i = 0; i < argc; ++i) {
         if (!mod_is_number(args[i])) {
             tstr_free(out);
-            return exprtk_val_num(0);
+            return toad_val_num(0);
         }
         long long cp = mod_number_to_signed(args[i]);
         if (cp < 0 || tstr_utf8_codepoint_size((uint32_t)cp) == 0) {
             tstr_free(out);
-            return exprtk_val_num(0);
+            return toad_val_num(0);
         }
         out = tstr_utf8_append_cp(out, (uint32_t)cp);
-        if (!out) return exprtk_val_num(0);
+        if (!out) return toad_val_num(0);
     }
     return mod_copy_tstr(arena, out);
 }
 
-static exprtk_value_t fn_chr(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_chr(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     return fn_from_codepoint(argc, args, env, arena);
 }
 
-static exprtk_value_t fn_ord(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_ord(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if ((argc != 1 && argc != 2) || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
-    if (argc == 2 && !mod_is_number(args[1])) return exprtk_val_num(0);
+    if ((argc != 1 && argc != 2) || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
+    if (argc == 2 && !mod_is_number(args[1])) return toad_val_num(0);
     vstr s = args[0].data.string;
-    if (!mod_utf8_valid_view(s)) return exprtk_val_num(-1.0);
+    if (!mod_utf8_valid_view(s)) return toad_val_num(-1.0);
     size_t index = argc == 2 ? mod_number_to_index(args[1]) : 0;
     size_t start = mod_utf8_byte_offset(s, index);
-    if (start >= s.len) return exprtk_val_num(-1.0);
+    if (start >= s.len) return toad_val_num(-1.0);
     uint32_t cp = 0;
-    if (mod_utf8_next_width(s, start, &cp) == 0) return exprtk_val_num(-1.0);
-    return exprtk_val_num((double)cp);
+    if (mod_utf8_next_width(s, start, &cp) == 0) return toad_val_num(-1.0);
+    return toad_val_num((double)cp);
 }
 
-static exprtk_value_t fn_byte_at(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_byte_at(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || !mod_is_number(args[1]))
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || !mod_is_number(args[1]))
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     size_t index = mod_number_to_index(args[1]);
-    if (index >= s.len) return exprtk_val_num(-1.0);
-    return exprtk_val_num((double)(unsigned char)s.data[index]);
+    if (index >= s.len) return toad_val_num(-1.0);
+    return toad_val_num((double)(unsigned char)s.data[index]);
 }
 
 /* utf8_lower/utf8_upper(str) -> string */
-static exprtk_value_t fn_utf8_lower(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_utf8_lower(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
-    if (!mod_utf8_valid_view(args[0].data.string)) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
+    if (!mod_utf8_valid_view(args[0].data.string)) return toad_val_num(0);
     return mod_utf8_map_case(arena, args[0].data.string, 0);
 }
 
-static exprtk_value_t fn_utf8_upper(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_utf8_upper(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
-    if (!mod_utf8_valid_view(args[0].data.string)) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
+    if (!mod_utf8_valid_view(args[0].data.string)) return toad_val_num(0);
     return mod_utf8_map_case(arena, args[0].data.string, 1);
 }
 
 /* str_split(str, sep) -> list<string>: Python/JS-style substring separator */
-static exprtk_value_t fn_str_split(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_str_split(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
 
     vstr s = args[0].data.string;
     vstr sep = args[1].data.string;
-    exprtk_value_t list = exprtk_val_list_empty();
+    toad_value_t list = toad_val_list_empty();
 
     if (sep.len == 0) {
-        if (!mod_utf8_valid_view(s)) return exprtk_val_num(0);
+        if (!mod_utf8_valid_view(s)) return toad_val_num(0);
         size_t offset = 0;
         while (offset < s.len) {
             size_t n = mod_utf8_next_width(s, offset, NULL);
-            if (!mod_list_append_string(&list, arena, s.data + offset, n)) return exprtk_val_num(0);
+            if (!mod_list_append_string(&list, arena, s.data + offset, n)) return toad_val_num(0);
             offset += n;
         }
         return list;
@@ -881,40 +881,40 @@ static exprtk_value_t fn_str_split(size_t argc, exprtk_value_t *args, exprtk_env
         vstr rest = vstr_from_buf(s.data + cursor, s.len - cursor);
         size_t found = vstr_find(rest, sep);
         size_t part_len = (found == VSTR_NPOS) ? (s.len - cursor) : found;
-        if (!mod_list_append_string(&list, arena, s.data + cursor, part_len)) return exprtk_val_num(0);
+        if (!mod_list_append_string(&list, arena, s.data + cursor, part_len)) return toad_val_num(0);
         if (found == VSTR_NPOS) break;
         cursor += found + sep.len;
     }
     return list;
 }
 
-static exprtk_value_t fn_split_limit(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_split_limit(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 3 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING ||
+    if (argc != 3 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING ||
         !mod_is_number(args[2]))
-        return exprtk_val_num(0);
+        return toad_val_num(0);
 
     vstr s = args[0].data.string;
     vstr sep = args[1].data.string;
     size_t maxsplit = mod_number_to_index(args[2]);
-    exprtk_value_t list = exprtk_val_list_empty();
+    toad_value_t list = toad_val_list_empty();
 
     if (maxsplit == 0) {
-        if (!mod_list_append_string(&list, arena, s.data, s.len)) return exprtk_val_num(0);
+        if (!mod_list_append_string(&list, arena, s.data, s.len)) return toad_val_num(0);
         return list;
     }
 
     if (sep.len == 0) {
-        if (!mod_utf8_valid_view(s)) return exprtk_val_num(0);
+        if (!mod_utf8_valid_view(s)) return toad_val_num(0);
         size_t offset = 0;
         size_t splits = 0;
         while (offset < s.len && splits < maxsplit) {
             size_t n = mod_utf8_next_width(s, offset, NULL);
-            if (!mod_list_append_string(&list, arena, s.data + offset, n)) return exprtk_val_num(0);
+            if (!mod_list_append_string(&list, arena, s.data + offset, n)) return toad_val_num(0);
             offset += n;
             splits++;
         }
-        if (!mod_list_append_string(&list, arena, s.data + offset, s.len - offset)) return exprtk_val_num(0);
+        if (!mod_list_append_string(&list, arena, s.data + offset, s.len - offset)) return toad_val_num(0);
         return list;
     }
 
@@ -923,23 +923,23 @@ static exprtk_value_t fn_split_limit(size_t argc, exprtk_value_t *args, exprtk_e
     while (cursor <= s.len && splits < maxsplit) {
         size_t found = vstr_find(vstr_from_buf(s.data + cursor, s.len - cursor), sep);
         if (found == VSTR_NPOS) break;
-        if (!mod_list_append_string(&list, arena, s.data + cursor, found)) return exprtk_val_num(0);
+        if (!mod_list_append_string(&list, arena, s.data + cursor, found)) return toad_val_num(0);
         cursor += found + sep.len;
         splits++;
     }
-    if (!mod_list_append_string(&list, arena, s.data + cursor, s.len - cursor)) return exprtk_val_num(0);
+    if (!mod_list_append_string(&list, arena, s.data + cursor, s.len - cursor)) return toad_val_num(0);
     return list;
 }
 
-static exprtk_value_t fn_rsplit(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_rsplit(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_STRING ||
-        args[1].type != EXPRTK_VAL_STRING || (argc == 3 && !mod_is_number(args[2])))
-        return exprtk_val_num(0);
+    if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_STRING ||
+        args[1].type != TOAD_VAL_STRING || (argc == 3 && !mod_is_number(args[2])))
+        return toad_val_num(0);
 
     vstr s = args[0].data.string;
     vstr sep = args[1].data.string;
-    if (sep.len == 0) return exprtk_val_num(0);
+    if (sep.len == 0) return toad_val_num(0);
 
     size_t total = 0;
     size_t cursor = 0;
@@ -950,21 +950,21 @@ static exprtk_value_t fn_rsplit(size_t argc, exprtk_value_t *args, exprtk_env_t 
         cursor += found + sep.len;
     }
 
-    exprtk_value_t list = exprtk_val_list_empty();
+    toad_value_t list = toad_val_list_empty();
     if (total == 0) {
-        if (!mod_list_append_string(&list, arena, s.data, s.len)) return exprtk_val_num(0);
+        if (!mod_list_append_string(&list, arena, s.data, s.len)) return toad_val_num(0);
         return list;
     }
 
     size_t maxsplit = argc == 3 ? mod_number_to_index(args[2]) : total;
     if (maxsplit == 0) {
-        if (!mod_list_append_string(&list, arena, s.data, s.len)) return exprtk_val_num(0);
+        if (!mod_list_append_string(&list, arena, s.data, s.len)) return toad_val_num(0);
         return list;
     }
     if (maxsplit > total) maxsplit = total;
 
     size_t *positions = (size_t *)mem_alloc(arena, total * sizeof(size_t));
-    if (!positions) return exprtk_val_num(0);
+    if (!positions) return toad_val_num(0);
     cursor = 0;
     for (size_t i = 0; i < total; ++i) {
         size_t found = vstr_find(vstr_from_buf(s.data + cursor, s.len - cursor), sep);
@@ -975,71 +975,71 @@ static exprtk_value_t fn_rsplit(size_t argc, exprtk_value_t *args, exprtk_env_t 
     size_t first_sep = total - maxsplit;
     size_t start = 0;
     if (!mod_list_append_string(&list, arena, s.data, positions[first_sep]))
-        return exprtk_val_num(0);
+        return toad_val_num(0);
     start = positions[first_sep] + sep.len;
     for (size_t i = first_sep + 1; i < total; ++i) {
         if (!mod_list_append_string(&list, arena, s.data + start, positions[i] - start))
-            return exprtk_val_num(0);
+            return toad_val_num(0);
         start = positions[i] + sep.len;
     }
     if (!mod_list_append_string(&list, arena, s.data + start, s.len - start))
-        return exprtk_val_num(0);
+        return toad_val_num(0);
     return list;
 }
 
-static exprtk_value_t fn_split_once(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_split_once(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr sep = args[1].data.string;
-    if (sep.len == 0) return exprtk_val_num(0);
+    if (sep.len == 0) return toad_val_num(0);
     size_t pos = vstr_find(s, sep);
-    exprtk_value_t list = exprtk_val_list_empty();
+    toad_value_t list = toad_val_list_empty();
     if (pos == VSTR_NPOS) {
-        if (!mod_list_append_string(&list, arena, s.data, s.len)) return exprtk_val_num(0);
-        if (!mod_list_append_string(&list, arena, "", 0)) return exprtk_val_num(0);
+        if (!mod_list_append_string(&list, arena, s.data, s.len)) return toad_val_num(0);
+        if (!mod_list_append_string(&list, arena, "", 0)) return toad_val_num(0);
         return list;
     }
-    if (!mod_list_append_string(&list, arena, s.data, pos)) return exprtk_val_num(0);
+    if (!mod_list_append_string(&list, arena, s.data, pos)) return toad_val_num(0);
     if (!mod_list_append_string(&list, arena, s.data + pos + sep.len, s.len - pos - sep.len))
-        return exprtk_val_num(0);
+        return toad_val_num(0);
     return list;
 }
 
-static exprtk_value_t fn_rsplit_once(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_rsplit_once(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr sep = args[1].data.string;
-    if (sep.len == 0) return exprtk_val_num(0);
+    if (sep.len == 0) return toad_val_num(0);
     size_t pos = vstr_rfind(s, sep);
-    exprtk_value_t list = exprtk_val_list_empty();
+    toad_value_t list = toad_val_list_empty();
     if (pos == VSTR_NPOS) {
-        if (!mod_list_append_string(&list, arena, s.data, s.len)) return exprtk_val_num(0);
-        if (!mod_list_append_string(&list, arena, "", 0)) return exprtk_val_num(0);
+        if (!mod_list_append_string(&list, arena, s.data, s.len)) return toad_val_num(0);
+        if (!mod_list_append_string(&list, arena, "", 0)) return toad_val_num(0);
         return list;
     }
-    if (!mod_list_append_string(&list, arena, s.data, pos)) return exprtk_val_num(0);
+    if (!mod_list_append_string(&list, arena, s.data, pos)) return toad_val_num(0);
     if (!mod_list_append_string(&list, arena, s.data + pos + sep.len, s.len - pos - sep.len))
-        return exprtk_val_num(0);
+        return toad_val_num(0);
     return list;
 }
 
 /* str_join(list, sep) -> string */
-static exprtk_value_t fn_str_join(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_str_join(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_LIST || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_LIST || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
 
-    exprtk_value_t list = args[0];
+    toad_value_t list = args[0];
     vstr sep = args[1].data.string;
     size_t cap = 1 + (list.data.list.count > 0 ? (list.data.list.count - 1) * sep.len : 0);
     char tmp[64];
     for (size_t i = 0; i < list.data.list.count; ++i) {
-        exprtk_value_t item = list.data.list.items[i];
-        if (item.type == EXPRTK_VAL_STRING) {
+        toad_value_t item = list.data.list.items[i];
+        if (item.type == TOAD_VAL_STRING) {
             cap += item.data.string.len;
         } else if (mod_is_number(item)) {
             int n = snprintf(tmp, sizeof(tmp), "%g", mod_number_value(item));
@@ -1048,15 +1048,15 @@ static exprtk_value_t fn_str_join(size_t argc, exprtk_value_t *args, exprtk_env_
     }
 
     char *buf = (char *)mem_alloc(arena, cap);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     for (size_t i = 0; i < list.data.list.count; ++i) {
-        exprtk_value_t item = list.data.list.items[i];
+        toad_value_t item = list.data.list.items[i];
         if (i > 0 && sep.len > 0) {
             memcpy(buf + pos, sep.data, sep.len);
             pos += sep.len;
         }
-        if (item.type == EXPRTK_VAL_STRING) {
+        if (item.type == TOAD_VAL_STRING) {
             memcpy(buf + pos, item.data.string.data, item.data.string.len);
             pos += item.data.string.len;
         } else if (mod_is_number(item)) {
@@ -1065,54 +1065,54 @@ static exprtk_value_t fn_str_join(size_t argc, exprtk_value_t *args, exprtk_env_
         }
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_utf8_rindex_of(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_utf8_rindex_of(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr needle = args[1].data.string;
-    if (!mod_utf8_valid_view(s) || !mod_utf8_valid_view(needle)) return exprtk_val_num(-1.0);
+    if (!mod_utf8_valid_view(s) || !mod_utf8_valid_view(needle)) return toad_val_num(-1.0);
     size_t pos = vstr_rfind(s, needle);
-    if (pos == VSTR_NPOS) return exprtk_val_num(-1.0);
-    return exprtk_val_num((double)mod_utf8_codepoint_count_before(s, pos));
+    if (pos == VSTR_NPOS) return toad_val_num(-1.0);
+    return toad_val_num((double)mod_utf8_codepoint_count_before(s, pos));
 }
 
-static exprtk_value_t fn_utf8_char_at(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_utf8_char_at(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || !mod_is_number(args[1]))
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || !mod_is_number(args[1]))
+        return toad_val_num(0);
     vstr s = args[0].data.string;
-    if (!mod_utf8_valid_view(s)) return exprtk_val_num(0);
+    if (!mod_utf8_valid_view(s)) return toad_val_num(0);
     size_t start = mod_utf8_byte_offset(s, mod_number_to_index(args[1]));
-    if (start >= s.len) return exprtk_val_str(vstr_from_buf("", 0));
+    if (start >= s.len) return toad_val_str(vstr_from_buf("", 0));
     size_t end = mod_utf8_byte_offset(vstr_from_buf(s.data + start, s.len - start), 1) + start;
     return mod_copy_string(arena, s.data + start, end - start);
 }
 
-static exprtk_value_t fn_utf8_codepoint_at(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_utf8_codepoint_at(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || !mod_is_number(args[1]))
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || !mod_is_number(args[1]))
+        return toad_val_num(0);
     vstr s = args[0].data.string;
-    if (!mod_utf8_valid_view(s)) return exprtk_val_num(-1.0);
+    if (!mod_utf8_valid_view(s)) return toad_val_num(-1.0);
     size_t start = mod_utf8_byte_offset(s, mod_number_to_index(args[1]));
-    if (start >= s.len) return exprtk_val_num(-1.0);
+    if (start >= s.len) return toad_val_num(-1.0);
     uint32_t cp = 0;
-    if (mod_utf8_next_width(s, start, &cp) == 0) return exprtk_val_num(-1.0);
-    return exprtk_val_num((double)cp);
+    if (mod_utf8_next_width(s, start, &cp) == 0) return toad_val_num(-1.0);
+    return toad_val_num((double)cp);
 }
 
-static exprtk_value_t fn_utf8_reverse(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_utf8_reverse(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
-    if (!mod_utf8_valid_view(s)) return exprtk_val_num(0);
+    if (!mod_utf8_valid_view(s)) return toad_val_num(0);
     char *buf = (char *)mem_alloc(arena, s.len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t read = s.len;
     size_t write = 0;
     while (read > 0) {
@@ -1123,16 +1123,16 @@ static exprtk_value_t fn_utf8_reverse(size_t argc, exprtk_value_t *args, exprtk_
         read = start;
     }
     buf[write] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, write));
+    return toad_val_str(vstr_from_buf(buf, write));
 }
 
-static exprtk_value_t fn_str_count_substr(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_str_count_substr(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr needle = args[1].data.string;
-    if (needle.len == 0) return exprtk_val_num(0);
+    if (needle.len == 0) return toad_val_num(0);
     size_t cursor = 0;
     size_t count = 0;
     while (cursor <= s.len) {
@@ -1141,16 +1141,16 @@ static exprtk_value_t fn_str_count_substr(size_t argc, exprtk_value_t *args, exp
         count++;
         cursor += pos + needle.len;
     }
-    return exprtk_val_num((double)count);
+    return toad_val_num((double)count);
 }
 
-static exprtk_value_t fn_str_count_overlapping(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_str_count_overlapping(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr needle = args[1].data.string;
-    if (needle.len == 0) return exprtk_val_num(0);
+    if (needle.len == 0) return toad_val_num(0);
     size_t cursor = 0;
     size_t count = 0;
     while (cursor <= s.len) {
@@ -1159,52 +1159,52 @@ static exprtk_value_t fn_str_count_overlapping(size_t argc, exprtk_value_t *args
         count++;
         cursor += pos + 1;
     }
-    return exprtk_val_num((double)count);
+    return toad_val_num((double)count);
 }
 
-static exprtk_value_t fn_str_repeat(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_str_repeat(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || !mod_is_number(args[1]))
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || !mod_is_number(args[1]))
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     size_t count = mod_number_to_index(args[1]);
     size_t len = s.len * count;
     char *buf = (char *)mem_alloc(arena, len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     for (size_t i = 0; i < count; ++i) {
         if (s.len > 0) memcpy(buf + pos, s.data, s.len);
         pos += s.len;
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_str_lines(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_str_lines(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
-    exprtk_value_t list = exprtk_val_list_empty();
+    toad_value_t list = toad_val_list_empty();
     size_t start = 0;
     for (size_t i = 0; i < s.len; ++i) {
         if (s.data[i] != '\n' && s.data[i] != '\r') continue;
-        if (!mod_list_append_string(&list, arena, s.data + start, i - start)) return exprtk_val_num(0);
+        if (!mod_list_append_string(&list, arena, s.data + start, i - start)) return toad_val_num(0);
         if (s.data[i] == '\r' && i + 1 < s.len && s.data[i + 1] == '\n') i++;
         start = i + 1;
     }
     if (start < s.len) {
-        if (!mod_list_append_string(&list, arena, s.data + start, s.len - start)) return exprtk_val_num(0);
+        if (!mod_list_append_string(&list, arena, s.data + start, s.len - start)) return toad_val_num(0);
     }
     return list;
 }
 
-static exprtk_value_t fn_line_count(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_line_count(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
-    if (s.len == 0) return exprtk_val_num(0);
+    if (s.len == 0) return toad_val_num(0);
     size_t count = 0;
     size_t start = 0;
     for (size_t i = 0; i < s.len; ++i) {
@@ -1214,13 +1214,13 @@ static exprtk_value_t fn_line_count(size_t argc, exprtk_value_t *args, exprtk_en
         start = i + 1;
     }
     if (start < s.len) count++;
-    return exprtk_val_num((double)count);
+    return toad_val_num((double)count);
 }
 
-static exprtk_value_t fn_chomp(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_chomp(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     size_t len = s.len;
     if (len > 0 && s.data[len - 1] == '\n') {
@@ -1232,11 +1232,11 @@ static exprtk_value_t fn_chomp(size_t argc, exprtk_value_t *args, exprtk_env_t *
     return mod_copy_string(arena, s.data, len);
 }
 
-static exprtk_value_t fn_expand_tabs(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_expand_tabs(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if ((argc != 1 && argc != 2) || args[0].type != EXPRTK_VAL_STRING ||
+    if ((argc != 1 && argc != 2) || args[0].type != TOAD_VAL_STRING ||
         (argc == 2 && !mod_is_number(args[1])))
-        return exprtk_val_num(0);
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     size_t tabsize = argc == 2 ? mod_number_to_index(args[1]) : 8;
     int valid = mod_utf8_valid_view(s);
@@ -1258,7 +1258,7 @@ static exprtk_value_t fn_expand_tabs(size_t argc, exprtk_value_t *args, exprtk_e
         }
     }
     char *buf = (char *)mem_alloc(arena, len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     col = 0;
     for (size_t i = 0; i < s.len;) {
@@ -1278,14 +1278,14 @@ static exprtk_value_t fn_expand_tabs(size_t argc, exprtk_value_t *args, exprtk_e
         }
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_indent(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_indent(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_STRING ||
-        args[1].type != EXPRTK_VAL_STRING || (argc == 3 && !mod_is_number(args[2])))
-        return exprtk_val_num(0);
+    if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_STRING ||
+        args[1].type != TOAD_VAL_STRING || (argc == 3 && !mod_is_number(args[2])))
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr prefix = args[1].data.string;
     int include_first = argc == 3 ? fabs(mod_number_value(args[2])) > 1e-9 : 1;
@@ -1299,7 +1299,7 @@ static exprtk_value_t fn_indent(size_t argc, exprtk_value_t *args, exprtk_env_t 
     size_t prefixes = lines;
     if (!include_first && prefixes > 0) prefixes--;
     char *buf = (char *)mem_alloc(arena, s.len + prefixes * prefix.len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     int at_line_start = 1;
     size_t line_index = 0;
@@ -1327,13 +1327,13 @@ static exprtk_value_t fn_indent(size_t argc, exprtk_value_t *args, exprtk_env_t 
         }
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_dedent(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_dedent(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     size_t min_indent = (size_t)-1;
     size_t line_start = 0;
@@ -1352,7 +1352,7 @@ static exprtk_value_t fn_dedent(size_t argc, exprtk_value_t *args, exprtk_env_t 
     }
     if (min_indent == (size_t)-1 || min_indent == 0) return mod_copy_string(arena, s.data, s.len);
     char *buf = (char *)mem_alloc(arena, s.len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     line_start = 0;
     while (line_start < s.len) {
@@ -1375,13 +1375,13 @@ static exprtk_value_t fn_dedent(size_t argc, exprtk_value_t *args, exprtk_env_t 
         line_start = line_end + 1;
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_csv_escape(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_csv_escape(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     int needs_quote = 0;
     size_t quote_count = 0;
@@ -1391,7 +1391,7 @@ static exprtk_value_t fn_csv_escape(size_t argc, exprtk_value_t *args, exprtk_en
     }
     if (!needs_quote) return mod_copy_string(arena, s.data, s.len);
     char *buf = (char *)mem_alloc(arena, s.len + quote_count + 3);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     buf[pos++] = '"';
     for (size_t i = 0; i < s.len; ++i) {
@@ -1400,75 +1400,75 @@ static exprtk_value_t fn_csv_escape(size_t argc, exprtk_value_t *args, exprtk_en
     }
     buf[pos++] = '"';
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_csv_unescape(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_csv_unescape(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     if (s.len < 2 || s.data[0] != '"' || s.data[s.len - 1] != '"')
         return mod_copy_string(arena, s.data, s.len);
     char *buf = (char *)mem_alloc(arena, s.len - 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     for (size_t i = 1; i + 1 < s.len; ++i) {
         if (s.data[i] == '"' && i + 1 < s.len - 1 && s.data[i + 1] == '"') i++;
         buf[pos++] = s.data[i];
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_trim_chars(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_trim_chars(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     char *chars = mod_view_to_arena_cstr(args[1].data.string, arena);
-    if (!chars) return exprtk_val_num(0);
-    return exprtk_val_str(vstr_trim(args[0].data.string, chars));
+    if (!chars) return toad_val_num(0);
+    return toad_val_str(vstr_trim(args[0].data.string, chars));
 }
 
-static exprtk_value_t fn_ltrim_chars(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_ltrim_chars(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     char *chars = mod_view_to_arena_cstr(args[1].data.string, arena);
-    if (!chars) return exprtk_val_num(0);
-    return exprtk_val_str(vstr_trim_left(args[0].data.string, chars));
+    if (!chars) return toad_val_num(0);
+    return toad_val_str(vstr_trim_left(args[0].data.string, chars));
 }
 
-static exprtk_value_t fn_rtrim_chars(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_rtrim_chars(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     char *chars = mod_view_to_arena_cstr(args[1].data.string, arena);
-    if (!chars) return exprtk_val_num(0);
-    return exprtk_val_str(vstr_trim_right(args[0].data.string, chars));
+    if (!chars) return toad_val_num(0);
+    return toad_val_str(vstr_trim_right(args[0].data.string, chars));
 }
 
-static exprtk_value_t fn_str_eq_ci(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_str_eq_ci(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     if (!mod_utf8_valid_view(args[0].data.string) || !mod_utf8_valid_view(args[1].data.string))
-        return exprtk_val_num(0);
-    return exprtk_val_num(mod_utf8_ieq_view(args[0].data.string, args[1].data.string) ? 1.0 : 0.0);
+        return toad_val_num(0);
+    return toad_val_num(mod_utf8_ieq_view(args[0].data.string, args[1].data.string) ? 1.0 : 0.0);
 }
 
-static exprtk_value_t fn_str_contains_ci(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_str_contains_ci(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
-    return exprtk_val_num(mod_utf8_contains_ci(args[0].data.string, args[1].data.string) ? 1.0 : 0.0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
+    return toad_val_num(mod_utf8_contains_ci(args[0].data.string, args[1].data.string) ? 1.0 : 0.0);
 }
 
-static exprtk_value_t fn_replace_once(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_replace_once(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 3 || args[0].type != EXPRTK_VAL_STRING ||
-        args[1].type != EXPRTK_VAL_STRING || args[2].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 3 || args[0].type != TOAD_VAL_STRING ||
+        args[1].type != TOAD_VAL_STRING || args[2].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr old_v = args[1].data.string;
     vstr new_v = args[2].data.string;
@@ -1477,18 +1477,18 @@ static exprtk_value_t fn_replace_once(size_t argc, exprtk_value_t *args, exprtk_
     if (pos == VSTR_NPOS) return mod_copy_string(arena, s.data, s.len);
     size_t new_len = s.len - old_v.len + new_v.len;
     char *buf = (char *)mem_alloc(arena, new_len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     memcpy(buf, s.data, pos);
     memcpy(buf + pos, new_v.data, new_v.len);
     memcpy(buf + pos + new_v.len, s.data + pos + old_v.len, s.len - pos - old_v.len);
     buf[new_len] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, new_len));
+    return toad_val_str(vstr_from_buf(buf, new_len));
 }
 
-static exprtk_value_t fn_remove_prefix(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_remove_prefix(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr prefix = args[1].data.string;
     if (vstr_starts_with(s, prefix))
@@ -1496,10 +1496,10 @@ static exprtk_value_t fn_remove_prefix(size_t argc, exprtk_value_t *args, exprtk
     return mod_copy_string(arena, s.data, s.len);
 }
 
-static exprtk_value_t fn_remove_suffix(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_remove_suffix(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr suffix = args[1].data.string;
     if (vstr_ends_with(s, suffix))
@@ -1507,17 +1507,17 @@ static exprtk_value_t fn_remove_suffix(size_t argc, exprtk_value_t *args, exprtk
     return mod_copy_string(arena, s.data, s.len);
 }
 
-static exprtk_value_t fn_surround(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_surround(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_STRING ||
-        args[1].type != EXPRTK_VAL_STRING || (argc == 3 && args[2].type != EXPRTK_VAL_STRING))
-        return exprtk_val_num(0);
+    if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_STRING ||
+        args[1].type != TOAD_VAL_STRING || (argc == 3 && args[2].type != TOAD_VAL_STRING))
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr prefix = args[1].data.string;
     vstr suffix = argc == 3 ? args[2].data.string : prefix;
     size_t len = prefix.len + s.len + suffix.len;
     char *buf = (char *)mem_alloc(arena, len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     if (prefix.len > 0) {
         memcpy(buf + pos, prefix.data, prefix.len);
@@ -1532,14 +1532,14 @@ static exprtk_value_t fn_surround(size_t argc, exprtk_value_t *args, exprtk_env_
         pos += suffix.len;
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_unwrap(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_unwrap(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_STRING ||
-        args[1].type != EXPRTK_VAL_STRING || (argc == 3 && args[2].type != EXPRTK_VAL_STRING))
-        return exprtk_val_num(0);
+    if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_STRING ||
+        args[1].type != TOAD_VAL_STRING || (argc == 3 && args[2].type != TOAD_VAL_STRING))
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr prefix = args[1].data.string;
     vstr suffix = argc == 3 ? args[2].data.string : prefix;
@@ -1550,13 +1550,13 @@ static exprtk_value_t fn_unwrap(size_t argc, exprtk_value_t *args, exprtk_env_t 
     return mod_copy_string(arena, s.data, s.len);
 }
 
-static exprtk_value_t fn_normalize_space(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_normalize_space(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     char *buf = (char *)mem_alloc(arena, s.len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     size_t i = 0;
     while (i < s.len && isspace((unsigned char)s.data[i])) i++;
@@ -1573,15 +1573,15 @@ static exprtk_value_t fn_normalize_space(size_t argc, exprtk_value_t *args, expr
         buf[pos++] = s.data[i];
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_center(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_center(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_STRING || !mod_is_number(args[1]))
-        return exprtk_val_num(0);
+    if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_STRING || !mod_is_number(args[1]))
+        return toad_val_num(0);
     vstr s = args[0].data.string;
-    vstr fill = (argc == 3 && args[2].type == EXPRTK_VAL_STRING) ? args[2].data.string : vstr_from_cstr(" ");
+    vstr fill = (argc == 3 && args[2].type == TOAD_VAL_STRING) ? args[2].data.string : vstr_from_cstr(" ");
     size_t fill_len = mod_first_utf8_char_len(fill);
     if (fill_len == 0) fill = vstr_from_cstr(" "), fill_len = 1;
     size_t width = mod_number_to_index(args[1]);
@@ -1592,7 +1592,7 @@ static exprtk_value_t fn_center(size_t argc, exprtk_value_t *args, exprtk_env_t 
     size_t right = pad - left;
     size_t len = s.len + pad * fill_len;
     char *buf = (char *)mem_alloc(arena, len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     for (size_t i = 0; i < left; ++i) {
         memcpy(buf + pos, fill.data, fill_len);
@@ -1605,14 +1605,14 @@ static exprtk_value_t fn_center(size_t argc, exprtk_value_t *args, exprtk_env_t 
         pos += fill_len;
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_replace_range(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_replace_range(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 4 || args[0].type != EXPRTK_VAL_STRING || !mod_is_number(args[1]) ||
-        !mod_is_number(args[2]) || args[3].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 4 || args[0].type != TOAD_VAL_STRING || !mod_is_number(args[1]) ||
+        !mod_is_number(args[2]) || args[3].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr replacement = args[3].data.string;
     size_t start = mod_normalize_byte_index(s, args[1]);
@@ -1620,36 +1620,36 @@ static exprtk_value_t fn_replace_range(size_t argc, exprtk_value_t *args, exprtk
     if (len > s.len - start) len = s.len - start;
     size_t out_len = s.len - len + replacement.len;
     char *buf = (char *)mem_alloc(arena, out_len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     memcpy(buf, s.data, start);
     memcpy(buf + start, replacement.data, replacement.len);
     memcpy(buf + start + replacement.len, s.data + start + len, s.len - start - len);
     buf[out_len] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, out_len));
+    return toad_val_str(vstr_from_buf(buf, out_len));
 }
 
-static exprtk_value_t fn_insert(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_insert(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 3 || args[0].type != EXPRTK_VAL_STRING || !mod_is_number(args[1]) ||
-        args[2].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
-    exprtk_value_t range_args[4] = { args[0], args[1], exprtk_val_num(0), args[2] };
+    if (argc != 3 || args[0].type != TOAD_VAL_STRING || !mod_is_number(args[1]) ||
+        args[2].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
+    toad_value_t range_args[4] = { args[0], args[1], toad_val_num(0), args[2] };
     return fn_replace_range(4, range_args, env, arena);
 }
 
-static exprtk_value_t fn_delete_range(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_delete_range(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 3 || args[0].type != EXPRTK_VAL_STRING || !mod_is_number(args[1]) || !mod_is_number(args[2]))
-        return exprtk_val_num(0);
-    exprtk_value_t range_args[4] = { args[0], args[1], args[2], exprtk_val_str(vstr_from_buf("", 0)) };
+    if (argc != 3 || args[0].type != TOAD_VAL_STRING || !mod_is_number(args[1]) || !mod_is_number(args[2]))
+        return toad_val_num(0);
+    toad_value_t range_args[4] = { args[0], args[1], args[2], toad_val_str(vstr_from_buf("", 0)) };
     return fn_replace_range(4, range_args, env, arena);
 }
 
-static exprtk_value_t fn_truncate(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_truncate(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_STRING || !mod_is_number(args[1]) ||
-        (argc == 3 && args[2].type != EXPRTK_VAL_STRING))
-        return exprtk_val_num(0);
+    if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_STRING || !mod_is_number(args[1]) ||
+        (argc == 3 && args[2].type != TOAD_VAL_STRING))
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr suffix = argc == 3 ? args[2].data.string : vstr_from_cstr("...");
     size_t max_units = mod_number_to_index(args[1]);
@@ -1663,27 +1663,27 @@ static exprtk_value_t fn_truncate(size_t argc, exprtk_value_t *args, exprtk_env_
     size_t suffix_bytes = mod_string_byte_offset(suffix, suffix_units);
     size_t out_len = keep_bytes + suffix_bytes;
     char *buf = (char *)mem_alloc(arena, out_len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     memcpy(buf, s.data, keep_bytes);
     memcpy(buf + keep_bytes, suffix.data, suffix_bytes);
     buf[out_len] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, out_len));
+    return toad_val_str(vstr_from_buf(buf, out_len));
 }
 
-static exprtk_value_t fn_left(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_left(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || !mod_is_number(args[1]))
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || !mod_is_number(args[1]))
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     size_t count = mod_number_to_index(args[1]);
     size_t end = mod_string_byte_offset(s, count);
     return mod_copy_string(arena, s.data, end);
 }
 
-static exprtk_value_t fn_right(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_right(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || !mod_is_number(args[1]))
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || !mod_is_number(args[1]))
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     size_t count = mod_number_to_index(args[1]);
     size_t units = mod_string_unit_count(s);
@@ -1692,19 +1692,19 @@ static exprtk_value_t fn_right(size_t argc, exprtk_value_t *args, exprtk_env_t *
     return mod_copy_string(arena, s.data + start, s.len - start);
 }
 
-static exprtk_value_t fn_drop(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_drop(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || !mod_is_number(args[1]))
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || !mod_is_number(args[1]))
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     size_t start = mod_string_byte_offset(s, mod_number_to_index(args[1]));
     return mod_copy_string(arena, s.data + start, s.len - start);
 }
 
-static exprtk_value_t fn_zfill(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_zfill(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || !mod_is_number(args[1]))
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || !mod_is_number(args[1]))
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     size_t width = mod_number_to_index(args[1]);
     size_t current = mod_string_unit_count(s);
@@ -1712,7 +1712,7 @@ static exprtk_value_t fn_zfill(size_t argc, exprtk_value_t *args, exprtk_env_t *
     size_t zeros = width - current;
     size_t sign = (s.len > 0 && (s.data[0] == '+' || s.data[0] == '-')) ? 1 : 0;
     char *buf = (char *)mem_alloc(arena, s.len + zeros + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     if (sign) buf[pos++] = s.data[0];
     for (size_t i = 0; i < zeros; ++i) buf[pos++] = '0';
@@ -1721,15 +1721,15 @@ static exprtk_value_t fn_zfill(size_t argc, exprtk_value_t *args, exprtk_env_t *
         pos += s.len - sign;
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_pad_left(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_pad_left(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_STRING || !mod_is_number(args[1]))
-        return exprtk_val_num(0);
+    if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_STRING || !mod_is_number(args[1]))
+        return toad_val_num(0);
     vstr s = args[0].data.string;
-    vstr fill = (argc == 3 && args[2].type == EXPRTK_VAL_STRING) ? args[2].data.string : vstr_from_cstr(" ");
+    vstr fill = (argc == 3 && args[2].type == TOAD_VAL_STRING) ? args[2].data.string : vstr_from_cstr(" ");
     size_t fill_len = mod_first_utf8_char_len(fill);
     if (fill_len == 0) fill = vstr_from_cstr(" "), fill_len = 1;
     size_t width = mod_number_to_index(args[1]);
@@ -1738,7 +1738,7 @@ static exprtk_value_t fn_pad_left(size_t argc, exprtk_value_t *args, exprtk_env_
     size_t pad_count = width - current;
     size_t len = s.len + pad_count * fill_len;
     char *buf = (char *)mem_alloc(arena, len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     for (size_t i = 0; i < pad_count; ++i) {
         memcpy(buf + pos, fill.data, fill_len);
@@ -1747,15 +1747,15 @@ static exprtk_value_t fn_pad_left(size_t argc, exprtk_value_t *args, exprtk_env_
     memcpy(buf + pos, s.data, s.len);
     pos += s.len;
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_pad_right(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_pad_right(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_STRING || !mod_is_number(args[1]))
-        return exprtk_val_num(0);
+    if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_STRING || !mod_is_number(args[1]))
+        return toad_val_num(0);
     vstr s = args[0].data.string;
-    vstr fill = (argc == 3 && args[2].type == EXPRTK_VAL_STRING) ? args[2].data.string : vstr_from_cstr(" ");
+    vstr fill = (argc == 3 && args[2].type == TOAD_VAL_STRING) ? args[2].data.string : vstr_from_cstr(" ");
     size_t fill_len = mod_first_utf8_char_len(fill);
     if (fill_len == 0) fill = vstr_from_cstr(" "), fill_len = 1;
     size_t width = mod_number_to_index(args[1]);
@@ -1764,7 +1764,7 @@ static exprtk_value_t fn_pad_right(size_t argc, exprtk_value_t *args, exprtk_env
     size_t pad_count = width - current;
     size_t len = s.len + pad_count * fill_len;
     char *buf = (char *)mem_alloc(arena, len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     memcpy(buf, s.data, s.len);
     size_t pos = s.len;
     for (size_t i = 0; i < pad_count; ++i) {
@@ -1772,93 +1772,93 @@ static exprtk_value_t fn_pad_right(size_t argc, exprtk_value_t *args, exprtk_env
         pos += fill_len;
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_starts_with_ci(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_starts_with_ci(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr prefix = args[1].data.string;
-    return exprtk_val_num(mod_utf8_starts_with_ci(s, prefix) ? 1.0 : 0.0);
+    return toad_val_num(mod_utf8_starts_with_ci(s, prefix) ? 1.0 : 0.0);
 }
 
-static exprtk_value_t fn_ends_with_ci(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_ends_with_ci(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr suffix = args[1].data.string;
     if (suffix.len > s.len || !mod_utf8_valid_view(s) || !mod_utf8_valid_view(suffix))
-        return exprtk_val_num(0);
+        return toad_val_num(0);
     size_t start = s.len - suffix.len;
     if (!mod_utf8_is_boundary(s, start))
-        return exprtk_val_num(0);
-    return exprtk_val_num(mod_utf8_ieq_view(vstr_from_buf(s.data + start, suffix.len), suffix) ? 1.0 : 0.0);
+        return toad_val_num(0);
+    return toad_val_num(mod_utf8_ieq_view(vstr_from_buf(s.data + start, suffix.len), suffix) ? 1.0 : 0.0);
 }
 
-static exprtk_value_t mod_partition_result(mem_pool_t *arena, vstr s, vstr sep, size_t pos, int found) {
-    exprtk_value_t list = exprtk_val_list_empty();
+static toad_value_t mod_partition_result(mem_pool_t *arena, vstr s, vstr sep, size_t pos, int found) {
+    toad_value_t list = toad_val_list_empty();
     if (!found) {
-        if (!mod_list_append_string(&list, arena, s.data, s.len)) return exprtk_val_num(0);
-        if (!mod_list_append_string(&list, arena, "", 0)) return exprtk_val_num(0);
-        if (!mod_list_append_string(&list, arena, "", 0)) return exprtk_val_num(0);
+        if (!mod_list_append_string(&list, arena, s.data, s.len)) return toad_val_num(0);
+        if (!mod_list_append_string(&list, arena, "", 0)) return toad_val_num(0);
+        if (!mod_list_append_string(&list, arena, "", 0)) return toad_val_num(0);
         return list;
     }
-    if (!mod_list_append_string(&list, arena, s.data, pos)) return exprtk_val_num(0);
-    if (!mod_list_append_string(&list, arena, sep.data, sep.len)) return exprtk_val_num(0);
-    if (!mod_list_append_string(&list, arena, s.data + pos + sep.len, s.len - pos - sep.len)) return exprtk_val_num(0);
+    if (!mod_list_append_string(&list, arena, s.data, pos)) return toad_val_num(0);
+    if (!mod_list_append_string(&list, arena, sep.data, sep.len)) return toad_val_num(0);
+    if (!mod_list_append_string(&list, arena, s.data + pos + sep.len, s.len - pos - sep.len)) return toad_val_num(0);
     return list;
 }
 
-static exprtk_value_t fn_str_partition(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_str_partition(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr sep = args[1].data.string;
-    if (sep.len == 0) return exprtk_val_num(0);
+    if (sep.len == 0) return toad_val_num(0);
     size_t pos = vstr_find(s, sep);
     return mod_partition_result(arena, s, sep, pos, pos != VSTR_NPOS);
 }
 
-static exprtk_value_t fn_str_rpartition(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_str_rpartition(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr sep = args[1].data.string;
-    if (sep.len == 0) return exprtk_val_num(0);
+    if (sep.len == 0) return toad_val_num(0);
     size_t pos = vstr_rfind(s, sep);
     return mod_partition_result(arena, s, sep, pos, pos != VSTR_NPOS);
 }
 
-static exprtk_value_t fn_str_words(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_str_words(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
-    exprtk_value_t list = exprtk_val_list_empty();
+    toad_value_t list = toad_val_list_empty();
     size_t i = 0;
     while (i < s.len) {
         while (i < s.len && isspace((unsigned char)s.data[i])) i++;
         size_t start = i;
         while (i < s.len && !isspace((unsigned char)s.data[i])) i++;
         if (i > start && !mod_list_append_string(&list, arena, s.data + start, i - start))
-            return exprtk_val_num(0);
+            return toad_val_num(0);
     }
     return list;
 }
 
-static exprtk_value_t fn_csv_split_line(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_csv_split_line(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
-    exprtk_value_t list = exprtk_val_list_empty();
+    toad_value_t list = toad_val_list_empty();
     char *cell = (char *)mem_alloc(arena, s.len + 1);
-    if (!cell) return exprtk_val_num(0);
+    if (!cell) return toad_val_num(0);
     size_t cell_len = 0;
     int quoted = 0;
     for (size_t i = 0; i <= s.len; ++i) {
@@ -1875,7 +1875,7 @@ static exprtk_value_t fn_csv_split_line(size_t argc, exprtk_value_t *args, exprt
         } else if (c == '"' && cell_len == 0) {
             quoted = 1;
         } else if (c == ',' || i == s.len) {
-            if (!mod_list_append_string(&list, arena, cell, cell_len)) return exprtk_val_num(0);
+            if (!mod_list_append_string(&list, arena, cell, cell_len)) return toad_val_num(0);
             cell_len = 0;
         } else {
             cell[cell_len++] = c;
@@ -1915,16 +1915,16 @@ static char *mod_csv_write_cell(char *out, vstr s) {
     return out;
 }
 
-static exprtk_value_t fn_csv_join_line(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_csv_join_line(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_LIST)
-        return exprtk_val_num(0);
-    exprtk_value_t list = args[0];
+    if (argc != 1 || args[0].type != TOAD_VAL_LIST)
+        return toad_val_num(0);
+    toad_value_t list = args[0];
     size_t cap = list.data.list.count > 0 ? list.data.list.count - 1 : 0;
     char tmp[64];
     for (size_t i = 0; i < list.data.list.count; ++i) {
-        exprtk_value_t item = list.data.list.items[i];
-        if (item.type == EXPRTK_VAL_STRING) {
+        toad_value_t item = list.data.list.items[i];
+        if (item.type == TOAD_VAL_STRING) {
             cap += mod_csv_cell_encoded_len(item.data.string);
         } else if (mod_is_number(item)) {
             int n = snprintf(tmp, sizeof(tmp), "%g", mod_number_value(item));
@@ -1932,12 +1932,12 @@ static exprtk_value_t fn_csv_join_line(size_t argc, exprtk_value_t *args, exprtk
         }
     }
     char *buf = (char *)mem_alloc(arena, cap + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     char *out = buf;
     for (size_t i = 0; i < list.data.list.count; ++i) {
         if (i > 0) *out++ = ',';
-        exprtk_value_t item = list.data.list.items[i];
-        if (item.type == EXPRTK_VAL_STRING) {
+        toad_value_t item = list.data.list.items[i];
+        if (item.type == TOAD_VAL_STRING) {
             out = mod_csv_write_cell(out, item.data.string);
         } else if (mod_is_number(item)) {
             int n = snprintf(out, (buf + cap + 1) - out, "%g", mod_number_value(item));
@@ -1945,17 +1945,17 @@ static exprtk_value_t fn_csv_join_line(size_t argc, exprtk_value_t *args, exprtk
         }
     }
     *out = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, (size_t)(out - buf)));
+    return toad_val_str(vstr_from_buf(buf, (size_t)(out - buf)));
 }
 
-static exprtk_value_t fn_assert(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_assert(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)arena;
     if (argc == 1 || argc == 2) {
-        double cond = (args[0].type == EXPRTK_VAL_NUMBER) ? args[0].data.number : (args[0].data.string.len > 0);
+        double cond = (args[0].type == TOAD_VAL_NUMBER) ? args[0].data.number : (args[0].data.string.len > 0);
         if (fabs(cond) <= 1e-9) {
             if (env) {
                 env->aborted = 1;
-                if (argc == 2 && args[1].type == EXPRTK_VAL_STRING)
+                if (argc == 2 && args[1].type == TOAD_VAL_STRING)
                     printf("Assertion failed: %.*s\n", (int)args[1].data.string.len, args[1].data.string.data);
                 else
                     printf("Assertion failed\n");
@@ -1963,7 +1963,7 @@ static exprtk_value_t fn_assert(size_t argc, exprtk_value_t *args, exprtk_env_t 
         }
         return args[0];
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
 /* ========================================================================= */
@@ -1971,12 +1971,12 @@ static exprtk_value_t fn_assert(size_t argc, exprtk_value_t *args, exprtk_env_t 
 /* ========================================================================= */
 
 /* tokenize(str, delim, index) → string: extract token at index */
-static exprtk_value_t fn_tokenize(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_tokenize(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 3 || args[0].type != EXPRTK_VAL_STRING
-                   || args[1].type != EXPRTK_VAL_STRING
-                   || args[2].type != EXPRTK_VAL_NUMBER)
-        return exprtk_val_num(0);
+    if (argc != 3 || args[0].type != TOAD_VAL_STRING
+                   || args[1].type != TOAD_VAL_STRING
+                   || args[2].type != TOAD_VAL_NUMBER)
+        return toad_val_num(0);
 
     size_t index = (size_t)args[2].data.number;
     size_t cursor = 0;
@@ -1986,22 +1986,22 @@ static exprtk_value_t fn_tokenize(size_t argc, exprtk_value_t *args, exprtk_env_
     while (mod_next_token(args[0].data.string, args[1].data.string, &cursor, true, &token)) {
         if (current == index) {
             char *buf = mem_alloc(arena, token.len + 1);
-            if (!buf) return exprtk_val_num(0);
+            if (!buf) return toad_val_num(0);
             if (token.len > 0) memcpy(buf, token.data, token.len);
             buf[token.len] = '\0';
-            return exprtk_val_str(vstr_from_buf(buf, token.len));
+            return toad_val_str(vstr_from_buf(buf, token.len));
         }
         current++;
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
 /* split(str, delim) → vector: split string into numeric vector */
-static exprtk_value_t fn_split(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_split(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING
-                   || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING
+                   || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
 
     size_t count = mod_count_tokens(args[0].data.string, args[1].data.string, true);
     if (count > 0) {
@@ -2016,86 +2016,86 @@ static exprtk_value_t fn_split(size_t argc, exprtk_value_t *args, exprtk_env_t *
                 mod_to_double_v(token, arena, &vec[i]);
                 i++;
             }
-            return exprtk_val_vec(vec, count);
+            return toad_val_vec(vec, count);
         }
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
 /* token_count(str, delim) → number: count tokens */
-static exprtk_value_t fn_token_count(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_token_count(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING
-                   || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING
+                   || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
 
     size_t count = mod_count_tokens(args[0].data.string, args[1].data.string, true);
-    return exprtk_val_num((double)count);
+    return toad_val_num((double)count);
 }
 
 /* to_num(str) → number: parse string as double */
-static exprtk_value_t fn_to_num(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_to_num(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     double val = 0.0;
     mod_to_double_v(args[0].data.string, arena, &val);
-    return exprtk_val_num(val);
+    return toad_val_num(val);
 }
 
 /* to_str(num) → string: format number as string */
-static exprtk_value_t fn_to_str(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_to_str(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_NUMBER)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_NUMBER)
+        return toad_val_num(0);
     char tmp[64];
     int len = snprintf(tmp, sizeof(tmp), "%g", args[0].data.number);
     char *buf = mem_alloc(arena, len + 1);
     if (buf) {
         memcpy(buf, tmp, len);
         buf[len] = '\0';
-        return exprtk_val_str(vstr_from_buf(buf, len));
+        return toad_val_str(vstr_from_buf(buf, len));
     }
-    return exprtk_val_num(0);
+    return toad_val_num(0);
 }
 
 /* to_int(str) → number: parse string as integer */
-static exprtk_value_t fn_to_int(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_to_int(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     long long val = 0;
     mod_to_int_v(args[0].data.string, arena, &val);
-    return exprtk_val_num((double)val);
+    return toad_val_num((double)val);
 }
 
 /* to_double(str) → number: alias for to_num */
-static exprtk_value_t fn_to_double(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_to_double(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     return fn_to_num(argc, args, env, arena);
 }
 
 /* to_bool(str) -> bool: parse "true"/"false"/"yes"/"no"/"1"/"0" */
-static exprtk_value_t fn_to_bool(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_to_bool(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_bool(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_bool(0);
     bool val = false;
     mod_to_bool_v(args[0].data.string, &val);
-    return exprtk_val_bool(val);
+    return toad_val_bool(val);
 }
 
 /* format(fmt, ...) → string: sprintf-style formatting (%d %f %g %s %%) */
-static exprtk_value_t fn_format(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_format(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc < 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc < 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr fmt = args[0].data.string;
     size_t cap = fmt.len + argc * 32;
     for (size_t i = 1; i < argc; ++i) {
-        if (args[i].type == EXPRTK_VAL_STRING) cap += args[i].data.string.len;
+        if (args[i].type == TOAD_VAL_STRING) cap += args[i].data.string.len;
     }
     char *buf = mem_alloc(arena, cap + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0, arg_idx = 1;
     for (size_t i = 0; i < fmt.len; ++i) {
         if (fmt.data[i] == '%' && i + 1 < fmt.len) {
@@ -2118,7 +2118,7 @@ static exprtk_value_t fn_format(size_t argc, exprtk_value_t *args, exprtk_env_t 
                         written = snprintf(buf + pos, cap - pos, "%g", args[arg_idx].data.number);
                         break;
                     case 's':
-                        if (args[arg_idx].type == EXPRTK_VAL_STRING) {
+                        if (args[arg_idx].type == TOAD_VAL_STRING) {
                             vstr s = args[arg_idx].data.string;
                             written = snprintf(buf + pos, cap - pos, "%.*s", (int)s.len, s.data);
                         }
@@ -2138,39 +2138,39 @@ static exprtk_value_t fn_format(size_t argc, exprtk_value_t *args, exprtk_env_t 
         buf[pos++] = fmt.data[i];
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static size_t mod_value_string_len(exprtk_value_t value) {
+static size_t mod_value_string_len(toad_value_t value) {
     char tmp[64];
-    if (value.type == EXPRTK_VAL_STRING) return value.data.string.len;
-    if (value.type == EXPRTK_VAL_INTEGER) {
+    if (value.type == TOAD_VAL_STRING) return value.data.string.len;
+    if (value.type == TOAD_VAL_INTEGER) {
         int n = snprintf(tmp, sizeof(tmp), "%lld", (long long)value.data.integer);
         return n > 0 ? (size_t)n : 0;
     }
-    if (value.type == EXPRTK_VAL_NUMBER) {
+    if (value.type == TOAD_VAL_NUMBER) {
         int n = snprintf(tmp, sizeof(tmp), "%g", value.data.number);
         return n > 0 ? (size_t)n : 0;
     }
-    if (value.type == EXPRTK_VAL_NULL) return 4;
+    if (value.type == TOAD_VAL_NULL) return 4;
     return 0;
 }
 
-static size_t mod_write_value_string(char *buf, size_t cap, exprtk_value_t value) {
-    if (value.type == EXPRTK_VAL_STRING) {
+static size_t mod_write_value_string(char *buf, size_t cap, toad_value_t value) {
+    if (value.type == TOAD_VAL_STRING) {
         size_t n = value.data.string.len < cap ? value.data.string.len : cap;
         if (n > 0) memcpy(buf, value.data.string.data, n);
         return n;
     }
-    if (value.type == EXPRTK_VAL_INTEGER) {
+    if (value.type == TOAD_VAL_INTEGER) {
         int n = snprintf(buf, cap, "%lld", (long long)value.data.integer);
         return n > 0 ? (size_t)n : 0;
     }
-    if (value.type == EXPRTK_VAL_NUMBER) {
+    if (value.type == TOAD_VAL_NUMBER) {
         int n = snprintf(buf, cap, "%g", value.data.number);
         return n > 0 ? (size_t)n : 0;
     }
-    if (value.type == EXPRTK_VAL_NULL && cap >= 4) {
+    if (value.type == TOAD_VAL_NULL && cap >= 4) {
         memcpy(buf, "null", 4);
         return 4;
     }
@@ -2184,33 +2184,33 @@ typedef struct {
 } mod_mustache_partial_entry_t;
 
 typedef struct {
-    exprtk_value_t *root;
-    exprtk_value_t *partials;
-    exprtk_env_t *env;
+    toad_value_t *root;
+    toad_value_t *partials;
+    toad_env_t *env;
     mem_pool_t *arena;
     mod_mustache_partial_entry_t *partial_cache;
     size_t partial_count;
     size_t partial_capacity;
 } mod_mustache_provider_t;
 
-static int mod_mustache_is_truthy(const exprtk_value_t *value) {
+static int mod_mustache_is_truthy(const toad_value_t *value) {
     if (!value) return 0;
     switch (value->type) {
-        case EXPRTK_VAL_NULL:
+        case TOAD_VAL_NULL:
             return 0;
-        case EXPRTK_VAL_NUMBER:
+        case TOAD_VAL_NUMBER:
             return fabs(value->data.number) > 1e-12;
-        case EXPRTK_VAL_INTEGER:
+        case TOAD_VAL_INTEGER:
             return value->data.integer != 0;
-        case EXPRTK_VAL_STRING:
+        case TOAD_VAL_STRING:
             return value->data.string.len > 0;
-        case EXPRTK_VAL_LIST:
+        case TOAD_VAL_LIST:
             return value->data.list.count > 0;
-        case EXPRTK_VAL_VECTOR:
+        case TOAD_VAL_VECTOR:
             return value->data.vector.size > 0;
-        case EXPRTK_VAL_MAP:
-        case EXPRTK_VAL_OBJECT:
-            return exprtk_map_count(value) > 0;
+        case TOAD_VAL_MAP:
+        case TOAD_VAL_OBJECT:
+            return toad_map_count(value) > 0;
         default:
             return 1;
     }
@@ -2224,38 +2224,38 @@ static void *mod_mustache_get_root(void *provider_data) {
 static int mod_mustache_dump(void *node, int (*out_fn)(const char *, size_t, void *),
                              void *renderer_data, void *provider_data) {
     (void)provider_data;
-    exprtk_value_t *value = (exprtk_value_t *)node;
+    toad_value_t *value = (toad_value_t *)node;
     if (!value || !out_fn) return 0;
 
     char buf[64];
     switch (value->type) {
-        case EXPRTK_VAL_STRING:
+        case TOAD_VAL_STRING:
             return out_fn(value->data.string.data, value->data.string.len, renderer_data);
-        case EXPRTK_VAL_INTEGER: {
+        case TOAD_VAL_INTEGER: {
             int n = snprintf(buf, sizeof(buf), "%lld", (long long)value->data.integer);
             return n > 0 ? out_fn(buf, (size_t)n, renderer_data) : 0;
         }
-        case EXPRTK_VAL_NUMBER: {
+        case TOAD_VAL_NUMBER: {
             int n = snprintf(buf, sizeof(buf), "%g", value->data.number);
             return n > 0 ? out_fn(buf, (size_t)n, renderer_data) : 0;
         }
-        case EXPRTK_VAL_NULL:
+        case TOAD_VAL_NULL:
             return 0;
         default:
             return 0;
     }
 }
 
-static exprtk_value_t *mod_mustache_name_lookup(exprtk_value_t *value,
+static toad_value_t *mod_mustache_name_lookup(toad_value_t *value,
                                                 const char *name, size_t size,
                                                 mod_mustache_provider_t *provider);
 
-static exprtk_value_t *mod_mustache_lookup_part(exprtk_value_t *value,
+static toad_value_t *mod_mustache_lookup_part(toad_value_t *value,
                                                 const char *name, size_t size,
                                                 mod_mustache_provider_t *provider) {
     if (!value || !name) return NULL;
     if (size == 1 && name[0] == '.') return value;
-    if (!exprtk_value_is_object_like(value)) return NULL;
+    if (!toad_value_is_object_like(value)) return NULL;
 
     char stack_key[128];
     char *key = stack_key;
@@ -2266,17 +2266,17 @@ static exprtk_value_t *mod_mustache_lookup_part(exprtk_value_t *value,
     }
     memcpy(key, name, size);
     key[size] = '\0';
-    return exprtk_map_get_ptr(value, key);
+    return toad_map_get_ptr(value, key);
 }
 
-static exprtk_value_t *mod_mustache_name_lookup(exprtk_value_t *value,
+static toad_value_t *mod_mustache_name_lookup(toad_value_t *value,
                                                 const char *name, size_t size,
                                                 mod_mustache_provider_t *provider) {
     if (!value || !name || size == 0) return NULL;
     const char *dot = (const char *)memchr(name, '.', size);
     if (dot && !(size == 1 && name[0] == '.')) {
         size_t head_size = (size_t)(dot - name);
-        exprtk_value_t *child = mod_mustache_lookup_part(value, name, head_size, provider);
+        toad_value_t *child = mod_mustache_lookup_part(value, name, head_size, provider);
         if (!child) return NULL;
         return mod_mustache_name_lookup(child, dot + 1, size - head_size - 1, provider);
     }
@@ -2286,23 +2286,23 @@ static exprtk_value_t *mod_mustache_name_lookup(exprtk_value_t *value,
 static void *mod_mustache_get_child_by_name(void *node, const char *name, size_t size,
                                             void *provider_data) {
     mod_mustache_provider_t *provider = (mod_mustache_provider_t *)provider_data;
-    return mod_mustache_name_lookup((exprtk_value_t *)node, name, size, provider);
+    return mod_mustache_name_lookup((toad_value_t *)node, name, size, provider);
 }
 
 static void *mod_mustache_get_child_by_index(void *node, unsigned index,
                                              void *provider_data) {
-    exprtk_value_t *value = (exprtk_value_t *)node;
+    toad_value_t *value = (toad_value_t *)node;
     mod_mustache_provider_t *provider = (mod_mustache_provider_t *)provider_data;
     if (!value || !mod_mustache_is_truthy(value)) return NULL;
 
-    if (value->type == EXPRTK_VAL_LIST) {
+    if (value->type == TOAD_VAL_LIST) {
         return index < value->data.list.count ? &value->data.list.items[index] : NULL;
     }
-    if (value->type == EXPRTK_VAL_VECTOR) {
+    if (value->type == TOAD_VAL_VECTOR) {
         if (index >= value->data.vector.size || !provider || !provider->arena) return NULL;
-        exprtk_value_t *item = (exprtk_value_t *)mem_alloc(provider->arena, sizeof(exprtk_value_t));
+        toad_value_t *item = (toad_value_t *)mem_alloc(provider->arena, sizeof(toad_value_t));
         if (!item) return NULL;
-        *item = exprtk_val_num(value->data.vector.data[index]);
+        *item = toad_val_num(value->data.vector.data[index]);
         return item;
     }
     return index == 0 ? value : NULL;
@@ -2311,7 +2311,7 @@ static void *mod_mustache_get_child_by_index(void *node, unsigned index,
 static MUSTACHE_TEMPLATE *mod_mustache_get_partial(const char *name, size_t size,
                                                    void *provider_data) {
     mod_mustache_provider_t *provider = (mod_mustache_provider_t *)provider_data;
-    if (!provider || !provider->partials || !exprtk_value_is_object_like(provider->partials) ||
+    if (!provider || !provider->partials || !toad_value_is_object_like(provider->partials) ||
         !name || size == 0) {
         return NULL;
     }
@@ -2323,9 +2323,9 @@ static MUSTACHE_TEMPLATE *mod_mustache_get_partial(const char *name, size_t size
         }
     }
 
-    exprtk_value_t *partial_value =
+    toad_value_t *partial_value =
         mod_mustache_name_lookup(provider->partials, name, size, provider);
-    if (!partial_value || partial_value->type != EXPRTK_VAL_STRING) return NULL;
+    if (!partial_value || partial_value->type != TOAD_VAL_STRING) return NULL;
 
     MUSTACHE_TEMPLATE *templ =
         mustache_compile_v(partial_value->data.string, NULL, NULL, 0);
@@ -2376,23 +2376,23 @@ static void mod_mustache_provider_free(mod_mustache_provider_t *provider) {
 
 static int mod_mustache_is_lambda(void *node, void *provider_data) {
     (void)provider_data;
-    exprtk_value_t *value = (exprtk_value_t *)node;
-    return value && value->type == EXPRTK_VAL_FUNCTION;
+    toad_value_t *value = (toad_value_t *)node;
+    return value && value->type == TOAD_VAL_FUNCTION;
 }
 
 static int mod_mustache_call_lambda(void *node, const char *text, size_t text_len,
                                     char **out_text, size_t *out_len,
                                     void *provider_data) {
-    exprtk_value_t *value = (exprtk_value_t *)node;
+    toad_value_t *value = (toad_value_t *)node;
     mod_mustache_provider_t *provider = (mod_mustache_provider_t *)provider_data;
-    if (!value || value->type != EXPRTK_VAL_FUNCTION || !provider ||
+    if (!value || value->type != TOAD_VAL_FUNCTION || !provider ||
         !provider->env || !out_text || !out_len) {
         return -1;
     }
 
-    exprtk_value_t arg = exprtk_val_str(vstr_from_buf((char *)(text ? text : ""), text_len));
-    exprtk_value_t result = exprtk_call_function_value(*value, 1, &arg, provider->env);
-    if (provider->env->aborted || provider->env->flow == exprtk_FLOW_THROW) return -1;
+    toad_value_t arg = toad_val_str(vstr_from_buf((char *)(text ? text : ""), text_len));
+    toad_value_t result = toad_call_function_value(*value, 1, &arg, provider->env);
+    if (provider->env->aborted || provider->env->flow == toad_FLOW_THROW) return -1;
 
     size_t len = mod_value_string_len(result);
     char *buf = (char *)malloc(len + 1);
@@ -2404,22 +2404,22 @@ static int mod_mustache_call_lambda(void *node, const char *text, size_t text_le
     return 0;
 }
 
-static exprtk_value_t fn_template_render(size_t argc, exprtk_value_t *args,
-                                         exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_template_render(size_t argc, toad_value_t *args,
+                                         toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
-    if (argc == 3 && !exprtk_value_is_object_like(&args[2]))
-        return exprtk_val_num(0);
+    if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
+    if (argc == 3 && !toad_value_is_object_like(&args[2]))
+        return toad_val_num(0);
 
     MUSTACHE_TEMPLATE *templ =
         mustache_compile_v(args[0].data.string, NULL, NULL, 0);
-    if (!templ) return exprtk_val_num(0);
+    if (!templ) return toad_val_num(0);
 
     MUSTACHE_STRING_RENDERER_ARENA renderer;
     if (mustache_string_renderer_init_arena(&renderer, arena, args[0].data.string.len + 64) != 0) {
         mustache_release(templ);
-        return exprtk_val_num(0);
+        return toad_val_num(0);
     }
 
     mod_mustache_provider_t provider_data;
@@ -2440,7 +2440,7 @@ static exprtk_value_t fn_template_render(size_t argc, exprtk_value_t *args,
 
     int rc = mustache_process(templ, &renderer.base, &renderer, &provider, &provider_data);
     char *rendered = rc == 0 ? mustache_string_renderer_get_arena(&renderer) : NULL;
-    exprtk_value_t result = exprtk_val_num(0);
+    toad_value_t result = toad_val_num(0);
     if (rendered) {
         vstr rendered_view = vstr_from_cstr(rendered);
         result = mod_copy_string(arena, rendered_view.data, rendered_view.len);
@@ -2452,15 +2452,15 @@ static exprtk_value_t fn_template_render(size_t argc, exprtk_value_t *args,
     return result;
 }
 
-static exprtk_value_t fn_str_format(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_str_format(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc < 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc < 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr fmt = args[0].data.string;
     size_t cap = fmt.len + 1;
     for (size_t i = 1; i < argc; ++i) cap += mod_value_string_len(args[i]) + 16;
     char *buf = (char *)mem_alloc(arena, cap);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
 
     size_t pos = 0;
     size_t next_arg = 1;
@@ -2496,84 +2496,84 @@ static exprtk_value_t fn_str_format(size_t argc, exprtk_value_t *args, exprtk_en
         buf[pos++] = fmt.data[i];
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_unicode_normalize(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_unicode_normalize(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if ((argc != 1 && argc != 2) || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
-    if (argc == 2 && args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if ((argc != 1 && argc != 2) || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
+    if (argc == 2 && args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
-    if (!mod_utf8_valid_view(s)) return exprtk_val_num(0);
+    if (!mod_utf8_valid_view(s)) return toad_val_num(0);
     if (argc == 2) {
         vstr form = args[1].data.string;
         if (!(vstr_ieq(form, vstr_from_cstr("NFC")) ||
               vstr_ieq(form, vstr_from_cstr("NFD")) ||
               vstr_ieq(form, vstr_from_cstr("NFKC")) ||
               vstr_ieq(form, vstr_from_cstr("NFKD")))) {
-            return exprtk_val_num(0);
+            return toad_val_num(0);
         }
     }
     return mod_copy_string(arena, s.data, s.len);
 }
 
-static exprtk_value_t fn_grapheme_len(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_grapheme_len(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     return fn_utf8_len(argc, args, env, arena);
 }
 
-static exprtk_value_t fn_grapheme_substr(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_grapheme_substr(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     return fn_utf8_substr(argc, args, env, arena);
 }
 
-static exprtk_value_t fn_grapheme_reverse(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_grapheme_reverse(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     return fn_utf8_reverse(argc, args, env, arena);
 }
 
-static exprtk_value_t fn_grapheme_split(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_grapheme_split(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
-    if (!mod_utf8_valid_view(s)) return exprtk_val_num(0);
-    exprtk_value_t list = exprtk_val_list_empty();
+    if (!mod_utf8_valid_view(s)) return toad_val_num(0);
+    toad_value_t list = toad_val_list_empty();
     size_t offset = 0;
     while (offset < s.len) {
         size_t n = mod_utf8_next_width(s, offset, NULL);
         if (n == 0 || offset + n > s.len) n = 1;
-        if (!mod_list_append_string(&list, arena, s.data + offset, n)) return exprtk_val_num(0);
+        if (!mod_list_append_string(&list, arena, s.data + offset, n)) return toad_val_num(0);
         offset += n;
     }
     return list;
 }
 
-static exprtk_value_t fn_casefold(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_casefold(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     return fn_utf8_lower(argc, args, env, arena);
 }
 
-static exprtk_value_t fn_capitalize(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_capitalize(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     char *buf = (char *)mem_alloc(arena, s.len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     for (size_t i = 0; i < s.len; ++i) {
         unsigned char c = (unsigned char)s.data[i];
         buf[i] = (char)(i == 0 ? toupper(c) : tolower(c));
     }
     buf[s.len] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, s.len));
+    return toad_val_str(vstr_from_buf(buf, s.len));
 }
 
-static exprtk_value_t fn_title(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_title(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     char *buf = (char *)mem_alloc(arena, s.len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     int word_start = 1;
     for (size_t i = 0; i < s.len; ++i) {
         unsigned char c = (unsigned char)s.data[i];
@@ -2586,16 +2586,16 @@ static exprtk_value_t fn_title(size_t argc, exprtk_value_t *args, exprtk_env_t *
         }
     }
     buf[s.len] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, s.len));
+    return toad_val_str(vstr_from_buf(buf, s.len));
 }
 
-static exprtk_value_t fn_swapcase(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_swapcase(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     char *buf = (char *)mem_alloc(arena, s.len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     for (size_t i = 0; i < s.len; ++i) {
         unsigned char c = (unsigned char)s.data[i];
         if (islower(c)) buf[i] = (char)toupper(c);
@@ -2603,14 +2603,14 @@ static exprtk_value_t fn_swapcase(size_t argc, exprtk_value_t *args, exprtk_env_
         else buf[i] = s.data[i];
     }
     buf[s.len] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, s.len));
+    return toad_val_str(vstr_from_buf(buf, s.len));
 }
 
-static exprtk_value_t fn_word_wrap(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_word_wrap(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_STRING || !mod_is_number(args[1]) ||
+    if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_STRING || !mod_is_number(args[1]) ||
         (argc == 3 && !mod_is_number(args[2])))
-        return exprtk_val_num(0);
+        return toad_val_num(0);
 
     vstr s = args[0].data.string;
     size_t width = mod_number_to_index(args[1]);
@@ -2618,7 +2618,7 @@ static exprtk_value_t fn_word_wrap(size_t argc, exprtk_value_t *args, exprtk_env
     if (width == 0 || s.len == 0) return mod_copy_string(arena, s.data, s.len);
 
     char *buf = (char *)mem_alloc(arena, s.len * 2 + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     size_t line_len = 0;
     size_t i = 0;
@@ -2670,14 +2670,14 @@ static exprtk_value_t fn_word_wrap(size_t argc, exprtk_value_t *args, exprtk_env
         }
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_shorten(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_shorten(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if ((argc != 2 && argc != 3) || args[0].type != EXPRTK_VAL_STRING || !mod_is_number(args[1]) ||
-        (argc == 3 && args[2].type != EXPRTK_VAL_STRING))
-        return exprtk_val_num(0);
+    if ((argc != 2 && argc != 3) || args[0].type != TOAD_VAL_STRING || !mod_is_number(args[1]) ||
+        (argc == 3 && args[2].type != TOAD_VAL_STRING))
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr suffix = argc == 3 ? args[2].data.string : vstr_from_cstr("...");
     size_t width = mod_number_to_index(args[1]);
@@ -2695,17 +2695,17 @@ static exprtk_value_t fn_shorten(size_t argc, exprtk_value_t *args, exprtk_env_t
     while (cut > 0 && isspace((unsigned char)s.data[cut - 1])) cut--;
 
     char *buf = (char *)mem_alloc(arena, cut + suffix.len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     memcpy(buf, s.data, cut);
     memcpy(buf + cut, suffix.data, suffix.len);
     buf[cut + suffix.len] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, cut + suffix.len));
+    return toad_val_str(vstr_from_buf(buf, cut + suffix.len));
 }
 
-static exprtk_value_t mod_case_convert(vstr s, mem_pool_t *arena, int style) {
+static toad_value_t mod_case_convert(vstr s, mem_pool_t *arena, int style) {
     char sep = style == 0 ? '_' : '-';
     char *buf = (char *)mem_alloc(arena, s.len * 2 + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
 
     size_t pos = 0;
     size_t word_index = 0;
@@ -2740,47 +2740,47 @@ static exprtk_value_t mod_case_convert(vstr s, mem_pool_t *arena, int style) {
         prev = c;
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_snake_case(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_snake_case(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     return mod_case_convert(args[0].data.string, arena, 0);
 }
 
-static exprtk_value_t fn_kebab_case(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_kebab_case(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     return mod_case_convert(args[0].data.string, arena, 1);
 }
 
-static exprtk_value_t fn_camel_case(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_camel_case(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     return mod_case_convert(args[0].data.string, arena, 2);
 }
 
-static exprtk_value_t fn_pascal_case(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_pascal_case(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     return mod_case_convert(args[0].data.string, arena, 3);
 }
 
-static exprtk_value_t fn_slugify(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_slugify(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     return mod_case_convert(args[0].data.string, arena, 4);
 }
 
-static exprtk_value_t fn_remove_chars(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_remove_chars(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr chars = args[1].data.string;
     char *buf = (char *)mem_alloc(arena, s.len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     size_t i = 0;
     int valid = mod_utf8_valid_view(s) && mod_utf8_valid_view(chars);
@@ -2794,17 +2794,17 @@ static exprtk_value_t fn_remove_chars(size_t argc, exprtk_value_t *args, exprtk_
         i += n;
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_keep_chars(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_keep_chars(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr chars = args[1].data.string;
     char *buf = (char *)mem_alloc(arena, s.len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     size_t i = 0;
     int valid = mod_utf8_valid_view(s) && mod_utf8_valid_view(chars);
@@ -2818,19 +2818,19 @@ static exprtk_value_t fn_keep_chars(size_t argc, exprtk_value_t *args, exprtk_en
         i += n;
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_translate(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_translate(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 3 || args[0].type != EXPRTK_VAL_STRING ||
-        args[1].type != EXPRTK_VAL_STRING || args[2].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 3 || args[0].type != TOAD_VAL_STRING ||
+        args[1].type != TOAD_VAL_STRING || args[2].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     vstr s = args[0].data.string;
     vstr from = args[1].data.string;
     vstr to = args[2].data.string;
     char *buf = (char *)mem_alloc(arena, s.len * (to.len ? to.len : 1) + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     for (size_t i = 0; i < s.len; ++i) {
         char *hit = (char *)memchr(from.data, (unsigned char)s.data[i], from.len);
@@ -2842,12 +2842,12 @@ static exprtk_value_t fn_translate(size_t argc, exprtk_value_t *args, exprtk_env
         if (idx < to.len) buf[pos++] = to.data[idx];
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_html_escape(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_html_escape(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     vstr s = args[0].data.string;
     size_t len = 0;
     for (size_t i = 0; i < s.len; ++i) {
@@ -2861,7 +2861,7 @@ static exprtk_value_t fn_html_escape(size_t argc, exprtk_value_t *args, exprtk_e
         }
     }
     char *buf = (char *)mem_alloc(arena, len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     for (size_t i = 0; i < s.len; ++i) {
         switch (s.data[i]) {
@@ -2874,15 +2874,15 @@ static exprtk_value_t fn_html_escape(size_t argc, exprtk_value_t *args, exprtk_e
         }
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_html_unescape(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_html_unescape(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     vstr s = args[0].data.string;
     char *buf = (char *)mem_alloc(arena, s.len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     for (size_t i = 0; i < s.len; ++i) {
         size_t rem = s.len - i;
@@ -2903,12 +2903,12 @@ static exprtk_value_t fn_html_unescape(size_t argc, exprtk_value_t *args, exprtk
         }
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_json_escape(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_json_escape(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     static const char hex[] = "0123456789ABCDEF";
     vstr s = args[0].data.string;
     size_t len = 0;
@@ -2930,7 +2930,7 @@ static exprtk_value_t fn_json_escape(size_t argc, exprtk_value_t *args, exprtk_e
         }
     }
     char *buf = (char *)mem_alloc(arena, len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     for (size_t i = 0; i < s.len; ++i) {
         unsigned char c = (unsigned char)s.data[i];
@@ -2957,15 +2957,15 @@ static exprtk_value_t fn_json_escape(size_t argc, exprtk_value_t *args, exprtk_e
         }
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_json_unescape(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_json_unescape(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     vstr s = args[0].data.string;
     char *buf = (char *)mem_alloc(arena, s.len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     for (size_t i = 0; i < s.len; ++i) {
         if (s.data[i] != '\\' || i + 1 >= s.len) {
@@ -3004,7 +3004,7 @@ static exprtk_value_t fn_json_unescape(size_t argc, exprtk_value_t *args, exprtk
                     }
                 }
                 size_t n = mod_utf8_write_codepoint(buf + pos, s.len + 1 - pos, cp);
-                if (n == 0) return exprtk_val_num(0);
+                if (n == 0) return toad_val_num(0);
                 pos += n;
                 break;
             }
@@ -3014,12 +3014,12 @@ static exprtk_value_t fn_json_unescape(size_t argc, exprtk_value_t *args, exprtk
         }
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_url_encode(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_url_encode(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     static const char hex[] = "0123456789ABCDEF";
     vstr s = args[0].data.string;
     size_t len = 0;
@@ -3027,7 +3027,7 @@ static exprtk_value_t fn_url_encode(size_t argc, exprtk_value_t *args, exprtk_en
         len += mod_is_unreserved_url_char((unsigned char)s.data[i]) ? 1 : 3;
     }
     char *buf = (char *)mem_alloc(arena, len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     for (size_t i = 0; i < s.len; ++i) {
         unsigned char c = (unsigned char)s.data[i];
@@ -3040,15 +3040,15 @@ static exprtk_value_t fn_url_encode(size_t argc, exprtk_value_t *args, exprtk_en
         }
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_url_decode(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_url_decode(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     vstr s = args[0].data.string;
     char *buf = (char *)mem_alloc(arena, s.len + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     for (size_t i = 0; i < s.len; ++i) {
         if (s.data[i] == '%' && i + 2 < s.len) {
@@ -3063,47 +3063,47 @@ static exprtk_value_t fn_url_decode(size_t argc, exprtk_value_t *args, exprtk_en
         buf[pos++] = s.data[i] == '+' ? ' ' : s.data[i];
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_base64_encode(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_base64_encode(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     vstr s = args[0].data.string;
-    if (s.len == 0) return exprtk_val_str(vstr_from_buf("", 0));
+    if (s.len == 0) return toad_val_str(vstr_from_buf("", 0));
     char *encoded = NULL;
     if (tn_base64_encode((const uint8_t *)s.data, s.len, &encoded) != 0 || !encoded)
-        return exprtk_val_num(0);
+        return toad_val_num(0);
     vstr encoded_view = vstr_from_cstr(encoded);
-    exprtk_value_t result = mod_copy_string(arena, encoded_view.data, encoded_view.len);
+    toad_value_t result = mod_copy_string(arena, encoded_view.data, encoded_view.len);
     free(encoded);
     return result;
 }
 
-static exprtk_value_t fn_base64_decode(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_base64_decode(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     vstr s = args[0].data.string;
-    if (s.len == 0) return exprtk_val_str(vstr_from_buf("", 0));
+    if (s.len == 0) return toad_val_str(vstr_from_buf("", 0));
     char *input = mod_view_to_arena_cstr(s, arena);
-    if (!input) return exprtk_val_num(0);
+    if (!input) return toad_val_num(0);
     uint8_t *decoded = NULL;
     size_t decoded_len = 0;
     if (tn_base64_decode(input, &decoded, &decoded_len) != 0 || !decoded)
-        return exprtk_val_num(0);
-    exprtk_value_t result = mod_copy_string(arena, (const char *)decoded, decoded_len);
+        return toad_val_num(0);
+    toad_value_t result = mod_copy_string(arena, (const char *)decoded, decoded_len);
     free(decoded);
     return result;
 }
 
-static exprtk_value_t fn_base64url_encode(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_base64url_encode(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     vstr s = args[0].data.string;
-    if (s.len == 0) return exprtk_val_str(vstr_from_buf("", 0));
+    if (s.len == 0) return toad_val_str(vstr_from_buf("", 0));
     char *encoded = NULL;
     if (tn_base64_encode((const uint8_t *)s.data, s.len, &encoded) != 0 || !encoded)
-        return exprtk_val_num(0);
+        return toad_val_num(0);
 
     vstr encoded_view = vstr_from_cstr(encoded);
     size_t len = encoded_view.len;
@@ -3111,7 +3111,7 @@ static exprtk_value_t fn_base64url_encode(size_t argc, exprtk_value_t *args, exp
     char *buf = (char *)mem_alloc(arena, len + 1);
     if (!buf) {
         free(encoded);
-        return exprtk_val_num(0);
+        return toad_val_num(0);
     }
     for (size_t i = 0; i < len; ++i) {
         char c = encoded[i];
@@ -3119,19 +3119,19 @@ static exprtk_value_t fn_base64url_encode(size_t argc, exprtk_value_t *args, exp
     }
     buf[len] = '\0';
     free(encoded);
-    return exprtk_val_str(vstr_from_buf(buf, len));
+    return toad_val_str(vstr_from_buf(buf, len));
 }
 
-static exprtk_value_t fn_base64url_decode(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_base64url_decode(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     vstr s = args[0].data.string;
-    if (s.len == 0) return exprtk_val_str(vstr_from_buf("", 0));
+    if (s.len == 0) return toad_val_str(vstr_from_buf("", 0));
 
     size_t pad = (4 - (s.len % 4)) % 4;
-    if (s.len % 4 == 1) return exprtk_val_num(0);
+    if (s.len % 4 == 1) return toad_val_num(0);
     char *input = (char *)mem_alloc(arena, s.len + pad + 1);
-    if (!input) return exprtk_val_num(0);
+    if (!input) return toad_val_num(0);
     for (size_t i = 0; i < s.len; ++i) {
         char c = s.data[i];
         input[i] = c == '-' ? '+' : (c == '_' ? '/' : c);
@@ -3142,19 +3142,19 @@ static exprtk_value_t fn_base64url_decode(size_t argc, exprtk_value_t *args, exp
     uint8_t *decoded = NULL;
     size_t decoded_len = 0;
     if (tn_base64_decode(input, &decoded, &decoded_len) != 0 || !decoded)
-        return exprtk_val_num(0);
-    exprtk_value_t result = mod_copy_string(arena, (const char *)decoded, decoded_len);
+        return toad_val_num(0);
+    toad_value_t result = mod_copy_string(arena, (const char *)decoded, decoded_len);
     free(decoded);
     return result;
 }
 
-static exprtk_value_t fn_hex_encode(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_hex_encode(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     static const char hex[] = "0123456789abcdef";
     vstr s = args[0].data.string;
     char *buf = (char *)mem_alloc(arena, s.len * 2 + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     for (size_t i = 0; i < s.len; ++i) {
         unsigned char c = (unsigned char)s.data[i];
@@ -3162,31 +3162,31 @@ static exprtk_value_t fn_hex_encode(size_t argc, exprtk_value_t *args, exprtk_en
         buf[pos++] = hex[c & 0x0F];
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_hex_decode(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_hex_decode(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     vstr s = args[0].data.string;
-    if ((s.len % 2) != 0) return exprtk_val_num(0);
+    if ((s.len % 2) != 0) return toad_val_num(0);
     char *buf = (char *)mem_alloc(arena, s.len / 2 + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     for (size_t i = 0; i < s.len; i += 2) {
         int hi = mod_hex_value((unsigned char)s.data[i]);
         int lo = mod_hex_value((unsigned char)s.data[i + 1]);
-        if (hi < 0 || lo < 0) return exprtk_val_num(0);
+        if (hi < 0 || lo < 0) return toad_val_num(0);
         buf[pos++] = (char)((hi << 4) | lo);
     }
     buf[pos] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static exprtk_value_t fn_constant_time_eq(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_constant_time_eq(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env; (void)arena;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_STRING || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_STRING || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
 
     vstr a = args[0].data.string;
     vstr b = args[1].data.string;
@@ -3197,66 +3197,66 @@ static exprtk_value_t fn_constant_time_eq(size_t argc, exprtk_value_t *args, exp
         unsigned char cb = i < b.len ? (unsigned char)b.data[i] : 0;
         diff |= (unsigned int)(ca ^ cb);
     }
-    return exprtk_val_num(diff == 0 ? 1.0 : 0.0);
+    return toad_val_num(diff == 0 ? 1.0 : 0.0);
 }
 
-static exprtk_value_t fn_bytes(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_bytes(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || args[0].type != EXPRTK_VAL_STRING) return exprtk_val_num(0);
+    if (argc != 1 || args[0].type != TOAD_VAL_STRING) return toad_val_num(0);
     vstr s = args[0].data.string;
     char *buf = (char *)mem_alloc(arena, s.len);
-    if (!buf && s.len > 0) return exprtk_val_num(0);
+    if (!buf && s.len > 0) return toad_val_num(0);
     if (s.len > 0) memcpy(buf, s.data, s.len);
-    return exprtk_val_bytes(vstr_from_buf(buf, s.len));
+    return toad_val_bytes(vstr_from_buf(buf, s.len));
 }
 
-static exprtk_value_t fn_from_bytes(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_from_bytes(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 1 || (args[0].type != EXPRTK_VAL_BYTES &&
-                      args[0].type != EXPRTK_VAL_LIST &&
-                      args[0].type != EXPRTK_VAL_VECTOR))
-        return exprtk_val_num(0);
+    if (argc != 1 || (args[0].type != TOAD_VAL_BYTES &&
+                      args[0].type != TOAD_VAL_LIST &&
+                      args[0].type != TOAD_VAL_VECTOR))
+        return toad_val_num(0);
 
-    if (args[0].type == EXPRTK_VAL_BYTES) {
+    if (args[0].type == TOAD_VAL_BYTES) {
         vstr b = args[0].data.bytes;
         char *buf = (char *)mem_alloc(arena, b.len + 1);
-        if (!buf) return exprtk_val_num(0);
+        if (!buf) return toad_val_num(0);
         if (b.len > 0) memcpy(buf, b.data, b.len);
         buf[b.len] = '\0';
-        return exprtk_val_str(vstr_from_buf(buf, b.len));
+        return toad_val_str(vstr_from_buf(buf, b.len));
     }
 
-    size_t n = args[0].type == EXPRTK_VAL_LIST ? args[0].data.list.count : args[0].data.vector.size;
+    size_t n = args[0].type == TOAD_VAL_LIST ? args[0].data.list.count : args[0].data.vector.size;
     char *buf = (char *)mem_alloc(arena, n + 1);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     for (size_t i = 0; i < n; ++i) {
         double v = 0.0;
-        if (args[0].type == EXPRTK_VAL_LIST) {
-            exprtk_value_t item = args[0].data.list.items[i];
-            if (!mod_is_number(item)) return exprtk_val_num(0);
+        if (args[0].type == TOAD_VAL_LIST) {
+            toad_value_t item = args[0].data.list.items[i];
+            if (!mod_is_number(item)) return toad_val_num(0);
             v = mod_number_value(item);
         } else {
             v = args[0].data.vector.data[i];
         }
         double iv = floor(v);
-        if (v < 0.0 || v > 255.0 || fabs(v - iv) > 1e-9) return exprtk_val_num(0);
+        if (v < 0.0 || v > 255.0 || fabs(v - iv) > 1e-9) return toad_val_num(0);
         buf[i] = (char)((unsigned char)iv);
     }
     buf[n] = '\0';
-    return exprtk_val_str(vstr_from_buf(buf, n));
+    return toad_val_str(vstr_from_buf(buf, n));
 }
 
 /* join(vec, delim) → string: join numeric vector into delimited string */
-static exprtk_value_t fn_join(size_t argc, exprtk_value_t *args, exprtk_env_t *env, mem_pool_t *arena) {
+static toad_value_t fn_join(size_t argc, toad_value_t *args, toad_env_t *env, mem_pool_t *arena) {
     (void)env;
-    if (argc != 2 || args[0].type != EXPRTK_VAL_VECTOR || args[1].type != EXPRTK_VAL_STRING)
-        return exprtk_val_num(0);
+    if (argc != 2 || args[0].type != TOAD_VAL_VECTOR || args[1].type != TOAD_VAL_STRING)
+        return toad_val_num(0);
     size_t n = args[0].data.vector.size;
-    if (n == 0) return exprtk_val_str(vstr_from_buf("", 0));
+    if (n == 0) return toad_val_str(vstr_from_buf("", 0));
     vstr delim = args[1].data.string;
     size_t cap = n * 24 + (n > 0 ? (n - 1) * delim.len : 0) + 1;
     char *buf = mem_alloc(arena, cap);
-    if (!buf) return exprtk_val_num(0);
+    if (!buf) return toad_val_num(0);
     size_t pos = 0;
     for (size_t i = 0; i < n; ++i) {
         if (i > 0 && delim.len > 0) {
@@ -3266,10 +3266,10 @@ static exprtk_value_t fn_join(size_t argc, exprtk_value_t *args, exprtk_env_t *e
         int written = snprintf(buf + pos, cap - pos, "%g", args[0].data.vector.data[i]);
         if (written > 0) pos += (size_t)written;
     }
-    return exprtk_val_str(vstr_from_buf(buf, pos));
+    return toad_val_str(vstr_from_buf(buf, pos));
 }
 
-static const exprtk_func_entry_t string_entries[] = {
+static const toad_func_entry_t string_entries[] = {
     { "assert",        fn_assert },
     { "base64_decode", fn_base64_decode },
     { "base64_encode", fn_base64_encode },
@@ -3457,8 +3457,8 @@ static const exprtk_func_entry_t string_entries[] = {
     { "pascal_case",   fn_pascal_case },
 };
 
-static const exprtk_module_t string_module = {
+static const toad_module_t string_module = {
     "string", string_entries, sizeof(string_entries) / sizeof(string_entries[0])
 };
 
-const exprtk_module_t *exprtk_module_string(void) { return &string_module; }
+const toad_module_t *toad_module_string(void) { return &string_module; }

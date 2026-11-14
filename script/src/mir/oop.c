@@ -2,12 +2,12 @@
  * @file oop.c
  * @brief OOP System for MIR Backend
  *
- * This module handles Object-Oriented Programming features in the TurboScript MIR backend.
+ * This module handles Object-Oriented Programming features in the Toad MIR backend.
  * Extracted from mir.c as part of modularization effort.
  */
 
 #include "internal.h"
-#include <turboscript/grammar.h>
+#include <toad/grammar.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -38,11 +38,11 @@ int ts_oop_predicate_kind(const char *name) {
  * is_null with null literal or variable can be optimized.
  * Other predicates can always preserve value.
  */
-int ts_oop_predicate_can_preserve_value(int kind, tbs_node_t *arg) {
+int ts_oop_predicate_can_preserve_value(int kind, toad_node_t *arg) {
   if (!arg) return 0;
   if (kind != 4) return 1;  // Non-null predicates can preserve value
-  return arg->type == TBS_NODE_NULL || arg->type == TBS_NODE_VARIABLE ||
-         arg->type == TBS_NODE_MEMBER_ACCESS;
+  return arg->type == TOAD_NODE_NULL || arg->type == TOAD_NODE_VARIABLE ||
+         arg->type == TOAD_NODE_MEMBER_ACCESS;
 }
 
 /**
@@ -50,8 +50,8 @@ int ts_oop_predicate_can_preserve_value(int kind, tbs_node_t *arg) {
  * @param node String literal node containing type name
  * @return 1=class, 2=instance, 3=function, 0=not OOP type
  */
-int ts_typeof_oop_kind(tbs_node_t *node) {
-  if (!node || node->type != TBS_NODE_STRING || !node->data.string.value.data) return 0;
+int ts_typeof_oop_kind(toad_node_t *node) {
+  if (!node || node->type != TOAD_NODE_STRING || !node->data.string.value.data) return 0;
 
   vstr value = node->data.string.value;
   if (value.len == 5 && memcmp(value.data, "class", 5) == 0) return 1;
@@ -66,8 +66,8 @@ int ts_typeof_oop_kind(tbs_node_t *node) {
  * @param out_arg Output parameter for argument node
  * @return 1 if node is typeof(arg), 0 otherwise
  */
-int ts_typeof_arg(tbs_node_t *node, tbs_node_t **out_arg) {
-  if (!node || node->type != TBS_NODE_FUNCTION_CALL || !node->data.function.name ||
+int ts_typeof_arg(toad_node_t *node, toad_node_t **out_arg) {
+  if (!node || node->type != TOAD_NODE_FUNCTION_CALL || !node->data.function.name ||
       strcmp(node->data.function.name, "typeof") != 0 || node->data.function.arg_count != 1) {
     return 0;
   }
@@ -80,10 +80,10 @@ int ts_typeof_arg(tbs_node_t *node, tbs_node_t **out_arg) {
  * Method Reload Analysis
  * ========================================================================= */
 
-static int ts_name_is_param(const char *name, tbs_node_t **params, size_t param_count) {
+static int ts_name_is_param(const char *name, toad_node_t **params, size_t param_count) {
   if (!name) return 0;
   for (size_t i = 0; i < param_count; ++i) {
-    if (params[i] && params[i]->type == TBS_NODE_VARIABLE &&
+    if (params[i] && params[i]->type == TOAD_NODE_VARIABLE &&
         params[i]->data.variable.name && strcmp(params[i]->data.variable.name, name) == 0) {
       return 1;
     }
@@ -91,26 +91,26 @@ static int ts_name_is_param(const char *name, tbs_node_t **params, size_t param_
   return 0;
 }
 
-static int ts_oop_method_expr_is_read_only(tbs_node_t *node);
+static int ts_oop_method_expr_is_read_only(toad_node_t *node);
 
-static int ts_oop_method_body_needs_reload(tbs_node_t *node, tbs_node_t **params,
+static int ts_oop_method_body_needs_reload(toad_node_t *node, toad_node_t **params,
                                            size_t param_count) {
   if (!node) return 0;
 
   switch (node->type) {
-  case TBS_NODE_NUMBER:
-  case TBS_NODE_INTEGER:
-  case TBS_NODE_VARIABLE:
-  case TBS_NODE_STRING:
-  case TBS_NODE_NULL:
-  case TBS_NODE_THIS:
+  case TOAD_NODE_NUMBER:
+  case TOAD_NODE_INTEGER:
+  case TOAD_NODE_VARIABLE:
+  case TOAD_NODE_STRING:
+  case TOAD_NODE_NULL:
+  case TOAD_NODE_THIS:
     return 0;
 
-  case TBS_NODE_BINARY_OP:
+  case TOAD_NODE_BINARY_OP:
     return ts_oop_method_body_needs_reload(node->data.binary.left, params, param_count) ||
            ts_oop_method_body_needs_reload(node->data.binary.right, params, param_count);
 
-  case TBS_NODE_BLOCK:
+  case TOAD_NODE_BLOCK:
     for (size_t i = 0; i < node->data.block.count; ++i) {
       if (ts_oop_method_body_needs_reload(node->data.block.statements[i], params, param_count)) {
         return 1;
@@ -118,19 +118,19 @@ static int ts_oop_method_body_needs_reload(tbs_node_t *node, tbs_node_t **params
     }
     return 0;
 
-  case TBS_NODE_FLOW:
+  case TOAD_NODE_FLOW:
     return ts_oop_method_expr_is_read_only(node->data.flow.value) ? 0 : 1;
 
-  case TBS_NODE_ASSIGNMENT:
+  case TOAD_NODE_ASSIGNMENT:
     if (!ts_name_is_param(node->data.assignment.name, params, param_count)) return 1;
     return ts_oop_method_expr_is_read_only(node->data.assignment.value) ? 0 : 1;
 
-  case TBS_NODE_MEMBER_ACCESS:
+  case TOAD_NODE_MEMBER_ACCESS:
     return ts_oop_method_expr_is_read_only(node->data.member_access.object) ? 0 : 1;
 
-  case TBS_NODE_MEMBER_SET:
+  case TOAD_NODE_MEMBER_SET:
     if (!node->data.member_set.object ||
-        node->data.member_set.object->type != TBS_NODE_THIS) {
+        node->data.member_set.object->type != TOAD_NODE_THIS) {
       return 1;
     }
     return ts_oop_method_expr_is_read_only(node->data.member_set.value) ? 0 : 1;
@@ -140,24 +140,24 @@ static int ts_oop_method_body_needs_reload(tbs_node_t *node, tbs_node_t **params
   }
 }
 
-static int ts_oop_method_expr_is_read_only(tbs_node_t *node) {
+static int ts_oop_method_expr_is_read_only(toad_node_t *node) {
   return !ts_oop_method_body_needs_reload(node, NULL, 0);
 }
 
 int ts_oop_member_call_can_skip_reload(ts_mir_compiler_t *c, const char *class_name,
                                        const char *method_name, size_t argc) {
-  tbs_value_t class_value;
-  tbs_value_t args[16];
-  tbs_func_t *method;
+  toad_value_t class_value;
+  toad_value_t args[16];
+  toad_func_t *method;
 
   if (!c || !class_name || !method_name || argc > 16) return 0;
-  class_value = tbs_env_get(&c->ts_ctx->env, class_name);
-  if (class_value.type != TBS_VAL_CLASS || !class_value.data.class_val.klass) return 0;
+  class_value = toad_env_get(&c->ts_ctx->env, class_name);
+  if (class_value.type != TOAD_VAL_CLASS || !class_value.data.class_val.klass) return 0;
 
   for (size_t i = 0; i < argc; ++i) {
-    args[i] = tbs_val_num(0.0);
+    args[i] = toad_val_num(0.0);
   }
-  method = tbs_class_lookup_method_typed(class_value.data.class_val.klass, method_name, 0,
+  method = toad_class_lookup_method_typed(class_value.data.class_val.klass, method_name, 0,
                                             argc, argc ? args : NULL);
   if (!method || !method->is_script) return 0;
   return !ts_oop_method_body_needs_reload(method->data.script.body,
@@ -169,12 +169,12 @@ int ts_oop_member_call_can_skip_reload(ts_mir_compiler_t *c, const char *class_n
  * Class AST Analysis
  * ========================================================================= */
 
-tbs_node_t *ts_find_top_level_class_def(ts_mir_compiler_t *c, const char *class_name) {
-  if (!c || !c->ast_root || !class_name || c->ast_root->type != TBS_NODE_BLOCK) return NULL;
+toad_node_t *ts_find_top_level_class_def(ts_mir_compiler_t *c, const char *class_name) {
+  if (!c || !c->ast_root || !class_name || c->ast_root->type != TOAD_NODE_BLOCK) return NULL;
 
   for (size_t i = 0; i < c->ast_root->data.block.count; ++i) {
-    tbs_node_t *stmt = c->ast_root->data.block.statements[i];
-    if (stmt && stmt->type == TBS_NODE_CLASS_DEF && stmt->data.class_def.name &&
+    toad_node_t *stmt = c->ast_root->data.block.statements[i];
+    if (stmt && stmt->type == TOAD_NODE_CLASS_DEF && stmt->data.class_def.name &&
         strcmp(stmt->data.class_def.name, class_name) == 0) {
       return stmt;
     }
@@ -183,12 +183,12 @@ tbs_node_t *ts_find_top_level_class_def(ts_mir_compiler_t *c, const char *class_
 }
 
 int ts_top_level_class_name_is_assigned(ts_mir_compiler_t *c, const char *class_name) {
-  if (!c || !c->ast_root || !class_name || c->ast_root->type != TBS_NODE_BLOCK) return 0;
+  if (!c || !c->ast_root || !class_name || c->ast_root->type != TOAD_NODE_BLOCK) return 0;
 
   for (size_t i = 0; i < c->ast_root->data.block.count; ++i) {
-    tbs_node_t *stmt = c->ast_root->data.block.statements[i];
+    toad_node_t *stmt = c->ast_root->data.block.statements[i];
     if (!stmt) continue;
-    if ((stmt->type == TBS_NODE_ASSIGNMENT || stmt->type == TBS_NODE_CONSTANT_DECL) &&
+    if ((stmt->type == TOAD_NODE_ASSIGNMENT || stmt->type == TOAD_NODE_CONSTANT_DECL) &&
         stmt->data.assignment.name && strcmp(stmt->data.assignment.name, class_name) == 0) {
       return 1;
     }
@@ -196,11 +196,11 @@ int ts_top_level_class_name_is_assigned(ts_mir_compiler_t *c, const char *class_
   return 0;
 }
 
-int ts_inline_param_index(tbs_node_t **params, size_t param_count, const char *name,
+int ts_inline_param_index(toad_node_t **params, size_t param_count, const char *name,
                           size_t *out_index) {
   if (!name) return 0;
   for (size_t i = 0; i < param_count; ++i) {
-    if (params[i] && params[i]->type == TBS_NODE_VARIABLE &&
+    if (params[i] && params[i]->type == TOAD_NODE_VARIABLE &&
         params[i]->data.variable.name && strcmp(params[i]->data.variable.name, name) == 0) {
       if (out_index) *out_index = i;
       return 1;
@@ -210,28 +210,28 @@ int ts_inline_param_index(tbs_node_t **params, size_t param_count, const char *n
 }
 
 const char *ts_direct_parent_class_name(ts_mir_compiler_t *c, const char *class_name) {
-  tbs_node_t *class_node = ts_find_top_level_class_def(c, class_name);
+  toad_node_t *class_node = ts_find_top_level_class_def(c, class_name);
   if (!class_node || !class_node->data.class_def.parent_name) return NULL;
   if (ts_top_level_class_name_is_assigned(c, class_node->data.class_def.parent_name)) return NULL;
   return class_node->data.class_def.parent_name;
 }
 
-static int ts_node_mentions_this_field(tbs_node_t *node, const char *member_name) {
+static int ts_node_mentions_this_field(toad_node_t *node, const char *member_name) {
   if (!node || !member_name) return 0;
 
   switch (node->type) {
-  case TBS_NODE_MEMBER_ACCESS:
+  case TOAD_NODE_MEMBER_ACCESS:
     if (node->data.member_access.object &&
-        node->data.member_access.object->type == TBS_NODE_THIS &&
+        node->data.member_access.object->type == TOAD_NODE_THIS &&
         node->data.member_access.member &&
         strcmp(node->data.member_access.member, member_name) == 0) {
       return 1;
     }
     return ts_node_mentions_this_field(node->data.member_access.object, member_name);
 
-  case TBS_NODE_MEMBER_SET:
+  case TOAD_NODE_MEMBER_SET:
     if (node->data.member_set.object &&
-        node->data.member_set.object->type == TBS_NODE_THIS &&
+        node->data.member_set.object->type == TOAD_NODE_THIS &&
         node->data.member_set.member &&
         strcmp(node->data.member_set.member, member_name) == 0) {
       return 1;
@@ -239,31 +239,31 @@ static int ts_node_mentions_this_field(tbs_node_t *node, const char *member_name
     return ts_node_mentions_this_field(node->data.member_set.object, member_name) ||
            ts_node_mentions_this_field(node->data.member_set.value, member_name);
 
-  case TBS_NODE_BINARY_OP:
+  case TOAD_NODE_BINARY_OP:
     return ts_node_mentions_this_field(node->data.binary.left, member_name) ||
            ts_node_mentions_this_field(node->data.binary.right, member_name);
 
-  case TBS_NODE_BLOCK:
+  case TOAD_NODE_BLOCK:
     for (size_t i = 0; i < node->data.block.count; ++i) {
       if (ts_node_mentions_this_field(node->data.block.statements[i], member_name)) return 1;
     }
     return 0;
 
-  case TBS_NODE_FLOW:
+  case TOAD_NODE_FLOW:
     return ts_node_mentions_this_field(node->data.flow.value, member_name);
 
-  case TBS_NODE_IF:
+  case TOAD_NODE_IF:
     return ts_node_mentions_this_field(node->data.if_stmt.condition, member_name) ||
            ts_node_mentions_this_field(node->data.if_stmt.if_branch, member_name) ||
            ts_node_mentions_this_field(node->data.if_stmt.else_branch, member_name);
 
-  case TBS_NODE_FUNCTION_CALL:
+  case TOAD_NODE_FUNCTION_CALL:
     for (size_t i = 0; i < node->data.function.arg_count; ++i) {
       if (ts_node_mentions_this_field(node->data.function.args[i], member_name)) return 1;
     }
     return 0;
 
-  case TBS_NODE_MEMBER_CALL:
+  case TOAD_NODE_MEMBER_CALL:
     if (ts_node_mentions_this_field(node->data.member_call.object, member_name)) return 1;
     for (size_t i = 0; i < node->data.member_call.arg_count; ++i) {
       if (ts_node_mentions_this_field(node->data.member_call.args[i], member_name)) return 1;
@@ -277,29 +277,29 @@ static int ts_node_mentions_this_field(tbs_node_t *node, const char *member_name
 
 static int ts_oop_cmeta_num_field_admission(
     ts_mir_compiler_t *c, const char *class_name, const char *member_name) {
-  tbs_value_t class_value;
-  tbs_class_t *klass;
-  tbs_class_t *owner = NULL;
+  toad_value_t class_value;
+  toad_class_t *klass;
+  toad_class_t *owner = NULL;
   const cmeta_data_desc *data;
   const cmeta_data_struct_shape *shape;
   const cmeta_data_field_desc *field;
   int access;
 
   if (!c || !class_name || !member_name) return 0;
-  class_value = tbs_env_get(&c->ts_ctx->env, class_name);
-  if (class_value.type != TBS_VAL_CLASS ||
+  class_value = toad_env_get(&c->ts_ctx->env, class_name);
+  if (class_value.type != TOAD_VAL_CLASS ||
       !class_value.data.class_val.klass)
     return 0; /* same-source class may not exist until generated MIR executes */
 
   klass = class_value.data.class_val.klass;
-  access = tbs_class_get_instance_field_access(
+  access = toad_class_get_instance_field_access(
       klass, member_name, &owner);
-  if (access != TBS_ACCESS_PUBLIC)
+  if (access != TOAD_ACCESS_PUBLIC)
     return -1;
-  if (!tbs_class_finalize_cmeta_data(klass))
+  if (!toad_class_finalize_cmeta_data(klass))
     return -1;
 
-  data = tbs_class_cmeta_data(klass);
+  data = toad_class_cmeta_data(klass);
   if (!cmeta_data_desc_valid(data) ||
       data->kind != CMETA_DATA_STRUCT || data->shape == NULL)
     return -1;
@@ -314,13 +314,13 @@ static int ts_oop_cmeta_num_field_admission(
 static int ts_class_has_public_instance_field_hint(ts_mir_compiler_t *c,
                                                    const char *class_name,
                                                    const char *member_name) {
-  tbs_node_t *class_node = ts_find_top_level_class_def(c, class_name);
+  toad_node_t *class_node = ts_find_top_level_class_def(c, class_name);
   if (!class_node || !member_name) return 0;
 
   for (size_t i = 0; i < class_node->data.class_def.method_count; ++i) {
-    tbs_node_t *entry = class_node->data.class_def.methods[i];
+    toad_node_t *entry = class_node->data.class_def.methods[i];
     if (!entry) continue;
-    if (entry->type == TBS_NODE_FIELD_DECL && entry->data.field_decl.name &&
+    if (entry->type == TOAD_NODE_FIELD_DECL && entry->data.field_decl.name &&
         strcmp(entry->data.field_decl.name, member_name) == 0 &&
         !entry->data.field_decl.is_static) {
       /* Only an explicitly numeric-double declaration may propose the slot
@@ -333,7 +333,7 @@ static int ts_class_has_public_instance_field_hint(ts_mir_compiler_t *c,
             strcmp(type, "float") == 0 ||
             strcmp(type, "double") == 0;
         return is_double &&
-                       entry->data.field_decl.access_level == TBS_ACCESS_PUBLIC
+                       entry->data.field_decl.access_level == TOAD_ACCESS_PUBLIC
                    ? 1
                    : -1;
       }
@@ -368,25 +368,25 @@ int ts_oop_member_can_use_num_slot(ts_mir_compiler_t *c, const char *object_name
 }
 
 static int ts_oop_inline_expr_supported(ts_mir_compiler_t *c, const char *class_name,
-                                        tbs_node_t *node, tbs_node_t **params,
+                                        toad_node_t *node, toad_node_t **params,
                                         size_t param_count) {
   if (!node) return 1;
 
   switch (node->type) {
-  case TBS_NODE_NUMBER:
-  case TBS_NODE_INTEGER:
-  case TBS_NODE_NULL:
+  case TOAD_NODE_NUMBER:
+  case TOAD_NODE_INTEGER:
+  case TOAD_NODE_NULL:
     return 1;
 
-  case TBS_NODE_VARIABLE:
+  case TOAD_NODE_VARIABLE:
     return ts_inline_param_index(params, param_count, node->data.variable.name, NULL);
 
-  case TBS_NODE_MEMBER_ACCESS:
+  case TOAD_NODE_MEMBER_ACCESS:
     return node->data.member_access.object &&
-           node->data.member_access.object->type == TBS_NODE_THIS &&
+           node->data.member_access.object->type == TOAD_NODE_THIS &&
            node->data.member_access.member != NULL;
 
-  case TBS_NODE_SUPER: {
+  case TOAD_NODE_SUPER: {
     const char *parent_name;
     if (!node->data.super_expr.is_call || !node->data.super_expr.member) return 0;
     parent_name = ts_direct_parent_class_name(c, class_name);
@@ -401,22 +401,22 @@ static int ts_oop_inline_expr_supported(ts_mir_compiler_t *c, const char *class_
                                               node->data.super_expr.arg_count) != NULL;
   }
 
-  case TBS_NODE_BINARY_OP:
+  case TOAD_NODE_BINARY_OP:
     if (node->data.binary.left == NULL) {
-      return node->data.binary.op == tbs_TOKEN_PLUS ||
-             node->data.binary.op == tbs_TOKEN_MINUS;
+      return node->data.binary.op == toad_TOKEN_PLUS ||
+             node->data.binary.op == toad_TOKEN_MINUS;
     }
     switch (node->data.binary.op) {
-    case tbs_TOKEN_PLUS:
-    case tbs_TOKEN_MINUS:
-    case tbs_TOKEN_MULTIPLY:
-    case tbs_TOKEN_DIVIDE:
-    case tbs_TOKEN_LT:
-    case tbs_TOKEN_GT:
-    case tbs_TOKEN_LE:
-    case tbs_TOKEN_GE:
-    case tbs_TOKEN_EQ:
-    case tbs_TOKEN_NE:
+    case toad_TOKEN_PLUS:
+    case toad_TOKEN_MINUS:
+    case toad_TOKEN_MULTIPLY:
+    case toad_TOKEN_DIVIDE:
+    case toad_TOKEN_LT:
+    case toad_TOKEN_GT:
+    case toad_TOKEN_LE:
+    case toad_TOKEN_GE:
+    case toad_TOKEN_EQ:
+    case toad_TOKEN_NE:
       return ts_oop_inline_expr_supported(c, class_name, node->data.binary.left, params,
                                           param_count) &&
              ts_oop_inline_expr_supported(c, class_name, node->data.binary.right, params,
@@ -431,12 +431,12 @@ static int ts_oop_inline_expr_supported(ts_mir_compiler_t *c, const char *class_
 }
 
 static int ts_oop_inline_stmt_supported(ts_mir_compiler_t *c, const char *class_name,
-                                        tbs_node_t *node, tbs_node_t **params,
+                                        toad_node_t *node, toad_node_t **params,
                                         size_t param_count) {
   if (!node) return 1;
 
   switch (node->type) {
-  case TBS_NODE_BLOCK:
+  case TOAD_NODE_BLOCK:
     for (size_t i = 0; i < node->data.block.count; ++i) {
       if (!ts_oop_inline_stmt_supported(c, class_name, node->data.block.statements[i],
                                         params, param_count)) {
@@ -445,14 +445,14 @@ static int ts_oop_inline_stmt_supported(ts_mir_compiler_t *c, const char *class_
     }
     return 1;
 
-  case TBS_NODE_FLOW:
-    return node->data.flow.type == tbs_TOKEN_RETURN &&
+  case TOAD_NODE_FLOW:
+    return node->data.flow.type == toad_TOKEN_RETURN &&
            ts_oop_inline_expr_supported(c, class_name, node->data.flow.value, params,
                                         param_count);
 
-  case TBS_NODE_MEMBER_SET:
+  case TOAD_NODE_MEMBER_SET:
     return node->data.member_set.object &&
-           node->data.member_set.object->type == TBS_NODE_THIS &&
+           node->data.member_set.object->type == TOAD_NODE_THIS &&
            node->data.member_set.member &&
            ts_oop_inline_expr_supported(c, class_name, node->data.member_set.value, params,
                                         param_count);
@@ -462,12 +462,12 @@ static int ts_oop_inline_stmt_supported(ts_mir_compiler_t *c, const char *class_
   }
 }
 
-tbs_node_t *ts_find_inlineable_instance_method(ts_mir_compiler_t *c,
+toad_node_t *ts_find_inlineable_instance_method(ts_mir_compiler_t *c,
                                                   const char *class_name,
                                                   const char *method_name,
                                                   size_t argc) {
-  tbs_node_t *class_node = ts_find_top_level_class_def(c, class_name);
-  tbs_node_t *found = NULL;
+  toad_node_t *class_node = ts_find_top_level_class_def(c, class_name);
+  toad_node_t *found = NULL;
 
   if (!class_node || !method_name) return NULL;
   if (method_name[0] == '_') return NULL;
@@ -478,15 +478,15 @@ tbs_node_t *ts_find_inlineable_instance_method(ts_mir_compiler_t *c,
   }
 
   for (size_t i = 0; i < class_node->data.class_def.method_count; ++i) {
-    tbs_node_t *method = class_node->data.class_def.methods[i];
-    if (method && method->type == TBS_NODE_FIELD_DECL &&
-        method->data.field_decl.access_level != TBS_ACCESS_PUBLIC) {
+    toad_node_t *method = class_node->data.class_def.methods[i];
+    if (method && method->type == TOAD_NODE_FIELD_DECL &&
+        method->data.field_decl.access_level != TOAD_ACCESS_PUBLIC) {
       return NULL;
     }
-    if (!method || method->type != TBS_NODE_METHOD || !method->data.method.name) continue;
+    if (!method || method->type != TOAD_NODE_METHOD || !method->data.method.name) continue;
     if (strcmp(method->data.method.name, method_name) != 0) continue;
     if (method->data.method.is_static || method->data.method.is_abstract) continue;
-    if (method->data.method.access_level != TBS_ACCESS_PUBLIC) continue;
+    if (method->data.method.access_level != TOAD_ACCESS_PUBLIC) continue;
     if (method->data.method.arg_count != argc) continue;
     if (found) return NULL;
     found = method;
@@ -495,7 +495,7 @@ tbs_node_t *ts_find_inlineable_instance_method(ts_mir_compiler_t *c,
   if (!found) return NULL;
   for (size_t i = 0; i < found->data.method.arg_count; ++i) {
     if (!found->data.method.arg_params[i] ||
-        found->data.method.arg_params[i]->type != TBS_NODE_VARIABLE) {
+        found->data.method.arg_params[i]->type != TOAD_NODE_VARIABLE) {
       return NULL;
     }
   }
@@ -514,7 +514,7 @@ tbs_node_t *ts_find_inlineable_instance_method(ts_mir_compiler_t *c,
  * MIR OOP emission
  * ========================================================================= */
 
-void ts_emit_oop_define_class(ts_mir_compiler_t *c, tbs_node_t *node) {
+void ts_emit_oop_define_class(ts_mir_compiler_t *c, toad_node_t *node) {
   ts_emit_sync_to_env(c);
   MIR_append_insn(c->ctx, c->func,
                   MIR_new_call_insn(c->ctx, 4,
@@ -541,7 +541,7 @@ MIR_reg_t ts_emit_oop_class_alias(ts_mir_compiler_t *c, const char *target_name,
 }
 
 MIR_reg_t ts_emit_oop_new_assign(ts_mir_compiler_t *c, const char *target_name,
-                                 tbs_node_t *new_node) {
+                                 toad_node_t *new_node) {
   size_t argc = new_node->data.new_expr.arg_count;
   MIR_reg_t arg_regs[16];
   argc = ts_compile_call_args(c, argc, new_node->data.new_expr.args, arg_regs);
@@ -562,7 +562,7 @@ MIR_reg_t ts_emit_oop_new_assign(ts_mir_compiler_t *c, const char *target_name,
 }
 
 MIR_reg_t ts_emit_oop_class_call_assign(ts_mir_compiler_t *c, const char *target_name,
-                                        tbs_node_t *call_node) {
+                                        toad_node_t *call_node) {
   size_t argc = call_node->data.function.arg_count;
   MIR_reg_t arg_regs[16];
   argc = ts_compile_call_args(c, argc, call_node->data.function.args, arg_regs);
@@ -582,28 +582,28 @@ MIR_reg_t ts_emit_oop_class_call_assign(ts_mir_compiler_t *c, const char *target
   return res;
 }
 
-int ts_oop_arg_needs_value_bridge(ts_mir_compiler_t *c, tbs_node_t *arg) {
+int ts_oop_arg_needs_value_bridge(ts_mir_compiler_t *c, toad_node_t *arg) {
   if (!arg) return 0;
 
   switch (arg->type) {
-  case TBS_NODE_NULL:
-  case TBS_NODE_STRING:
-  case TBS_NODE_VECTOR:
-  case TBS_NODE_MAP_LITERAL:
-  case TBS_NODE_SLICE:
-  case TBS_NODE_TEMPLATE_STRING:
-  case TBS_NODE_NEW:
-  case TBS_NODE_THIS:
-  case TBS_NODE_SUPER:
-  case TBS_NODE_FUNCTION_EXPRESSION:
-  case TBS_NODE_CLASS_DEF:
+  case TOAD_NODE_NULL:
+  case TOAD_NODE_STRING:
+  case TOAD_NODE_VECTOR:
+  case TOAD_NODE_MAP_LITERAL:
+  case TOAD_NODE_SLICE:
+  case TOAD_NODE_TEMPLATE_STRING:
+  case TOAD_NODE_NEW:
+  case TOAD_NODE_THIS:
+  case TOAD_NODE_SUPER:
+  case TOAD_NODE_FUNCTION_EXPRESSION:
+  case TOAD_NODE_CLASS_DEF:
     return 1;
 
-  case TBS_NODE_VARIABLE:
+  case TOAD_NODE_VARIABLE:
     return ts_mir_find_var_class(c, arg->data.variable.name) ||
            ts_mir_is_known_class_name(c, arg->data.variable.name);
 
-  case TBS_NODE_FUNCTION_CALL:
+  case TOAD_NODE_FUNCTION_CALL:
     if (arg->data.function.name) {
       const char *name = arg->data.function.name;
       const char *alias_name = ts_find_func_alias(c, name);
@@ -613,8 +613,8 @@ int ts_oop_arg_needs_value_bridge(ts_mir_compiler_t *c, tbs_node_t *arg) {
     }
     return 0;
 
-  case TBS_NODE_MEMBER_ACCESS:
-  case TBS_NODE_MEMBER_CALL:
+  case TOAD_NODE_MEMBER_ACCESS:
+  case TOAD_NODE_MEMBER_CALL:
     return 1;
 
   default:
@@ -623,7 +623,7 @@ int ts_oop_arg_needs_value_bridge(ts_mir_compiler_t *c, tbs_node_t *arg) {
 }
 
 int ts_oop_call_args_need_value_bridge(ts_mir_compiler_t *c, size_t argc,
-                                       tbs_node_t **args) {
+                                       toad_node_t **args) {
   if (!c || !args) return 0;
   for (size_t i = 0; i < argc; ++i) {
     if (ts_oop_arg_needs_value_bridge(c, args[i])) return 1;
@@ -631,18 +631,18 @@ int ts_oop_call_args_need_value_bridge(ts_mir_compiler_t *c, size_t argc,
   return 0;
 }
 
-const char *ts_emit_oop_receiver_to_temp(ts_mir_compiler_t *c, tbs_node_t *object_node) {
+const char *ts_emit_oop_receiver_to_temp(ts_mir_compiler_t *c, toad_node_t *object_node) {
   const char *target_name = NULL;
   if (!c || !object_node) return NULL;
 
-  if (object_node->type == TBS_NODE_VARIABLE) {
+  if (object_node->type == TOAD_NODE_VARIABLE) {
     return object_node->data.variable.name;
   }
 
   target_name = ts_mir_new_hidden_receiver_name(c);
   if (!target_name) return NULL;
 
-  if (object_node->type == TBS_NODE_NEW && object_node->data.new_expr.class_name) {
+  if (object_node->type == TOAD_NODE_NEW && object_node->data.new_expr.class_name) {
     if (ts_oop_call_args_need_value_bridge(c, object_node->data.new_expr.arg_count,
                                            object_node->data.new_expr.args)) {
       ts_emit_value_expr_assign(c, target_name, object_node);
@@ -653,7 +653,7 @@ const char *ts_emit_oop_receiver_to_temp(ts_mir_compiler_t *c, tbs_node_t *objec
     return target_name;
   }
 
-  if (object_node->type == TBS_NODE_FUNCTION_CALL && object_node->data.function.name) {
+  if (object_node->type == TOAD_NODE_FUNCTION_CALL && object_node->data.function.name) {
     const char *name = object_node->data.function.name;
     if (ts_mir_is_known_class_name(c, name)) {
       if (ts_oop_call_args_need_value_bridge(c, object_node->data.function.arg_count,
@@ -673,7 +673,7 @@ const char *ts_emit_oop_receiver_to_temp(ts_mir_compiler_t *c, tbs_node_t *objec
     }
   }
 
-  if (object_node->type == TBS_NODE_MEMBER_CALL && object_node->data.member_call.object &&
+  if (object_node->type == TOAD_NODE_MEMBER_CALL && object_node->data.member_call.object &&
       object_node->data.member_call.method) {
     const char *obj_name = ts_emit_oop_receiver_to_temp(c, object_node->data.member_call.object);
     if (!obj_name) return NULL;
@@ -695,7 +695,7 @@ const char *ts_emit_oop_receiver_to_temp(ts_mir_compiler_t *c, tbs_node_t *objec
     return target_name;
   }
 
-  if (object_node->type == TBS_NODE_MEMBER_ACCESS && object_node->data.member_access.object &&
+  if (object_node->type == TOAD_NODE_MEMBER_ACCESS && object_node->data.member_access.object &&
       object_node->data.member_access.member) {
     const char *obj_name = ts_emit_oop_receiver_to_temp(c, object_node->data.member_access.object);
     if (!obj_name) return NULL;
@@ -709,25 +709,25 @@ const char *ts_emit_oop_receiver_to_temp(ts_mir_compiler_t *c, tbs_node_t *objec
   return NULL;
 }
 
-MIR_reg_t ts_emit_oop_predicate(ts_mir_compiler_t *c, int kind, tbs_node_t *arg) {
+MIR_reg_t ts_emit_oop_predicate(ts_mir_compiler_t *c, int kind, toad_node_t *arg) {
   const char *name = NULL;
   const char *member = NULL;
-  tbs_node_t *object_node = NULL;
+  toad_node_t *object_node = NULL;
   MIR_reg_t res = ts_mir_new_temp_reg(c);
 
   if (!c || !arg || kind == 0) return ts_emit_unsupported_node(c, arg);
 
-  if (kind == 4 && arg->type == TBS_NODE_NULL) {
+  if (kind == 4 && arg->type == TOAD_NODE_NULL) {
     MIR_append_insn(c->ctx, c->func,
                     MIR_new_insn(c->ctx, MIR_DMOV, MIR_new_reg_op(c->ctx, res),
                                  MIR_new_double_op(c->ctx, 1.0)));
     return res;
   }
 
-  if (arg->type == TBS_NODE_VARIABLE) {
+  if (arg->type == TOAD_NODE_VARIABLE) {
     name = arg->data.variable.name;
     object_node = arg;
-  } else if (arg->type == TBS_NODE_MEMBER_ACCESS && arg->data.member_access.object &&
+  } else if (arg->type == TOAD_NODE_MEMBER_ACCESS && arg->data.member_access.object &&
              arg->data.member_access.member) {
     name = ts_emit_oop_receiver_to_temp(c, arg->data.member_access.object);
     member = arg->data.member_access.member;
@@ -753,13 +753,13 @@ MIR_reg_t ts_emit_oop_predicate(ts_mir_compiler_t *c, int kind, tbs_node_t *arg)
   return res;
 }
 
-int ts_try_emit_typeof_oop_compare(ts_mir_compiler_t *c, tbs_node_t *left,
-                                   tbs_node_t *right, int op, MIR_reg_t *out) {
-  tbs_node_t *arg = NULL;
+int ts_try_emit_typeof_oop_compare(ts_mir_compiler_t *c, toad_node_t *left,
+                                   toad_node_t *right, int op, MIR_reg_t *out) {
+  toad_node_t *arg = NULL;
   int kind = 0;
 
   if (!c || !left || !right || !out ||
-      (op != tbs_TOKEN_EQ && op != tbs_TOKEN_NE)) {
+      (op != toad_TOKEN_EQ && op != toad_TOKEN_NE)) {
     return 0;
   }
 
@@ -771,7 +771,7 @@ int ts_try_emit_typeof_oop_compare(ts_mir_compiler_t *c, tbs_node_t *left,
   if (!kind || !arg) return 0;
 
   MIR_reg_t pred = ts_emit_oop_predicate(c, kind, arg);
-  if (op == tbs_TOKEN_EQ) {
+  if (op == toad_TOKEN_EQ) {
     *out = pred;
     return 1;
   }
@@ -789,7 +789,7 @@ int ts_try_emit_typeof_oop_compare(ts_mir_compiler_t *c, tbs_node_t *left,
 }
 
 static MIR_reg_t ts_emit_oop_member_call(ts_mir_compiler_t *c, const char *object_name,
-                                         const char *method_name, tbs_node_t *object_node,
+                                         const char *method_name, toad_node_t *object_node,
                                          size_t argc, const MIR_reg_t *arg_regs) {
   MIR_reg_t arr_reg = ts_emit_packed_args(c, argc, arg_regs);
   MIR_reg_t res = ts_mir_new_temp_reg(c);
@@ -810,8 +810,8 @@ static MIR_reg_t ts_emit_oop_member_call(ts_mir_compiler_t *c, const char *objec
 
 MIR_reg_t ts_emit_oop_member_call_value(ts_mir_compiler_t *c, const char *object_name,
                                         const char *method_name,
-                                        tbs_node_t *object_node,
-                                        tbs_node_t *call_node) {
+                                        toad_node_t *object_node,
+                                        toad_node_t *call_node) {
   MIR_reg_t res = ts_mir_new_temp_reg(c);
 
   ts_emit_sync_to_env(c);
@@ -832,8 +832,8 @@ MIR_reg_t ts_emit_oop_member_call_mono_value(ts_mir_compiler_t *c,
                                              const char *object_name,
                                              const char *expected_class_name,
                                              const char *method_name,
-                                             tbs_node_t *object_node,
-                                             tbs_node_t *call_node) {
+                                             toad_node_t *object_node,
+                                             toad_node_t *call_node) {
   MIR_reg_t res = ts_mir_new_temp_reg(c);
 
   ts_emit_sync_to_env(c);
@@ -853,11 +853,11 @@ MIR_reg_t ts_emit_oop_member_call_mono_value(ts_mir_compiler_t *c,
 }
 
 MIR_reg_t ts_emit_oop_member_call_cached(ts_mir_compiler_t *c, const char *object_name,
-                                         const char *method_name, tbs_node_t *object_node,
+                                         const char *method_name, toad_node_t *object_node,
                                          size_t argc, const MIR_reg_t *arg_regs,
                                          int reload_after) {
-  tbs_oop_method_cache_t *cache =
-      (tbs_oop_method_cache_t *)calloc(1, sizeof(tbs_oop_method_cache_t));
+  toad_oop_method_cache_t *cache =
+      (toad_oop_method_cache_t *)calloc(1, sizeof(toad_oop_method_cache_t));
   MIR_reg_t arr_reg = ts_emit_packed_args(c, argc, arg_regs);
   MIR_reg_t res = ts_mir_new_temp_reg(c);
 
@@ -879,10 +879,10 @@ MIR_reg_t ts_emit_oop_member_call_cached(ts_mir_compiler_t *c, const char *objec
 
 MIR_reg_t ts_emit_oop_member_call_assign(ts_mir_compiler_t *c, const char *target_name,
                                          const char *object_name, const char *method_name,
-                                         tbs_node_t *object_node, size_t argc,
+                                         toad_node_t *object_node, size_t argc,
                                          const MIR_reg_t *arg_regs) {
-  tbs_oop_method_cache_t *cache =
-      (tbs_oop_method_cache_t *)calloc(1, sizeof(tbs_oop_method_cache_t));
+  toad_oop_method_cache_t *cache =
+      (toad_oop_method_cache_t *)calloc(1, sizeof(toad_oop_method_cache_t));
   MIR_reg_t arr_reg = ts_emit_packed_args(c, argc, arg_regs);
   MIR_reg_t res = ts_mir_new_temp_reg(c);
 
@@ -907,8 +907,8 @@ MIR_reg_t ts_emit_oop_member_call_assign_value(ts_mir_compiler_t *c,
                                                const char *target_name,
                                                const char *object_name,
                                                const char *method_name,
-                                               tbs_node_t *object_node,
-                                               tbs_node_t *call_node) {
+                                               toad_node_t *object_node,
+                                               toad_node_t *call_node) {
   MIR_reg_t res = ts_mir_new_temp_reg(c);
 
   ts_emit_sync_to_env(c);
@@ -930,17 +930,17 @@ MIR_reg_t ts_emit_oop_member_call_assign_value(ts_mir_compiler_t *c,
 
 static MIR_reg_t ts_try_emit_oop_member_set_slot(ts_mir_compiler_t *c, const char *object_name,
                                                  const char *member_name,
-                                                 tbs_node_t *object_node,
+                                                 toad_node_t *object_node,
                                                  MIR_reg_t value_reg);
 
 static MIR_reg_t ts_emit_oop_member_get(ts_mir_compiler_t *c, const char *object_name,
-                                        const char *member_name, tbs_node_t *object_node) {
+                                        const char *member_name, toad_node_t *object_node) {
   MIR_reg_t slot_value = ts_try_emit_oop_member_get_slot(c, object_name, member_name, object_node);
   if (slot_value) return slot_value;
 
   MIR_reg_t res = ts_mir_new_temp_reg(c);
-  tbs_oop_field_cache_t *cache =
-      (tbs_oop_field_cache_t *)calloc(1, sizeof(tbs_oop_field_cache_t));
+  toad_oop_field_cache_t *cache =
+      (toad_oop_field_cache_t *)calloc(1, sizeof(toad_oop_field_cache_t));
   ts_emit_sync_var_to_env(c, object_name);
   MIR_append_insn(
       c->ctx, c->func,
@@ -955,16 +955,16 @@ static MIR_reg_t ts_emit_oop_member_get(ts_mir_compiler_t *c, const char *object
 }
 
 MIR_reg_t ts_emit_oop_member_set(ts_mir_compiler_t *c, const char *object_name,
-                                 const char *member_name, tbs_node_t *object_node,
-                                 tbs_node_t *value_node) {
+                                 const char *member_name, toad_node_t *object_node,
+                                 toad_node_t *value_node) {
   MIR_reg_t value_reg = ts_compile_expr(c, value_node);
   MIR_reg_t slot_result =
       ts_try_emit_oop_member_set_slot(c, object_name, member_name, object_node, value_reg);
   if (slot_result) return slot_result;
 
   MIR_reg_t res = ts_mir_new_temp_reg(c);
-  tbs_oop_field_cache_t *cache =
-      (tbs_oop_field_cache_t *)calloc(1, sizeof(tbs_oop_field_cache_t));
+  toad_oop_field_cache_t *cache =
+      (toad_oop_field_cache_t *)calloc(1, sizeof(toad_oop_field_cache_t));
 
   ts_emit_sync_var_to_env(c, object_name);
   MIR_append_insn(
@@ -981,15 +981,15 @@ MIR_reg_t ts_emit_oop_member_set(ts_mir_compiler_t *c, const char *object_name,
 }
 
 static MIR_reg_t ts_emit_oop_member_set_reg(ts_mir_compiler_t *c, const char *object_name,
-                                            const char *member_name, tbs_node_t *object_node,
+                                            const char *member_name, toad_node_t *object_node,
                                             MIR_reg_t value_reg) {
   MIR_reg_t slot_result =
       ts_try_emit_oop_member_set_slot(c, object_name, member_name, object_node, value_reg);
   if (slot_result) return slot_result;
 
   MIR_reg_t res = ts_mir_new_temp_reg(c);
-  tbs_oop_field_cache_t *cache =
-      (tbs_oop_field_cache_t *)calloc(1, sizeof(tbs_oop_field_cache_t));
+  toad_oop_field_cache_t *cache =
+      (toad_oop_field_cache_t *)calloc(1, sizeof(toad_oop_field_cache_t));
 
   ts_emit_sync_var_to_env(c, object_name);
   MIR_append_insn(
@@ -1017,7 +1017,7 @@ static MIR_reg_t ts_emit_oop_slot_cache_instance(ts_mir_compiler_t *c, MIR_reg_t
 
 static void ts_emit_oop_slot_cache_init(ts_mir_compiler_t *c, MIR_reg_t cache_reg,
                                         const char *object_name, const char *member_name,
-                                        tbs_node_t *object_node, int create_if_missing,
+                                        toad_node_t *object_node, int create_if_missing,
                                         MIR_label_t missing_label) {
   MIR_label_t ready_label = MIR_new_label(c->ctx);
   MIR_reg_t instance_reg = ts_emit_oop_slot_cache_instance(c, cache_reg);
@@ -1043,7 +1043,7 @@ static void ts_emit_oop_slot_cache_init(ts_mir_compiler_t *c, MIR_reg_t cache_re
 
 MIR_reg_t ts_try_emit_oop_member_get_slot(ts_mir_compiler_t *c, const char *object_name,
                                                  const char *member_name,
-                                                 tbs_node_t *object_node) {
+                                                 toad_node_t *object_node) {
   if (!ts_oop_member_can_use_num_slot(c, object_name, member_name)) return 0;
 
   MIR_reg_t cache_reg = ts_mir_get_or_add_oop_ptr(c, object_name, member_name);
@@ -1063,7 +1063,7 @@ MIR_reg_t ts_try_emit_oop_member_get_slot(ts_mir_compiler_t *c, const char *obje
   MIR_append_insn(c->ctx, c->func,
                   MIR_new_insn(c->ctx, MIR_MOV, MIR_new_reg_op(c->ctx, slots_reg),
                                MIR_new_mem_op(c->ctx, MIR_T_I64,
-                                              (int64_t)offsetof(tbs_instance_t, field_slots),
+                                              (int64_t)offsetof(toad_instance_t, field_slots),
                                               instance_reg, 0, 1)));
   MIR_append_insn(c->ctx, c->func,
                   MIR_new_insn(c->ctx, MIR_MOV, MIR_new_reg_op(c->ctx, index_reg),
@@ -1073,9 +1073,9 @@ MIR_reg_t ts_try_emit_oop_member_get_slot(ts_mir_compiler_t *c, const char *obje
   MIR_append_insn(c->ctx, c->func,
                   MIR_new_insn(c->ctx, MIR_DMOV, MIR_new_reg_op(c->ctx, res),
                                MIR_new_mem_op(c->ctx, MIR_T_D,
-                                              (int64_t)offsetof(tbs_value_t, data.number),
+                                              (int64_t)offsetof(toad_value_t, data.number),
                                               slots_reg, index_reg,
-                                              (int64_t)sizeof(tbs_value_t))));
+                                              (int64_t)sizeof(toad_value_t))));
   MIR_append_insn(c->ctx, c->func,
                   MIR_new_insn(c->ctx, MIR_JMP, MIR_new_label_op(c->ctx, done_label)));
 
@@ -1089,7 +1089,7 @@ MIR_reg_t ts_try_emit_oop_member_get_slot(ts_mir_compiler_t *c, const char *obje
 
 static MIR_reg_t ts_try_emit_oop_member_set_slot(ts_mir_compiler_t *c, const char *object_name,
                                                  const char *member_name,
-                                                 tbs_node_t *object_node,
+                                                 toad_node_t *object_node,
                                                  MIR_reg_t value_reg) {
   if (!ts_oop_member_can_use_num_slot(c, object_name, member_name)) return 0;
 
@@ -1109,7 +1109,7 @@ static MIR_reg_t ts_try_emit_oop_member_set_slot(ts_mir_compiler_t *c, const cha
   MIR_append_insn(c->ctx, c->func,
                   MIR_new_insn(c->ctx, MIR_MOV, MIR_new_reg_op(c->ctx, slots_reg),
                                MIR_new_mem_op(c->ctx, MIR_T_I64,
-                                              (int64_t)offsetof(tbs_instance_t, field_slots),
+                                              (int64_t)offsetof(toad_instance_t, field_slots),
                                               instance_reg, 0, 1)));
   MIR_append_insn(c->ctx, c->func,
                   MIR_new_insn(c->ctx, MIR_MOV, MIR_new_reg_op(c->ctx, index_reg),
@@ -1119,9 +1119,9 @@ static MIR_reg_t ts_try_emit_oop_member_set_slot(ts_mir_compiler_t *c, const cha
   MIR_append_insn(c->ctx, c->func,
                   MIR_new_insn(c->ctx, MIR_DMOV,
                                MIR_new_mem_op(c->ctx, MIR_T_D,
-                                              (int64_t)offsetof(tbs_value_t, data.number),
+                                              (int64_t)offsetof(toad_value_t, data.number),
                                               slots_reg, index_reg,
-                                              (int64_t)sizeof(tbs_value_t)),
+                                              (int64_t)sizeof(toad_value_t)),
                                MIR_new_reg_op(c->ctx, value_reg)));
   MIR_append_insn(c->ctx, c->func,
                   MIR_new_insn(c->ctx, MIR_JMP, MIR_new_label_op(c->ctx, done_label)));
@@ -1132,17 +1132,17 @@ static MIR_reg_t ts_try_emit_oop_member_set_slot(ts_mir_compiler_t *c, const cha
 
 static MIR_reg_t ts_emit_oop_inline_method_expr(ts_mir_compiler_t *c, const char *object_name,
                                                 const char *class_name,
-                                                tbs_node_t **params, size_t param_count,
-                                                const MIR_reg_t *arg_regs, tbs_node_t *expr);
+                                                toad_node_t **params, size_t param_count,
+                                                const MIR_reg_t *arg_regs, toad_node_t *expr);
 static MIR_reg_t ts_emit_oop_inline_method_stmt(ts_mir_compiler_t *c, const char *object_name,
-                                                const char *class_name, tbs_node_t **params,
+                                                const char *class_name, toad_node_t **params,
                                                 size_t param_count, const MIR_reg_t *arg_regs,
-                                                tbs_node_t *stmt, int *returned);
+                                                toad_node_t *stmt, int *returned);
 
 static MIR_reg_t ts_emit_oop_inline_binary(ts_mir_compiler_t *c, const char *object_name,
-                                           const char *class_name, tbs_node_t **params,
+                                           const char *class_name, toad_node_t **params,
                                            size_t param_count, const MIR_reg_t *arg_regs,
-                                           tbs_node_t *expr) {
+                                           toad_node_t *expr) {
   MIR_reg_t left;
   MIR_reg_t right;
   MIR_reg_t res;
@@ -1152,7 +1152,7 @@ static MIR_reg_t ts_emit_oop_inline_binary(ts_mir_compiler_t *c, const char *obj
   if (!expr->data.binary.left) {
     MIR_reg_t operand = ts_emit_oop_inline_method_expr(c, object_name, class_name, params, param_count,
                                                        arg_regs, expr->data.binary.right);
-    if (expr->data.binary.op == tbs_TOKEN_PLUS) return operand;
+    if (expr->data.binary.op == toad_TOKEN_PLUS) return operand;
     res = ts_mir_new_temp_reg(c);
     MIR_append_insn(c->ctx, c->func,
                     MIR_new_insn(c->ctx, MIR_DSUB, MIR_new_reg_op(c->ctx, res),
@@ -1166,16 +1166,16 @@ static MIR_reg_t ts_emit_oop_inline_binary(ts_mir_compiler_t *c, const char *obj
   right = ts_emit_oop_inline_method_expr(c, object_name, class_name, params, param_count, arg_regs,
                                          expr->data.binary.right);
   switch (expr->data.binary.op) {
-  case tbs_TOKEN_PLUS: op = MIR_DADD; break;
-  case tbs_TOKEN_MINUS: op = MIR_DSUB; break;
-  case tbs_TOKEN_MULTIPLY: op = MIR_DMUL; break;
-  case tbs_TOKEN_DIVIDE: op = MIR_DDIV; break;
-  case tbs_TOKEN_LT: op = MIR_DLT; is_cmp = 1; break;
-  case tbs_TOKEN_GT: op = MIR_DGT; is_cmp = 1; break;
-  case tbs_TOKEN_LE: op = MIR_DLE; is_cmp = 1; break;
-  case tbs_TOKEN_GE: op = MIR_DGE; is_cmp = 1; break;
-  case tbs_TOKEN_EQ: op = MIR_DEQ; is_cmp = 1; break;
-  case tbs_TOKEN_NE: op = MIR_DNE; is_cmp = 1; break;
+  case toad_TOKEN_PLUS: op = MIR_DADD; break;
+  case toad_TOKEN_MINUS: op = MIR_DSUB; break;
+  case toad_TOKEN_MULTIPLY: op = MIR_DMUL; break;
+  case toad_TOKEN_DIVIDE: op = MIR_DDIV; break;
+  case toad_TOKEN_LT: op = MIR_DLT; is_cmp = 1; break;
+  case toad_TOKEN_GT: op = MIR_DGT; is_cmp = 1; break;
+  case toad_TOKEN_LE: op = MIR_DLE; is_cmp = 1; break;
+  case toad_TOKEN_GE: op = MIR_DGE; is_cmp = 1; break;
+  case toad_TOKEN_EQ: op = MIR_DEQ; is_cmp = 1; break;
+  case toad_TOKEN_NE: op = MIR_DNE; is_cmp = 1; break;
   default: op = MIR_DADD; break;
   }
 
@@ -1200,12 +1200,12 @@ static MIR_reg_t ts_emit_oop_inline_binary(ts_mir_compiler_t *c, const char *obj
 
 static MIR_reg_t ts_emit_oop_inline_method_expr(ts_mir_compiler_t *c, const char *object_name,
                                                 const char *class_name,
-                                                tbs_node_t **params, size_t param_count,
-                                                const MIR_reg_t *arg_regs, tbs_node_t *expr) {
-  if (!expr || expr->type == TBS_NODE_NULL) return ts_emit_zero_reg(c);
+                                                toad_node_t **params, size_t param_count,
+                                                const MIR_reg_t *arg_regs, toad_node_t *expr) {
+  if (!expr || expr->type == TOAD_NODE_NULL) return ts_emit_zero_reg(c);
 
   switch (expr->type) {
-  case TBS_NODE_NUMBER: {
+  case TOAD_NODE_NUMBER: {
     MIR_reg_t r = ts_mir_new_temp_reg(c);
     MIR_append_insn(c->ctx, c->func,
                     MIR_new_insn(c->ctx, MIR_DMOV, MIR_new_reg_op(c->ctx, r),
@@ -1213,7 +1213,7 @@ static MIR_reg_t ts_emit_oop_inline_method_expr(ts_mir_compiler_t *c, const char
     return r;
   }
 
-  case TBS_NODE_INTEGER: {
+  case TOAD_NODE_INTEGER: {
     MIR_reg_t r = ts_mir_new_temp_reg(c);
     MIR_append_insn(c->ctx, c->func,
                     MIR_new_insn(c->ctx, MIR_DMOV, MIR_new_reg_op(c->ctx, r),
@@ -1221,7 +1221,7 @@ static MIR_reg_t ts_emit_oop_inline_method_expr(ts_mir_compiler_t *c, const char
     return r;
   }
 
-  case TBS_NODE_VARIABLE: {
+  case TOAD_NODE_VARIABLE: {
     size_t idx = 0;
     if (ts_inline_param_index(params, param_count, expr->data.variable.name, &idx)) {
       return arg_regs[idx];
@@ -1229,17 +1229,17 @@ static MIR_reg_t ts_emit_oop_inline_method_expr(ts_mir_compiler_t *c, const char
     return ts_emit_zero_reg(c);
   }
 
-  case TBS_NODE_MEMBER_ACCESS:
+  case TOAD_NODE_MEMBER_ACCESS:
     return ts_emit_oop_member_get(c, object_name, expr->data.member_access.member,
                                   expr->data.member_access.object);
 
-  case TBS_NODE_BINARY_OP:
+  case TOAD_NODE_BINARY_OP:
     return ts_emit_oop_inline_binary(c, object_name, class_name, params, param_count, arg_regs,
                                      expr);
 
-  case TBS_NODE_SUPER: {
+  case TOAD_NODE_SUPER: {
     const char *parent_name = ts_direct_parent_class_name(c, class_name);
-    tbs_node_t *method = NULL;
+    toad_node_t *method = NULL;
     MIR_reg_t super_arg_regs[16];
     int returned = 0;
 
@@ -1268,14 +1268,14 @@ static MIR_reg_t ts_emit_oop_inline_method_expr(ts_mir_compiler_t *c, const char
 }
 
 static MIR_reg_t ts_emit_oop_inline_method_stmt(ts_mir_compiler_t *c, const char *object_name,
-                                                const char *class_name, tbs_node_t **params,
+                                                const char *class_name, toad_node_t **params,
                                                 size_t param_count, const MIR_reg_t *arg_regs,
-                                                tbs_node_t *stmt, int *returned) {
+                                                toad_node_t *stmt, int *returned) {
   MIR_reg_t last = 0;
 
   if (!stmt) return ts_emit_zero_reg(c);
   switch (stmt->type) {
-  case TBS_NODE_BLOCK:
+  case TOAD_NODE_BLOCK:
     for (size_t i = 0; i < stmt->data.block.count; ++i) {
       last = ts_emit_oop_inline_method_stmt(c, object_name, class_name, params, param_count, arg_regs,
                                             stmt->data.block.statements[i], returned);
@@ -1283,15 +1283,15 @@ static MIR_reg_t ts_emit_oop_inline_method_stmt(ts_mir_compiler_t *c, const char
     }
     return last ? last : ts_emit_zero_reg(c);
 
-  case TBS_NODE_FLOW:
-    if (stmt->data.flow.type == tbs_TOKEN_RETURN) {
+  case TOAD_NODE_FLOW:
+    if (stmt->data.flow.type == toad_TOKEN_RETURN) {
       if (returned) *returned = 1;
       return ts_emit_oop_inline_method_expr(c, object_name, class_name, params, param_count, arg_regs,
                                             stmt->data.flow.value);
     }
     return ts_emit_zero_reg(c);
 
-  case TBS_NODE_MEMBER_SET: {
+  case TOAD_NODE_MEMBER_SET: {
     MIR_reg_t value = ts_emit_oop_inline_method_expr(c, object_name, class_name, params, param_count,
                                                      arg_regs, stmt->data.member_set.value);
     return ts_emit_oop_member_set_reg(c, object_name, stmt->data.member_set.member,
@@ -1310,7 +1310,7 @@ MIR_reg_t ts_try_emit_oop_inline_method_call(ts_mir_compiler_t *c,
                                              const char *method_name, size_t argc,
                                              const MIR_reg_t *arg_regs) {
   int returned = 0;
-  tbs_node_t *method =
+  toad_node_t *method =
       ts_find_inlineable_instance_method(c, class_name, method_name, argc);
   if (!method) return 0;
 
@@ -1335,56 +1335,56 @@ MIR_reg_t ts_emit_oop_instanceof(ts_mir_compiler_t *c, const char *object_name,
 }
 
 void ts_mir_oop_define_class(void *ctx_ptr, void *node_ptr) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
-  tbs_node_t *node = (tbs_node_t *)node_ptr;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
+  toad_node_t *node = (toad_node_t *)node_ptr;
   if (!ctx || !node) return;
-  tbs_oop_define_class(node, &ctx->env);
-  if (ctx->env.flow != tbs_FLOW_NORMAL || ctx->env.aborted)
+  toad_oop_define_class(node, &ctx->env);
+  if (ctx->env.flow != toad_FLOW_NORMAL || ctx->env.aborted)
     ts_mir_promote_env_error(ctx);
 }
 
 double ts_mir_oop_class_alias(void *ctx_ptr, const char *target_name, const char *source_name) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
   if (!ctx || !target_name || !source_name) return 0.0;
 
-  tbs_value_t result = tbs_oop_alias_class(target_name, source_name, &ctx->env);
+  toad_value_t result = toad_oop_alias_class(target_name, source_name, &ctx->env);
   return ts_mir_numeric_value(result);
 }
 
 double ts_mir_oop_new_assign(void *ctx_ptr, const char *target_name, const char *class_name,
                              int64_t argc, double *argv) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
   if (!ctx || !target_name || !class_name) return 0.0;
 
-  tbs_value_t instance = tbs_oop_instantiate_numeric(class_name, (size_t)argc, argv, &ctx->env);
+  toad_value_t instance = toad_oop_instantiate_numeric(class_name, (size_t)argc, argv, &ctx->env);
   if (ctx->env.aborted) return 0.0;
-  tbs_env_set(&ctx->env, target_name, instance);
+  toad_env_set(&ctx->env, target_name, instance);
   return ts_mir_numeric_value(instance);
 }
 
 double ts_mir_oop_member_call(void *ctx_ptr, const char *object_name, const char *method_name,
                               void *object_node, int64_t argc, double *argv) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
-  tbs_env_t *env;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
+  toad_env_t *env;
   if (!ctx || !object_name || !method_name) return 0.0;
   env = ts_task_execution_env(ctx);
 
-  tbs_value_t result = tbs_member_call_checked_numeric(
-      object_name, method_name, (tbs_node_t *)object_node, (size_t)argc, argv, env);
+  toad_value_t result = toad_member_call_checked_numeric(
+      object_name, method_name, (toad_node_t *)object_node, (size_t)argc, argv, env);
   return ts_mir_numeric_value(result);
 }
 
 double ts_mir_oop_member_call_value(void *ctx_ptr, const char *object_name,
                                     const char *method_name, void *object_node,
                                     void *call_node) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
-  tbs_env_t *env;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
+  toad_env_t *env;
   if (!ctx || !object_name || !method_name) return 0.0;
   env = ts_task_execution_env(ctx);
 
-  tbs_value_t result = tbs_member_call_checked_value_nodes(
-      object_name, method_name, (tbs_node_t *)object_node,
-      (tbs_node_t *)call_node, env);
+  toad_value_t result = toad_member_call_checked_value_nodes(
+      object_name, method_name, (toad_node_t *)object_node,
+      (toad_node_t *)call_node, env);
   return ts_mir_numeric_value(result);
 }
 
@@ -1392,30 +1392,30 @@ double ts_mir_oop_member_call_mono_value(void *ctx_ptr, const char *object_name,
                                          const char *expected_class_name,
                                          const char *method_name, void *object_node,
                                          void *call_node) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
   if (!ctx || !object_name || !expected_class_name || !method_name) return 0.0;
 
-  tbs_value_t result = tbs_oop_call_method_mono_checked_value_nodes(
-      object_name, expected_class_name, method_name, (tbs_node_t *)object_node,
-      (tbs_node_t *)call_node, &ctx->env);
+  toad_value_t result = toad_oop_call_method_mono_checked_value_nodes(
+      object_name, expected_class_name, method_name, (toad_node_t *)object_node,
+      (toad_node_t *)call_node, &ctx->env);
   return ts_mir_numeric_value(result);
 }
 
 double ts_mir_oop_member_call_cached(void *ctx_ptr, const char *object_name,
                                      const char *method_name, void *cache_ptr, void *object_node,
                                      int64_t argc, double *argv) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
   if (!ctx || !object_name || !method_name) return 0.0;
 
-  tbs_value_t object = tbs_env_get(&ctx->env, object_name);
-  tbs_value_t result;
-  if (object.type == TBS_VAL_INSTANCE || object.type == TBS_VAL_CLASS) {
-    result = tbs_oop_call_method_cached_checked_numeric(
-        object_name, method_name, (tbs_oop_method_cache_t *)cache_ptr,
-        (tbs_node_t *)object_node, (size_t)argc, argv, &ctx->env);
+  toad_value_t object = toad_env_get(&ctx->env, object_name);
+  toad_value_t result;
+  if (object.type == TOAD_VAL_INSTANCE || object.type == TOAD_VAL_CLASS) {
+    result = toad_oop_call_method_cached_checked_numeric(
+        object_name, method_name, (toad_oop_method_cache_t *)cache_ptr,
+        (toad_node_t *)object_node, (size_t)argc, argv, &ctx->env);
   } else {
-    result = tbs_member_call_checked_numeric(
-        object_name, method_name, (tbs_node_t *)object_node, (size_t)argc, argv, &ctx->env);
+    result = toad_member_call_checked_numeric(
+        object_name, method_name, (toad_node_t *)object_node, (size_t)argc, argv, &ctx->env);
   }
   return ts_mir_numeric_value(result);
 }
@@ -1424,67 +1424,67 @@ double ts_mir_oop_member_call_assign(void *ctx_ptr, const char *target_name,
                                      const char *object_name, const char *method_name,
                                      void *cache_ptr, void *object_node, int64_t argc,
                                      double *argv) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
   if (!ctx || !target_name || !object_name || !method_name) return 0.0;
 
-  tbs_value_t object = tbs_env_get(&ctx->env, object_name);
-  tbs_value_t result;
-  if (object.type == TBS_VAL_INSTANCE || object.type == TBS_VAL_CLASS) {
-    result = tbs_oop_call_method_cached_checked_numeric(
-        object_name, method_name, (tbs_oop_method_cache_t *)cache_ptr,
-        (tbs_node_t *)object_node, (size_t)argc, argv, &ctx->env);
+  toad_value_t object = toad_env_get(&ctx->env, object_name);
+  toad_value_t result;
+  if (object.type == TOAD_VAL_INSTANCE || object.type == TOAD_VAL_CLASS) {
+    result = toad_oop_call_method_cached_checked_numeric(
+        object_name, method_name, (toad_oop_method_cache_t *)cache_ptr,
+        (toad_node_t *)object_node, (size_t)argc, argv, &ctx->env);
   } else {
-    result = tbs_member_call_checked_numeric(
-        object_name, method_name, (tbs_node_t *)object_node, (size_t)argc, argv, &ctx->env);
+    result = toad_member_call_checked_numeric(
+        object_name, method_name, (toad_node_t *)object_node, (size_t)argc, argv, &ctx->env);
   }
-  tbs_env_set(&ctx->env, target_name, result);
+  toad_env_set(&ctx->env, target_name, result);
   return ts_mir_numeric_value(result);
 }
 
 double ts_mir_oop_member_call_assign_value(void *ctx_ptr, const char *target_name,
                                            const char *object_name, const char *method_name,
                                            void *object_node, void *call_node) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
   if (!ctx || !target_name || !object_name || !method_name) return 0.0;
 
-  tbs_value_t result = tbs_member_call_checked_value_nodes(
-      object_name, method_name, (tbs_node_t *)object_node,
-      (tbs_node_t *)call_node, &ctx->env);
-  tbs_env_set(&ctx->env, target_name, result);
+  toad_value_t result = toad_member_call_checked_value_nodes(
+      object_name, method_name, (toad_node_t *)object_node,
+      (toad_node_t *)call_node, &ctx->env);
+  toad_env_set(&ctx->env, target_name, result);
   return ts_mir_numeric_value(result);
 }
 
 double ts_mir_oop_member_get(void *ctx_ptr, const char *object_name, const char *member_name,
                              void *cache_ptr, void *object_node) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
   if (!ctx || !object_name || !member_name) return 0.0;
 
-  tbs_value_t result = tbs_oop_get_member_cached_checked(
-      object_name, member_name, (tbs_oop_field_cache_t *)cache_ptr,
-      (tbs_node_t *)object_node, &ctx->env);
+  toad_value_t result = toad_oop_get_member_cached_checked(
+      object_name, member_name, (toad_oop_field_cache_t *)cache_ptr,
+      (toad_node_t *)object_node, &ctx->env);
   return ts_mir_numeric_value(result);
 }
 
 double ts_mir_oop_member_set(void *ctx_ptr, const char *object_name, const char *member_name,
                              void *cache_ptr, void *object_node, double value) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
   if (!ctx || !object_name || !member_name) return 0.0;
 
-  tbs_value_t result = tbs_oop_set_member_cached_checked_numeric(
-      object_name, member_name, value, (tbs_oop_field_cache_t *)cache_ptr,
-      (tbs_node_t *)object_node, &ctx->env);
+  toad_value_t result = toad_oop_set_member_cached_checked_numeric(
+      object_name, member_name, value, (toad_oop_field_cache_t *)cache_ptr,
+      (toad_node_t *)object_node, &ctx->env);
   return ts_mir_numeric_value(result);
 }
 
 void *ts_mir_oop_num_ptr(void *ctx_ptr, const char *object_name, const char *member_name,
                          void *object_node, int64_t create_if_missing, void *slot_cache_ptr) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
   ts_mir_oop_slot_cache_t *slot_cache = (ts_mir_oop_slot_cache_t *)slot_cache_ptr;
   if (!ctx || !object_name || !member_name || !slot_cache) return NULL;
 
-  tbs_value_t object = tbs_env_get(&ctx->env, object_name);
-  if (object.type != TBS_VAL_INSTANCE || !object.data.instance_val.instance) {
-    ctx->error_code = TURBO_SCRIPT_ERROR_RUNTIME;
+  toad_value_t object = toad_env_get(&ctx->env, object_name);
+  if (object.type != TOAD_VAL_INSTANCE || !object.data.instance_val.instance) {
+    ctx->error_code = TOAD_SCRIPT_ERROR_RUNTIME;
     snprintf(ctx->error_msg, sizeof(ctx->error_msg),
              "JIT runtime error: '%s.%s' requires an instance numeric field",
              object_name, member_name);
@@ -1493,8 +1493,8 @@ void *ts_mir_oop_num_ptr(void *ctx_ptr, const char *object_name, const char *mem
     return NULL;
   }
 
-  tbs_instance_t *instance = object.data.instance_val.instance;
-  tbs_class_t *field_owner = NULL;
+  toad_instance_t *instance = object.data.instance_val.instance;
+  toad_class_t *field_owner = NULL;
   const cmeta_data_desc *class_data;
   const cmeta_data_struct_shape *shape;
   const cmeta_data_field_desc *field;
@@ -1504,11 +1504,11 @@ void *ts_mir_oop_num_ptr(void *ctx_ptr, const char *object_name, const char *mem
   /* Direct slot access is admitted only for an explicit public CMeta double
    * field. Dynamic/untyped fields remain on the generic value bridge even if
    * their current runtime value happens to be numeric. */
-  access = tbs_class_get_instance_field_access(
+  access = toad_class_get_instance_field_access(
       instance->klass, member_name, &field_owner);
-  if (access != TBS_ACCESS_PUBLIC ||
-      tbs_instance_borrow_cmeta_object(instance, &reflected) != CMETA_OK) {
-    ctx->error_code = TURBO_SCRIPT_ERROR_RUNTIME;
+  if (access != TOAD_ACCESS_PUBLIC ||
+      toad_instance_borrow_cmeta_object(instance, &reflected) != CMETA_OK) {
+    ctx->error_code = TOAD_SCRIPT_ERROR_RUNTIME;
     snprintf(ctx->error_msg, sizeof(ctx->error_msg),
              "JIT runtime error: field '%s' is not admitted for direct numeric access",
              member_name);
@@ -1525,7 +1525,7 @@ void *ts_mir_oop_num_ptr(void *ctx_ptr, const char *object_name, const char *mem
   if (!field || !cmeta_data_desc_valid(field->value) ||
       !cmeta_data_desc_equal(field->value, &cmeta_data_double)) {
     cmeta_object_release(&reflected);
-    ctx->error_code = TURBO_SCRIPT_ERROR_RUNTIME;
+    ctx->error_code = TOAD_SCRIPT_ERROR_RUNTIME;
     snprintf(ctx->error_msg, sizeof(ctx->error_msg),
              "JIT runtime error: field '%s' is not a canonical number field",
              member_name);
@@ -1535,16 +1535,16 @@ void *ts_mir_oop_num_ptr(void *ctx_ptr, const char *object_name, const char *mem
   }
   cmeta_object_release(&reflected);
 
-  tbs_value_t *slot = tbs_instance_get_field_slot(instance, member_name);
+  toad_value_t *slot = toad_instance_get_field_slot(instance, member_name);
   if (!slot && create_if_missing) {
-    tbs_instance_set_field(instance, member_name, tbs_val_num(0.0));
-    slot = tbs_instance_get_field_slot(instance, member_name);
+    toad_instance_set_field(instance, member_name, toad_val_num(0.0));
+    slot = toad_instance_get_field_slot(instance, member_name);
   }
   uintptr_t slot_addr = (uintptr_t)slot;
   uintptr_t slots_begin = (uintptr_t)instance->field_slots;
   uintptr_t slots_end = slots_begin + instance->field_slot_count * sizeof(*instance->field_slots);
   if (!slot || !instance->field_slots || slot_addr < slots_begin || slot_addr >= slots_end) {
-    ctx->error_code = TURBO_SCRIPT_ERROR_RUNTIME;
+    ctx->error_code = TOAD_SCRIPT_ERROR_RUNTIME;
     snprintf(ctx->error_msg, sizeof(ctx->error_msg),
              "JIT runtime error: instance has no numeric slot field '%s'", member_name);
     snprintf(ctx->env.error_msg, sizeof(ctx->env.error_msg), "%s", ctx->error_msg);
@@ -1552,8 +1552,8 @@ void *ts_mir_oop_num_ptr(void *ctx_ptr, const char *object_name, const char *mem
     return NULL;
   }
 
-  if (slot->type != TBS_VAL_NUMBER) {
-    ctx->error_code = TURBO_SCRIPT_ERROR_RUNTIME;
+  if (slot->type != TOAD_VAL_NUMBER) {
+    ctx->error_code = TOAD_SCRIPT_ERROR_RUNTIME;
     snprintf(ctx->error_msg, sizeof(ctx->error_msg),
              "JIT runtime error: field '%s' violates its canonical number storage",
              member_name);
@@ -1570,40 +1570,40 @@ void *ts_mir_oop_num_ptr(void *ctx_ptr, const char *object_name, const char *mem
 }
 
 double ts_mir_oop_instanceof(void *ctx_ptr, const char *object_name, const char *class_name) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
   if (!ctx || !object_name || !class_name) return 0.0;
 
-  tbs_value_t result = tbs_oop_instanceof_name(object_name, class_name, &ctx->env);
+  toad_value_t result = toad_oop_instanceof_name(object_name, class_name, &ctx->env);
   return ts_mir_numeric_value(result);
 }
 
 double ts_mir_oop_predicate(void *ctx_ptr, int64_t kind, const char *name, const char *member,
                             void *object_node) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
   if (!ctx || !name) return 0.0;
 
-  tbs_value_t value;
+  toad_value_t value;
   if (member) {
-    tbs_value_t object = tbs_env_get(&ctx->env, name);
-    if (tbs_value_is_object_like(&object) && tbs_map_has(&object, member)) {
-      value = tbs_map_get(&object, member);
+    toad_value_t object = toad_env_get(&ctx->env, name);
+    if (toad_value_is_object_like(&object) && toad_map_has(&object, member)) {
+      value = toad_map_get(&object, member);
     } else {
-      value = tbs_oop_get_member_checked(name, member, (tbs_node_t *)object_node, &ctx->env);
+      value = toad_oop_get_member_checked(name, member, (toad_node_t *)object_node, &ctx->env);
     }
   } else {
-    value = tbs_env_get(&ctx->env, name);
+    value = toad_env_get(&ctx->env, name);
   }
 
   switch (kind) {
     case 1:
-      return value.type == TBS_VAL_CLASS ? 1.0 : 0.0;
+      return value.type == TOAD_VAL_CLASS ? 1.0 : 0.0;
     case 2:
-      return value.type == TBS_VAL_INSTANCE ? 1.0 : 0.0;
+      return value.type == TOAD_VAL_INSTANCE ? 1.0 : 0.0;
     case 3:
-      return value.type == TBS_VAL_FUNCTION || value.type == TBS_VAL_BOUND_METHOD ? 1.0
+      return value.type == TOAD_VAL_FUNCTION || value.type == TOAD_VAL_BOUND_METHOD ? 1.0
                                                                                          : 0.0;
     case 4:
-      return value.type == TBS_VAL_NULL ? 1.0 : 0.0;
+      return value.type == TOAD_VAL_NULL ? 1.0 : 0.0;
     default:
       return 0.0;
   }

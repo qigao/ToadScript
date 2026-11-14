@@ -1,41 +1,41 @@
 #include "tinytest.h"
-#include <turboscript/engine.h>
+#include <toad/engine.h>
 #include "../src/graph/cmeta_bridge.h"
 
 #include <cmeta/cmeta.h>
 
-static tbs_node_t *ts_test_single_expr(const char *source,
-                                          tbs_node_t **root_out) {
-  tbs_node_t *root = tbs_parse(source, 0);
+static toad_node_t *ts_test_single_expr(const char *source,
+                                          toad_node_t **root_out) {
+  toad_node_t *root = toad_parse(source, 0);
   if (root_out) *root_out = root;
-  if (!root || root->type != TBS_NODE_BLOCK ||
+  if (!root || root->type != TOAD_NODE_BLOCK ||
       root->data.block.count != 1u)
     return NULL;
   return root->data.block.statements[0];
 }
 
-spec("TurboScript CMeta graph bridge") {
-  it("maps TurboScript scalar and vector flow types") {
+spec("Toad CMeta graph bridge") {
+  it("maps Toad scalar and vector flow types") {
     ts_cmeta_value_semantics_t semantics;
 
-    check_true(ts_cmeta_describe_value_type(TBS_VAL_NUMBER, &semantics));
+    check_true(ts_cmeta_describe_value_type(TOAD_VAL_NUMBER, &semantics));
     check((semantics.shape) == (TS_CMETA_VALUE_SCALAR));
     check_true(cmeta_type_equal(semantics.flow_type, &cmeta_type_double));
 
-    check_true(ts_cmeta_describe_value_type(TBS_VAL_BOOL, &semantics));
+    check_true(ts_cmeta_describe_value_type(TOAD_VAL_BOOL, &semantics));
     check((semantics.shape) == (TS_CMETA_VALUE_SCALAR));
     check_true(cmeta_type_equal(semantics.flow_type, &cmeta_type_bool));
 
-    check_true(ts_cmeta_describe_value_type(TBS_VAL_VECTOR, &semantics));
+    check_true(ts_cmeta_describe_value_type(TOAD_VAL_VECTOR, &semantics));
     check((semantics.shape) == (TS_CMETA_VALUE_VECTOR));
     check_true(cmeta_type_equal(semantics.flow_type, &cmeta_type_double));
 
-    check_false(ts_cmeta_describe_value_type(TBS_VAL_MAP, &semantics));
+    check_false(ts_cmeta_describe_value_type(TOAD_VAL_MAP, &semantics));
   }
 
   it("describes a pure numeric map lambda") {
-    tbs_node_t *root = NULL;
-    tbs_node_t *lambda = ts_test_single_expr("x => x * 2", &root);
+    toad_node_t *root = NULL;
+    toad_node_t *lambda = ts_test_single_expr("x => x * 2", &root);
     ts_cmeta_lambda_contract_t contract;
     const cmeta_sig_desc *signature;
     const char *error = NULL;
@@ -57,12 +57,12 @@ spec("TurboScript CMeta graph bridge") {
     check_true(cmeta_type_equal(signature->params[0], &cmeta_type_double));
     check_true(cmeta_type_equal(signature->return_type, &cmeta_type_double));
 
-    tbs_free(root);
+    toad_free(root);
   }
 
   it("describes a pure numeric filter lambda") {
-    tbs_node_t *root = NULL;
-    tbs_node_t *lambda = ts_test_single_expr("x => x > 0", &root);
+    toad_node_t *root = NULL;
+    toad_node_t *lambda = ts_test_single_expr("x => x > 0", &root);
     ts_cmeta_lambda_contract_t contract;
     const cmeta_sig_desc *signature;
     const char *error = NULL;
@@ -78,12 +78,12 @@ spec("TurboScript CMeta graph bridge") {
     check_true(cmeta_type_equal(signature->params[0], &cmeta_type_double));
     check_true(cmeta_type_equal(signature->return_type, &cmeta_type_bool));
 
-    tbs_free(root);
+    toad_free(root);
   }
 
   it("describes a pure numeric reducer lambda") {
-    tbs_node_t *root = NULL;
-    tbs_node_t *lambda = ts_test_single_expr("(acc, x) => acc + x", &root);
+    toad_node_t *root = NULL;
+    toad_node_t *lambda = ts_test_single_expr("(acc, x) => acc + x", &root);
     ts_cmeta_lambda_contract_t contract;
     const cmeta_sig_desc *signature;
     const char *error = NULL;
@@ -101,12 +101,12 @@ spec("TurboScript CMeta graph bridge") {
     check_true(cmeta_type_equal(signature->params[1], &cmeta_type_double));
     check_true(cmeta_type_equal(signature->return_type, &cmeta_type_double));
 
-    tbs_free(root);
+    toad_free(root);
   }
 
   it("marks captured variables conservatively unknown") {
-    tbs_node_t *root = NULL;
-    tbs_node_t *lambda = ts_test_single_expr("x => x * factor", &root);
+    toad_node_t *root = NULL;
+    toad_node_t *lambda = ts_test_single_expr("x => x * factor", &root);
     ts_cmeta_lambda_contract_t contract;
     const char *error = NULL;
 
@@ -118,12 +118,12 @@ spec("TurboScript CMeta graph bridge") {
     check_true((contract.effects & CMETA_EFFECT_UNKNOWN) != 0u);
     check((contract.properties) == (CMETA_PROP_NONE));
 
-    tbs_free(root);
+    toad_free(root);
   }
 
   it("rejects lambda arity that does not match the CFlow operator") {
-    tbs_node_t *root = NULL;
-    tbs_node_t *lambda = ts_test_single_expr("(a, b) => a + b", &root);
+    toad_node_t *root = NULL;
+    toad_node_t *lambda = ts_test_single_expr("(a, b) => a + b", &root);
     ts_cmeta_lambda_contract_t contract;
     const char *error = NULL;
 
@@ -132,6 +132,6 @@ spec("TurboScript CMeta graph bridge") {
                                         &contract, &error));
     check_not_null(error);
 
-    tbs_free(root);
+    toad_free(root);
   }
 }

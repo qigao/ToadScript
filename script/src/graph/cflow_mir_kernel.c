@@ -11,7 +11,7 @@ struct ts_cflow_mir_kernel_s {
   MIR_module_t module;
   MIR_item_t function;
   void *address;
-  turbo_script_ctx_t *runtime_ctx; /* borrowed; context must outlive binding */
+  toad_script_ctx_t *runtime_ctx; /* borrowed; context must outlive binding */
   ts_mir_owned_string_block_t *owned_strings;
   ts_cmeta_lambda_role_t role;
   int gen_initialized;
@@ -47,7 +47,7 @@ static bool ts_cflow_mir_kernel_invoke(const cmeta_callable *self,
   memcpy(&input, args[0], sizeof(input));
 
   kernel->runtime_ctx->env.aborted = 0;
-  kernel->runtime_ctx->env.flow = tbs_FLOW_NORMAL;
+  kernel->runtime_ctx->env.flow = toad_FLOW_NORMAL;
   kernel->runtime_ctx->env.error_msg[0] = '\0';
 
   if (kernel->role == TS_CMETA_LAMBDA_REDUCE) {
@@ -62,7 +62,7 @@ static bool ts_cflow_mir_kernel_invoke(const cmeta_callable *self,
             kernel->runtime_ctx, &kernel->runtime_ctx->env, input);
   }
   if (kernel->runtime_ctx->env.aborted ||
-      kernel->runtime_ctx->env.flow == tbs_FLOW_THROW)
+      kernel->runtime_ctx->env.flow == toad_FLOW_THROW)
     return false;
 
   if (kernel->role == TS_CMETA_LAMBDA_FILTER) {
@@ -88,8 +88,8 @@ static void ts_cflow_mir_kernel_destroy(ts_cflow_mir_kernel_t *kernel) {
   free(kernel);
 }
 
-bool ts_cflow_mir_kernel_bind(turbo_script_ctx_t *runtime_ctx,
-                              const tbs_node_t *lambda,
+bool ts_cflow_mir_kernel_bind(toad_script_ctx_t *runtime_ctx,
+                              const toad_node_t *lambda,
                               ts_cmeta_lambda_role_t role,
                               ts_cflow_mir_kernel_binding_t *out,
                               const char **error) {
@@ -145,7 +145,7 @@ bool ts_cflow_mir_kernel_bind(turbo_script_ctx_t *runtime_ctx,
   compiler.ctx = kernel->mir_ctx;
   compiler.module = kernel->module;
   compiler.ts_ctx = runtime_ctx;
-  compiler.ast_root = (tbs_node_t *)lambda;
+  compiler.ast_root = (toad_node_t *)lambda;
   compiler.lowering_policy =
       (ts_mir_lowering_policy_t){TS_MIR_HOST_SLOTS_DISABLED, NULL};
   snprintf(compiler.item_prefix, sizeof(compiler.item_prefix), "ts_cflow");
@@ -160,7 +160,7 @@ bool ts_cflow_mir_kernel_bind(turbo_script_ctx_t *runtime_ctx,
       compiled->arg_count !=
           (role == TS_CMETA_LAMBDA_REDUCE ? (size_t)2u : (size_t)1u) ||
       !compiled->mir_func) {
-    if (error) *error = "TurboScript lambda is not eligible for MIR kernel compilation";
+    if (error) *error = "Toad lambda is not eligible for MIR kernel compilation";
     goto compiler_done;
   }
   kernel->function = compiled->mir_func;

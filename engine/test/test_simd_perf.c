@@ -3,7 +3,7 @@
  * @brief Performance benchmarks for SIMD optimizations
  */
 
-#include "simd_helpers.h"
+#include <toad/simd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>

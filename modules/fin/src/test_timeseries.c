@@ -22,7 +22,7 @@ spec("timeseries") {
             double out[5] = {0};
             size_t n = 5;
 
-            size_t result = exprtk_ts_diff(data, n, 1, out, &arena);
+            size_t result = toad_ts_diff(data, n, 1, out, &arena);
             check((result) == (n - 1));  // Returns n - order
 
             // First diff: out[i] = data[i] - data[i-1]
@@ -43,7 +43,7 @@ spec("timeseries") {
             size_t n = 9;
             size_t max_lag = 3;
 
-            size_t result = exprtk_ts_autocorr(data, n, max_lag, out);
+            size_t result = toad_ts_autocorr(data, n, max_lag, out);
             check((result) == (max_lag + 1));
 
             // ACF at lag 0 should be 1.0
@@ -64,7 +64,7 @@ spec("timeseries") {
             double out[2] = {0};
 
             mem_init(&arena, 4096);
-            check((exprtk_ts_adf(data, 8, 1, out, &arena)) == (2));
+            check((toad_ts_adf(data, 8, 1, out, &arena)) == (2));
             check_true(isfinite(out[0]));
             check_true(isfinite(out[1]));
             mem_destroy(&arena);
@@ -76,11 +76,11 @@ spec("timeseries") {
             double out[2] = {0};
 
             mem_init(&arena, 4096);
-            check((exprtk_ts_adf(data, 3, 1, out, &arena)) == (0));
-            check((exprtk_ts_adf(NULL, 3, 1, out, &arena)) == (0));
-            check((exprtk_ts_adf(data, 3, 1, NULL, &arena)) == (0));
-            check((exprtk_ts_adf(data, 3, 1, out, NULL)) == (0));
-            check((exprtk_ts_adf(data, 3, SIZE_MAX, out, &arena)) == (0));
+            check((toad_ts_adf(data, 3, 1, out, &arena)) == (0));
+            check((toad_ts_adf(NULL, 3, 1, out, &arena)) == (0));
+            check((toad_ts_adf(data, 3, 1, NULL, &arena)) == (0));
+            check((toad_ts_adf(data, 3, 1, out, NULL)) == (0));
+            check((toad_ts_adf(data, 3, SIZE_MAX, out, &arena)) == (0));
             mem_destroy(&arena);
         }
     }
@@ -94,7 +94,7 @@ spec("timeseries") {
             double alpha = 0.1;
             double beta = 0.85;
 
-            size_t result = exprtk_ts_garch(returns, n, alpha, beta, out);
+            size_t result = toad_ts_garch(returns, n, alpha, beta, out);
             check((result) == (n));
 
             // Volatility should be positive
@@ -115,7 +115,7 @@ spec("timeseries") {
                 data[i] = (double)i + ((i % 3) - 1) * 0.5;
             }
 
-            double hurst = exprtk_ts_hurst(data, 100, NULL, &arena);
+            double hurst = toad_ts_hurst(data, 100, NULL, &arena);
 
             // Hurst should be between 0 and 1
             check(hurst >= 0.0 && hurst <= 1.0);
@@ -136,7 +136,7 @@ spec("timeseries") {
             size_t n = 10;
             size_t m = 3;
 
-            size_t result = exprtk_ts_match(data, pattern, n, m, out);
+            size_t result = toad_ts_match(data, pattern, n, m, out);
             check((result) == (n - m + 1));  // Returns number of valid windows
 
             // Should find matches (lower distance = better match)
@@ -159,7 +159,7 @@ spec("timeseries") {
             size_t n = 8;
             size_t m = 3;
 
-            size_t result = exprtk_ts_match_cosine(data, pattern, n, m, out);
+            size_t result = toad_ts_match_cosine(data, pattern, n, m, out);
             check((result) == (n - m + 1));  // Returns number of valid windows
 
             // Cosine similarity should be between -1 and 1
@@ -183,7 +183,7 @@ spec("timeseries") {
             size_t n = 9;
             size_t m = 3;
 
-            size_t result = exprtk_ts_match_dtw(data, pattern, n, m, out, &arena);
+            size_t result = toad_ts_match_dtw(data, pattern, n, m, out, &arena);
             check((result) == (n - m + 1));  // Returns number of valid windows
 
             // DTW distance should be non-negative

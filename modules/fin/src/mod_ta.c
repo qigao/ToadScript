@@ -2,9 +2,9 @@
  * @file mod_ta.c
  * @brief TA module: all ta_* technical analysis functions
  */
-#include <turboscript/module.h>
+#include <toad/module.h>
 
-#include <turboscript/simd.h>
+#include <toad/simd.h>
 #include "ta.h"
 #include <math.h>
 #include <stdio.h>
@@ -12,339 +12,339 @@
 #include <string.h>
 
 #define D(i) a[i].data.vector.data
-#define V(i) (a[i].type == TBS_VAL_VECTOR)
+#define V(i) (a[i].type == TOAD_VAL_VECTOR)
 
-static tbs_value_t fn_crossover(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_crossover(size_t argc, toad_value_t *a, toad_env_t *e,
                                    mem_pool_t *ar) {
   (void)e;
   if (argc == 2 && V(0) && V(1)) {
     const size_t n = a[0].data.vector.size;
     if (a[1].data.vector.size != n)
-      return tbs_val_num(0);
+      return toad_val_num(0);
     const double *fast = D(0);
     const double *slow = D(1);
     double *out = MEM_ALLOC_ARRAY(ar, double, n);
     if (!out)
-      return tbs_val_num(0);
+      return toad_val_num(0);
     out[0] = 0.0;
     for (size_t i = 1; i < n; ++i) {
       out[i] = (fast[i - 1] <= slow[i - 1] && fast[i] > slow[i]) ? 1.0 : 0.0;
     }
-    return tbs_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_crossunder(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_crossunder(size_t argc, toad_value_t *a, toad_env_t *e,
                                     mem_pool_t *ar) {
   (void)e;
   if (argc == 2 && V(0) && V(1)) {
     const size_t n = a[0].data.vector.size;
     if (a[1].data.vector.size != n)
-      return tbs_val_num(0);
+      return toad_val_num(0);
     const double *fast = D(0);
     const double *slow = D(1);
     double *out = MEM_ALLOC_ARRAY(ar, double, n);
     if (!out)
-      return tbs_val_num(0);
+      return toad_val_num(0);
     out[0] = 0.0;
     for (size_t i = 1; i < n; ++i) {
       out[i] = (fast[i - 1] >= slow[i - 1] && fast[i] < slow[i]) ? 1.0 : 0.0;
     }
-    return tbs_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_candle_doji(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_candle_doji(size_t argc, toad_value_t *a, toad_env_t *e,
                                      mem_pool_t *ar) {
   (void)e;
   if ((argc == 4 || argc == 5) && V(0) && V(1) && V(2) && V(3)) {
     const size_t n = a[0].data.vector.size;
     if (a[1].data.vector.size != n || a[2].data.vector.size != n || a[3].data.vector.size != n)
-      return tbs_val_num(0);
-    const double threshold = (argc == 5 && a[4].type == TBS_VAL_NUMBER) ? a[4].data.number : 0.1;
+      return toad_val_num(0);
+    const double threshold = (argc == 5 && a[4].type == TOAD_VAL_NUMBER) ? a[4].data.number : 0.1;
     const double *o = D(0), *h = D(1), *l = D(2), *c = D(3);
     double *out = MEM_ALLOC_ARRAY(ar, double, n);
     if (!out)
-      return tbs_val_num(0);
+      return toad_val_num(0);
     for (size_t i = 0; i < n; ++i) {
       const double body = fabs(c[i] - o[i]);
       const double range = h[i] - l[i];
       out[i] = (range > 0.0 && body <= range * threshold) ? 1.0 : 0.0;
     }
-    return tbs_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_candle_hammer(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_candle_hammer(size_t argc, toad_value_t *a, toad_env_t *e,
                                        mem_pool_t *ar) {
   (void)e;
   if (argc == 4 && V(0) && V(1) && V(2) && V(3)) {
     const size_t n = a[0].data.vector.size;
     if (a[1].data.vector.size != n || a[2].data.vector.size != n || a[3].data.vector.size != n)
-      return tbs_val_num(0);
+      return toad_val_num(0);
     const double *o = D(0), *h = D(1), *l = D(2), *c = D(3);
     double *out = MEM_ALLOC_ARRAY(ar, double, n);
     if (!out)
-      return tbs_val_num(0);
+      return toad_val_num(0);
     for (size_t i = 0; i < n; ++i) {
       const double body = fabs(c[i] - o[i]);
       const double upper = h[i] - fmax(o[i], c[i]);
       const double lower = fmin(o[i], c[i]) - l[i];
       out[i] = (body > 0.0 && lower >= 2.0 * body && upper <= body) ? 1.0 : 0.0;
     }
-    return tbs_val_vec(out, n);
+    return toad_val_vec(out, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
 #define TA_VP(name, call)                                                                          \
-  static tbs_value_t name(size_t argc, tbs_value_t *a, tbs_env_t *e, mem_pool_t *ar) {  \
+  static toad_value_t name(size_t argc, toad_value_t *a, toad_env_t *e, mem_pool_t *ar) {  \
     (void)e;                                                                                       \
     if (argc != 2) {                                                                               \
       printf("TA_VP fail argc=%zu\n", argc);                                                       \
-      return tbs_val_num(0);                                                                    \
+      return toad_val_num(0);                                                                    \
     }                                                                                              \
     if (!V(0)) {                                                                                   \
       printf("TA_VP fail V(0), type0=%d\n", a[0].type);                                            \
-      return tbs_val_num(0);                                                                    \
+      return toad_val_num(0);                                                                    \
     }                                                                                              \
     size_t n = a[0].data.vector.size, p = (size_t)a[1].data.number;                                \
     double *o = MEM_ALLOC_ARRAY(ar, double, n);                                                                  \
     if (!o) {                                                                                      \
       printf("TA_VP fail o=NULL, ar=%p, n=%zu\n", ar, n);                                          \
-      return tbs_val_num(0);                                                                    \
+      return toad_val_num(0);                                                                    \
     }                                                                                              \
     if (!(call)) {                                                                                 \
       printf("TA_VP fail call %s n=%zu p=%zu\n", #call, n, p);                                     \
-      return tbs_val_num(0);                                                                    \
+      return toad_val_num(0);                                                                    \
     }                                                                                              \
-    return tbs_val_vec(o, n);                                                                   \
+    return toad_val_vec(o, n);                                                                   \
   }
 
 #define TA_VP_A(name, call)                                                                        \
-  static tbs_value_t name(size_t argc, tbs_value_t *a, tbs_env_t *e, mem_pool_t *ar) {  \
+  static toad_value_t name(size_t argc, toad_value_t *a, toad_env_t *e, mem_pool_t *ar) {  \
     (void)e;                                                                                       \
     if (argc == 2 && V(0)) {                                                                       \
       size_t n = a[0].data.vector.size, p = (size_t)a[1].data.number;                              \
       double *o = MEM_ALLOC_ARRAY(ar, double, n);                                                                \
       if (o && call)                                                                               \
-        return tbs_val_vec(o, n);                                                               \
+        return toad_val_vec(o, n);                                                               \
     }                                                                                              \
-    return tbs_val_num(0);                                                                      \
+    return toad_val_num(0);                                                                      \
   }
 
 #define TA_HLC(name, call)                                                                         \
-  static tbs_value_t name(size_t argc, tbs_value_t *a, tbs_env_t *e, mem_pool_t *ar) {  \
+  static toad_value_t name(size_t argc, toad_value_t *a, toad_env_t *e, mem_pool_t *ar) {  \
     (void)e;                                                                                       \
     if (argc == 4 && V(0) && V(1) && V(2)) {                                                       \
       size_t n = a[0].data.vector.size, p = (size_t)a[3].data.number;                              \
       double *o = MEM_ALLOC_ARRAY(ar, double, n);                                                                \
       if (o && call)                                                                               \
-        return tbs_val_vec(o, n);                                                               \
+        return toad_val_vec(o, n);                                                               \
     }                                                                                              \
-    return tbs_val_num(0);                                                                      \
+    return toad_val_num(0);                                                                      \
   }
 
 #define BSM(name, call)                                                                            \
-  static tbs_value_t name(size_t argc, tbs_value_t *a, tbs_env_t *e, mem_pool_t *ar) {  \
+  static toad_value_t name(size_t argc, toad_value_t *a, toad_env_t *e, mem_pool_t *ar) {  \
     (void)e;                                                                                       \
     if (argc == 5 && V(0)) {                                                                       \
       size_t n = a[0].data.vector.size;                                                            \
       double *o = MEM_ALLOC_ARRAY(ar, double, n);                                                                \
       if (o && call)                                                                               \
-        return tbs_val_vec(o, n);                                                               \
+        return toad_val_vec(o, n);                                                               \
     }                                                                                              \
-    return tbs_val_num(0);                                                                      \
+    return toad_val_num(0);                                                                      \
   }
 
-TA_VP(fn_ta_sma, tbs_ta_sma(D(0), n, p, o))
-TA_VP(fn_ta_ema, tbs_ta_ema(D(0), n, p, o))
-TA_VP(fn_ta_wma, tbs_ta_wma(D(0), n, p, o))
-TA_VP_A(fn_ta_dema, tbs_ta_dema(D(0), n, p, o, ar))
-TA_VP_A(fn_ta_tema, tbs_ta_tema(D(0), n, p, o, ar))
-TA_VP(fn_ta_kama, tbs_ta_kama(D(0), n, p, o))
-TA_VP_A(fn_ta_trima, tbs_ta_trima(D(0), n, p, o, ar))
-TA_VP_A(fn_ta_midpoint, tbs_ta_midpoint(D(0), n, p, o, ar))
-TA_VP_A(fn_ta_rsi, tbs_ta_rsi(D(0), n, p, o, ar))
-TA_VP(fn_ta_mom, tbs_ta_mom(D(0), n, p, o))
-TA_VP(fn_ta_roc, tbs_ta_roc(D(0), n, p, o))
-TA_VP_A(fn_ta_trix, tbs_ta_trix(D(0), n, p, o, ar))
-TA_VP_A(fn_ta_cmo, tbs_ta_cmo(D(0), n, p, o, ar))
-TA_VP(fn_ta_linearreg, tbs_ta_linearreg(D(0), n, p, o))
-TA_VP(fn_ta_linearreg_slope, tbs_ta_linearreg_slope(D(0), n, p, o))
-TA_VP(fn_ta_linearreg_intercept, tbs_ta_linearreg_intercept(D(0), n, p, o))
-TA_VP(fn_ta_linearreg_angle, tbs_ta_linearreg_angle(D(0), n, p, o))
-TA_VP(fn_ta_tsf, tbs_ta_tsf(D(0), n, p, o))
-TA_VP(fn_ta_savgol, tbs_ta_savgol(D(0), n, p, o))
+TA_VP(fn_ta_sma, toad_ta_sma(D(0), n, p, o))
+TA_VP(fn_ta_ema, toad_ta_ema(D(0), n, p, o))
+TA_VP(fn_ta_wma, toad_ta_wma(D(0), n, p, o))
+TA_VP_A(fn_ta_dema, toad_ta_dema(D(0), n, p, o, ar))
+TA_VP_A(fn_ta_tema, toad_ta_tema(D(0), n, p, o, ar))
+TA_VP(fn_ta_kama, toad_ta_kama(D(0), n, p, o))
+TA_VP_A(fn_ta_trima, toad_ta_trima(D(0), n, p, o, ar))
+TA_VP_A(fn_ta_midpoint, toad_ta_midpoint(D(0), n, p, o, ar))
+TA_VP_A(fn_ta_rsi, toad_ta_rsi(D(0), n, p, o, ar))
+TA_VP(fn_ta_mom, toad_ta_mom(D(0), n, p, o))
+TA_VP(fn_ta_roc, toad_ta_roc(D(0), n, p, o))
+TA_VP_A(fn_ta_trix, toad_ta_trix(D(0), n, p, o, ar))
+TA_VP_A(fn_ta_cmo, toad_ta_cmo(D(0), n, p, o, ar))
+TA_VP(fn_ta_linearreg, toad_ta_linearreg(D(0), n, p, o))
+TA_VP(fn_ta_linearreg_slope, toad_ta_linearreg_slope(D(0), n, p, o))
+TA_VP(fn_ta_linearreg_intercept, toad_ta_linearreg_intercept(D(0), n, p, o))
+TA_VP(fn_ta_linearreg_angle, toad_ta_linearreg_angle(D(0), n, p, o))
+TA_VP(fn_ta_tsf, toad_ta_tsf(D(0), n, p, o))
+TA_VP(fn_ta_savgol, toad_ta_savgol(D(0), n, p, o))
 
-TA_HLC(fn_ta_willr, tbs_ta_willr(D(0), D(1), D(2), n, p, o, ar))
-TA_HLC(fn_ta_cci, tbs_ta_cci(D(0), D(1), D(2), n, p, o, ar))
-TA_HLC(fn_ta_atr, tbs_ta_atr(D(0), D(1), D(2), n, p, o, ar))
-TA_HLC(fn_ta_natr, tbs_ta_natr(D(0), D(1), D(2), n, p, o, ar))
-TA_HLC(fn_ta_plus_di, tbs_ta_plus_di(D(0), D(1), D(2), n, p, o, ar))
-TA_HLC(fn_ta_minus_di, tbs_ta_minus_di(D(0), D(1), D(2), n, p, o, ar))
-TA_HLC(fn_ta_dx, tbs_ta_dx(D(0), D(1), D(2), n, p, o, ar))
-TA_HLC(fn_ta_adx, tbs_ta_adx(D(0), D(1), D(2), n, p, o, ar))
-TA_HLC(fn_ta_adxr, tbs_ta_adxr(D(0), D(1), D(2), n, p, o, ar))
+TA_HLC(fn_ta_willr, toad_ta_willr(D(0), D(1), D(2), n, p, o, ar))
+TA_HLC(fn_ta_cci, toad_ta_cci(D(0), D(1), D(2), n, p, o, ar))
+TA_HLC(fn_ta_atr, toad_ta_atr(D(0), D(1), D(2), n, p, o, ar))
+TA_HLC(fn_ta_natr, toad_ta_natr(D(0), D(1), D(2), n, p, o, ar))
+TA_HLC(fn_ta_plus_di, toad_ta_plus_di(D(0), D(1), D(2), n, p, o, ar))
+TA_HLC(fn_ta_minus_di, toad_ta_minus_di(D(0), D(1), D(2), n, p, o, ar))
+TA_HLC(fn_ta_dx, toad_ta_dx(D(0), D(1), D(2), n, p, o, ar))
+TA_HLC(fn_ta_adx, toad_ta_adx(D(0), D(1), D(2), n, p, o, ar))
+TA_HLC(fn_ta_adxr, toad_ta_adxr(D(0), D(1), D(2), n, p, o, ar))
 
-BSM(fn_ta_bsm_call, tbs_ta_bsm_call(D(0), D(1), D(2), D(3), D(4), n, o))
-BSM(fn_ta_bsm_put, tbs_ta_bsm_put(D(0), D(1), D(2), D(3), D(4), n, o))
-BSM(fn_ta_bsm_delta_call, tbs_ta_bsm_delta_call(D(0), D(1), D(2), D(3), D(4), n, o))
-BSM(fn_ta_bsm_delta_put, tbs_ta_bsm_delta_put(D(0), D(1), D(2), D(3), D(4), n, o))
-BSM(fn_ta_bsm_gamma, tbs_ta_bsm_gamma(D(0), D(1), D(2), D(3), D(4), n, o))
-BSM(fn_ta_bsm_theta_call, tbs_ta_bsm_theta_call(D(0), D(1), D(2), D(3), D(4), n, o))
-BSM(fn_ta_bsm_theta_put, tbs_ta_bsm_theta_put(D(0), D(1), D(2), D(3), D(4), n, o))
-BSM(fn_ta_bsm_vega, tbs_ta_bsm_vega(D(0), D(1), D(2), D(3), D(4), n, o))
-BSM(fn_ta_bsm_rho_call, tbs_ta_bsm_rho_call(D(0), D(1), D(2), D(3), D(4), n, o))
-BSM(fn_ta_bsm_rho_put, tbs_ta_bsm_rho_put(D(0), D(1), D(2), D(3), D(4), n, o))
-BSM(fn_ta_bsm_iv_call, tbs_ta_bsm_iv_call(D(0), D(1), D(2), D(3), D(4), n, o))
-BSM(fn_ta_bsm_iv_put, tbs_ta_bsm_iv_put(D(0), D(1), D(2), D(3), D(4), n, o))
+BSM(fn_ta_bsm_call, toad_ta_bsm_call(D(0), D(1), D(2), D(3), D(4), n, o))
+BSM(fn_ta_bsm_put, toad_ta_bsm_put(D(0), D(1), D(2), D(3), D(4), n, o))
+BSM(fn_ta_bsm_delta_call, toad_ta_bsm_delta_call(D(0), D(1), D(2), D(3), D(4), n, o))
+BSM(fn_ta_bsm_delta_put, toad_ta_bsm_delta_put(D(0), D(1), D(2), D(3), D(4), n, o))
+BSM(fn_ta_bsm_gamma, toad_ta_bsm_gamma(D(0), D(1), D(2), D(3), D(4), n, o))
+BSM(fn_ta_bsm_theta_call, toad_ta_bsm_theta_call(D(0), D(1), D(2), D(3), D(4), n, o))
+BSM(fn_ta_bsm_theta_put, toad_ta_bsm_theta_put(D(0), D(1), D(2), D(3), D(4), n, o))
+BSM(fn_ta_bsm_vega, toad_ta_bsm_vega(D(0), D(1), D(2), D(3), D(4), n, o))
+BSM(fn_ta_bsm_rho_call, toad_ta_bsm_rho_call(D(0), D(1), D(2), D(3), D(4), n, o))
+BSM(fn_ta_bsm_rho_put, toad_ta_bsm_rho_put(D(0), D(1), D(2), D(3), D(4), n, o))
+BSM(fn_ta_bsm_iv_call, toad_ta_bsm_iv_call(D(0), D(1), D(2), D(3), D(4), n, o))
+BSM(fn_ta_bsm_iv_put, toad_ta_bsm_iv_put(D(0), D(1), D(2), D(3), D(4), n, o))
 
-static tbs_value_t fn_ta_bbi(size_t argc, tbs_value_t *a, tbs_env_t *e, mem_pool_t *ar) {
+static toad_value_t fn_ta_bbi(size_t argc, toad_value_t *a, toad_env_t *e, mem_pool_t *ar) {
   (void)e;
   if (argc == 1 && V(0)) {
     size_t n = a[0].data.vector.size;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_bbi(D(0), n, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_bbi(D(0), n, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_hma(size_t argc, tbs_value_t *a, tbs_env_t *e, mem_pool_t *ar) {
+static toad_value_t fn_ta_hma(size_t argc, toad_value_t *a, toad_env_t *e, mem_pool_t *ar) {
   (void)e;
   if (argc == 2 && V(0)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[1].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_hma(D(0), n, p, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_hma(D(0), n, p, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_vwap(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_vwap(size_t argc, toad_value_t *a, toad_env_t *e,
                                  mem_pool_t *ar) {
   (void)e;
   if (argc == 4 && V(0) && V(1) && V(2) && V(3)) {
     size_t n = a[0].data.vector.size;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_vwap(D(0), D(1), D(2), D(3), n, o))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_vwap(D(0), D(1), D(2), D(3), n, o))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_vwap_session(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_vwap_session(size_t argc, toad_value_t *a, toad_env_t *e,
                                          mem_pool_t *ar) {
   (void)e;
   if (argc == 5 && V(0) && V(1) && V(2) && V(3) && V(4)) {
     size_t n = a[0].data.vector.size;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_vwap_session(D(0), D(1), D(2), D(3), D(4), n, o))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_vwap_session(D(0), D(1), D(2), D(3), D(4), n, o))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_donchian(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_donchian(size_t argc, toad_value_t *a, toad_env_t *e,
                                      mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0) && V(1)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[2].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_donchian(D(0), D(1), n, p, NULL, NULL, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_donchian(D(0), D(1), n, p, NULL, NULL, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_donchian_up(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_donchian_up(size_t argc, toad_value_t *a, toad_env_t *e,
                                         mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0) && V(1)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[2].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_donchian(D(0), D(1), n, p, o, NULL, NULL, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_donchian(D(0), D(1), n, p, o, NULL, NULL, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_donchian_dn(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_donchian_dn(size_t argc, toad_value_t *a, toad_env_t *e,
                                         mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0) && V(1)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[2].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_donchian(D(0), D(1), n, p, NULL, o, NULL, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_donchian(D(0), D(1), n, p, NULL, o, NULL, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_t3(size_t argc, tbs_value_t *a, tbs_env_t *e, mem_pool_t *ar) {
+static toad_value_t fn_ta_t3(size_t argc, toad_value_t *a, toad_env_t *e, mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[1].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_t3(D(0), n, p, a[2].data.number, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_t3(D(0), n, p, a[2].data.number, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_bbands(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_bbands(size_t argc, toad_value_t *a, toad_env_t *e,
                                    mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[1].data.number;
     double *up = MEM_ALLOC_ARRAY(ar, double, n), *mid = MEM_ALLOC_ARRAY(ar, double, n), *low = MEM_ALLOC_ARRAY(ar, double, n);
-    if (up && mid && low && tbs_ta_bbands(D(0), n, p, a[2].data.number, up, mid, low))
-      return tbs_val_vec(mid, n);
+    if (up && mid && low && toad_ta_bbands(D(0), n, p, a[2].data.number, up, mid, low))
+      return toad_val_vec(mid, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_bbands_up(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_bbands_up(size_t argc, toad_value_t *a, toad_env_t *e,
                                       mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[1].data.number;
     double *up = MEM_ALLOC_ARRAY(ar, double, n), *mid = MEM_ALLOC_ARRAY(ar, double, n), *low = MEM_ALLOC_ARRAY(ar, double, n);
-    if (up && mid && low && tbs_ta_bbands(D(0), n, p, a[2].data.number, up, mid, low))
-      return tbs_val_vec(up, n);
+    if (up && mid && low && toad_ta_bbands(D(0), n, p, a[2].data.number, up, mid, low))
+      return toad_val_vec(up, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_bbands_dn(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_bbands_dn(size_t argc, toad_value_t *a, toad_env_t *e,
                                       mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[1].data.number;
     double *up = MEM_ALLOC_ARRAY(ar, double, n), *mid = MEM_ALLOC_ARRAY(ar, double, n), *low = MEM_ALLOC_ARRAY(ar, double, n);
-    if (up && mid && low && tbs_ta_bbands(D(0), n, p, a[2].data.number, up, mid, low))
-      return tbs_val_vec(low, n);
+    if (up && mid && low && toad_ta_bbands(D(0), n, p, a[2].data.number, up, mid, low))
+      return toad_val_vec(low, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_midprice(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_midprice(size_t argc, toad_value_t *a, toad_env_t *e,
                                      mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0) && V(1)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[2].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_midprice(D(0), D(1), n, p, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_midprice(D(0), D(1), n, p, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_keltner(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_keltner(size_t argc, toad_value_t *a, toad_env_t *e,
                                     mem_pool_t *ar) {
   (void)e;
   if (argc >= 3 && V(0) && V(1) && V(2)) {
@@ -353,7 +353,7 @@ static tbs_value_t fn_ta_keltner(size_t argc, tbs_value_t *a, tbs_env_t *e,
     size_t ap = argc > 4 ? (size_t)a[4].data.number : 20;
     double m = argc > 5 ? a[5].data.number : 2.0;
     double *up = MEM_ALLOC_ARRAY(ar, double, n), *mid = MEM_ALLOC_ARRAY(ar, double, n), *low = MEM_ALLOC_ARRAY(ar, double, n);
-    if (up && mid && low && tbs_ta_keltner(D(0), D(1), D(2), n, ep, ap, m, up, mid, low, ar)) {
+    if (up && mid && low && toad_ta_keltner(D(0), D(1), D(2), n, ep, ap, m, up, mid, low, ar)) {
       double *res = MEM_ALLOC_ARRAY(ar, double, 3 * n);
       if (res) {
         for (size_t i = 0; i < n; ++i) {
@@ -361,14 +361,14 @@ static tbs_value_t fn_ta_keltner(size_t argc, tbs_value_t *a, tbs_env_t *e,
           res[i + n] = mid[i];
           res[i + 2 * n] = low[i];
         }
-        return tbs_val_vec(res, 3 * n);
+        return toad_val_vec(res, 3 * n);
       }
     }
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_keltner_up(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_keltner_up(size_t argc, toad_value_t *a, toad_env_t *e,
                                        mem_pool_t *ar) {
   (void)e;
   if (argc >= 3 && V(0) && V(1) && V(2)) {
@@ -377,13 +377,13 @@ static tbs_value_t fn_ta_keltner_up(size_t argc, tbs_value_t *a, tbs_env_t *e,
     size_t ap = argc > 4 ? (size_t)a[4].data.number : 20;
     double m = argc > 5 ? a[5].data.number : 2.0;
     double *up = MEM_ALLOC_ARRAY(ar, double, n), *mid = MEM_ALLOC_ARRAY(ar, double, n), *low = MEM_ALLOC_ARRAY(ar, double, n);
-    if (up && mid && low && tbs_ta_keltner(D(0), D(1), D(2), n, ep, ap, m, up, mid, low, ar))
-      return tbs_val_vec(up, n);
+    if (up && mid && low && toad_ta_keltner(D(0), D(1), D(2), n, ep, ap, m, up, mid, low, ar))
+      return toad_val_vec(up, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_keltner_mid(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_keltner_mid(size_t argc, toad_value_t *a, toad_env_t *e,
                                         mem_pool_t *ar) {
   (void)e;
   if (argc >= 3 && V(0) && V(1) && V(2)) {
@@ -392,13 +392,13 @@ static tbs_value_t fn_ta_keltner_mid(size_t argc, tbs_value_t *a, tbs_env_t *e,
     size_t ap = argc > 4 ? (size_t)a[4].data.number : 20;
     double m = argc > 5 ? a[5].data.number : 2.0;
     double *up = MEM_ALLOC_ARRAY(ar, double, n), *mid = MEM_ALLOC_ARRAY(ar, double, n), *low = MEM_ALLOC_ARRAY(ar, double, n);
-    if (up && mid && low && tbs_ta_keltner(D(0), D(1), D(2), n, ep, ap, m, up, mid, low, ar))
-      return tbs_val_vec(mid, n);
+    if (up && mid && low && toad_ta_keltner(D(0), D(1), D(2), n, ep, ap, m, up, mid, low, ar))
+      return toad_val_vec(mid, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_keltner_dn(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_keltner_dn(size_t argc, toad_value_t *a, toad_env_t *e,
                                        mem_pool_t *ar) {
   (void)e;
   if (argc >= 3 && V(0) && V(1) && V(2)) {
@@ -407,13 +407,13 @@ static tbs_value_t fn_ta_keltner_dn(size_t argc, tbs_value_t *a, tbs_env_t *e,
     size_t ap = argc > 4 ? (size_t)a[4].data.number : 20;
     double m = argc > 5 ? a[5].data.number : 2.0;
     double *up = MEM_ALLOC_ARRAY(ar, double, n), *mid = MEM_ALLOC_ARRAY(ar, double, n), *low = MEM_ALLOC_ARRAY(ar, double, n);
-    if (up && mid && low && tbs_ta_keltner(D(0), D(1), D(2), n, ep, ap, m, up, mid, low, ar))
-      return tbs_val_vec(low, n);
+    if (up && mid && low && toad_ta_keltner(D(0), D(1), D(2), n, ep, ap, m, up, mid, low, ar))
+      return toad_val_vec(low, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_ichimoku(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_ichimoku(size_t argc, toad_value_t *a, toad_env_t *e,
                                      mem_pool_t *ar) {
   (void)e;
   if (argc >= 3 && V(0) && V(1) && V(2)) {
@@ -424,7 +424,7 @@ static tbs_value_t fn_ta_ichimoku(size_t argc, tbs_value_t *a, tbs_env_t *e,
     double *ten = MEM_ALLOC_ARRAY(ar, double, n), *kij = MEM_ALLOC_ARRAY(ar, double, n), *sa = MEM_ALLOC_ARRAY(ar, double, n),
            *sb = MEM_ALLOC_ARRAY(ar, double, n), *chi = MEM_ALLOC_ARRAY(ar, double, n);
     if (ten && kij && sa && sb && chi &&
-        tbs_ta_ichimoku(D(0), D(1), D(2), n, tp, kp, sp, ten, kij, sa, sb, chi, ar)) {
+        toad_ta_ichimoku(D(0), D(1), D(2), n, tp, kp, sp, ten, kij, sa, sb, chi, ar)) {
       double *res = MEM_ALLOC_ARRAY(ar, double, 5 * n);
       if (res) {
         for (size_t i = 0; i < n; ++i) {
@@ -434,14 +434,14 @@ static tbs_value_t fn_ta_ichimoku(size_t argc, tbs_value_t *a, tbs_env_t *e,
           res[i + 3 * n] = sb[i];
           res[i + 4 * n] = chi[i];
         }
-        return tbs_val_vec(res, 5 * n);
+        return toad_val_vec(res, 5 * n);
       }
     }
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_ichimoku_ten(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_ichimoku_ten(size_t argc, toad_value_t *a, toad_env_t *e,
                                          mem_pool_t *ar) {
   (void)e;
   if (argc >= 3 && V(0) && V(1) && V(2)) {
@@ -450,13 +450,13 @@ static tbs_value_t fn_ta_ichimoku_ten(size_t argc, tbs_value_t *a, tbs_env_t *e,
     double *ten = MEM_ALLOC_ARRAY(ar, double, n), *kij = MEM_ALLOC_ARRAY(ar, double, n), *sa = MEM_ALLOC_ARRAY(ar, double, n),
            *sb = MEM_ALLOC_ARRAY(ar, double, n), *chi = MEM_ALLOC_ARRAY(ar, double, n);
     if (ten && kij && sa && sb && chi &&
-        tbs_ta_ichimoku(D(0), D(1), D(2), n, tp, 26, 52, ten, kij, sa, sb, chi, ar))
-      return tbs_val_vec(ten, n);
+        toad_ta_ichimoku(D(0), D(1), D(2), n, tp, 26, 52, ten, kij, sa, sb, chi, ar))
+      return toad_val_vec(ten, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_ichimoku_kij(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_ichimoku_kij(size_t argc, toad_value_t *a, toad_env_t *e,
                                          mem_pool_t *ar) {
   (void)e;
   if (argc >= 3 && V(0) && V(1) && V(2)) {
@@ -465,13 +465,13 @@ static tbs_value_t fn_ta_ichimoku_kij(size_t argc, tbs_value_t *a, tbs_env_t *e,
     double *ten = MEM_ALLOC_ARRAY(ar, double, n), *kij = MEM_ALLOC_ARRAY(ar, double, n), *sa = MEM_ALLOC_ARRAY(ar, double, n),
            *sb = MEM_ALLOC_ARRAY(ar, double, n), *chi = MEM_ALLOC_ARRAY(ar, double, n);
     if (ten && kij && sa && sb && chi &&
-        tbs_ta_ichimoku(D(0), D(1), D(2), n, 9, kp, 52, ten, kij, sa, sb, chi, ar))
-      return tbs_val_vec(kij, n);
+        toad_ta_ichimoku(D(0), D(1), D(2), n, 9, kp, 52, ten, kij, sa, sb, chi, ar))
+      return toad_val_vec(kij, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_ichimoku_sa(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_ichimoku_sa(size_t argc, toad_value_t *a, toad_env_t *e,
                                         mem_pool_t *ar) {
   (void)e;
   if (argc >= 3 && V(0) && V(1) && V(2)) {
@@ -481,13 +481,13 @@ static tbs_value_t fn_ta_ichimoku_sa(size_t argc, tbs_value_t *a, tbs_env_t *e,
     double *ten = MEM_ALLOC_ARRAY(ar, double, n), *kij = MEM_ALLOC_ARRAY(ar, double, n), *sa = MEM_ALLOC_ARRAY(ar, double, n),
            *sb = MEM_ALLOC_ARRAY(ar, double, n), *chi = MEM_ALLOC_ARRAY(ar, double, n);
     if (ten && kij && sa && sb && chi &&
-        tbs_ta_ichimoku(D(0), D(1), D(2), n, tp, kp, 52, ten, kij, sa, sb, chi, ar))
-      return tbs_val_vec(sa, n);
+        toad_ta_ichimoku(D(0), D(1), D(2), n, tp, kp, 52, ten, kij, sa, sb, chi, ar))
+      return toad_val_vec(sa, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_ichimoku_sb(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_ichimoku_sb(size_t argc, toad_value_t *a, toad_env_t *e,
                                         mem_pool_t *ar) {
   (void)e;
   if (argc >= 3 && V(0) && V(1) && V(2)) {
@@ -497,13 +497,13 @@ static tbs_value_t fn_ta_ichimoku_sb(size_t argc, tbs_value_t *a, tbs_env_t *e,
     double *ten = MEM_ALLOC_ARRAY(ar, double, n), *kij = MEM_ALLOC_ARRAY(ar, double, n), *sa = MEM_ALLOC_ARRAY(ar, double, n),
            *sb = MEM_ALLOC_ARRAY(ar, double, n), *chi = MEM_ALLOC_ARRAY(ar, double, n);
     if (ten && kij && sa && sb && chi &&
-        tbs_ta_ichimoku(D(0), D(1), D(2), n, 9, kp, sp, ten, kij, sa, sb, chi, ar))
-      return tbs_val_vec(sb, n);
+        toad_ta_ichimoku(D(0), D(1), D(2), n, 9, kp, sp, ten, kij, sa, sb, chi, ar))
+      return toad_val_vec(sb, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_ichimoku_chi(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_ichimoku_chi(size_t argc, toad_value_t *a, toad_env_t *e,
                                          mem_pool_t *ar) {
   (void)e;
   if (argc >= 3 && V(0) && V(1) && V(2)) {
@@ -512,13 +512,13 @@ static tbs_value_t fn_ta_ichimoku_chi(size_t argc, tbs_value_t *a, tbs_env_t *e,
     double *ten = MEM_ALLOC_ARRAY(ar, double, n), *kij = MEM_ALLOC_ARRAY(ar, double, n), *sa = MEM_ALLOC_ARRAY(ar, double, n),
            *sb = MEM_ALLOC_ARRAY(ar, double, n), *chi = MEM_ALLOC_ARRAY(ar, double, n);
     if (ten && kij && sa && sb && chi &&
-        tbs_ta_ichimoku(D(0), D(1), D(2), n, 9, kp, 52, ten, kij, sa, sb, chi, ar))
-      return tbs_val_vec(chi, n);
+        toad_ta_ichimoku(D(0), D(1), D(2), n, 9, kp, 52, ten, kij, sa, sb, chi, ar))
+      return toad_val_vec(chi, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_supertrend(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_supertrend(size_t argc, toad_value_t *a, toad_env_t *e,
                                        mem_pool_t *ar) {
   (void)e;
   if (argc >= 3 && V(0) && V(1) && V(2)) {
@@ -526,7 +526,7 @@ static tbs_value_t fn_ta_supertrend(size_t argc, tbs_value_t *a, tbs_env_t *e,
     size_t p = argc > 3 ? (size_t)a[3].data.number : 10;
     double m = argc > 4 ? a[4].data.number : 3.0;
     double *tr = MEM_ALLOC_ARRAY(ar, double, n), *up = MEM_ALLOC_ARRAY(ar, double, n), *lo = MEM_ALLOC_ARRAY(ar, double, n);
-    if (tr && up && lo && tbs_ta_supertrend(D(0), D(1), D(2), n, p, m, tr, up, lo, ar)) {
+    if (tr && up && lo && toad_ta_supertrend(D(0), D(1), D(2), n, p, m, tr, up, lo, ar)) {
 
       double *res = MEM_ALLOC_ARRAY(ar, double, 3 * n);
       if (res) {
@@ -535,431 +535,431 @@ static tbs_value_t fn_ta_supertrend(size_t argc, tbs_value_t *a, tbs_env_t *e,
           res[i + n] = up[i];
           res[i + 2 * n] = lo[i];
         }
-        return tbs_val_vec(res, 3 * n);
+        return toad_val_vec(res, 3 * n);
       }
     }
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_rma(size_t argc, tbs_value_t *a, tbs_env_t *e, mem_pool_t *ar) {
+static toad_value_t fn_ta_rma(size_t argc, toad_value_t *a, toad_env_t *e, mem_pool_t *ar) {
   (void)e;
   if (argc >= 2 && V(0)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[1].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_rma(D(0), n, p, o))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_rma(D(0), n, p, o))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_zlema(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_zlema(size_t argc, toad_value_t *a, toad_env_t *e,
                                   mem_pool_t *ar) {
   (void)e;
   if (argc >= 2 && V(0)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[1].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_zlema(D(0), n, p, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_zlema(D(0), n, p, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_alma(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_alma(size_t argc, toad_value_t *a, toad_env_t *e,
                                  mem_pool_t *ar) {
   (void)e;
   if (argc >= 2 && V(0)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[1].data.number;
     double off = argc > 2 ? a[2].data.number : 0.85, sig = argc > 3 ? a[3].data.number : 6.0;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_alma(D(0), n, p, off, sig, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_alma(D(0), n, p, off, sig, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_vidya(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_vidya(size_t argc, toad_value_t *a, toad_env_t *e,
                                   mem_pool_t *ar) {
   (void)e;
   if (argc >= 3 && V(0)) {
     size_t n = a[0].data.vector.size, cp = (size_t)a[1].data.number, ep = (size_t)a[2].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_vidya(D(0), n, cp, ep, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_vidya(D(0), n, cp, ep, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_rvi(size_t argc, tbs_value_t *a, tbs_env_t *e, mem_pool_t *ar) {
+static toad_value_t fn_ta_rvi(size_t argc, toad_value_t *a, toad_env_t *e, mem_pool_t *ar) {
   (void)e;
   if (argc >= 3 && V(0)) {
     size_t n = a[0].data.vector.size, sp = (size_t)a[1].data.number, ep = (size_t)a[2].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_rvi(D(0), n, sp, ep, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_rvi(D(0), n, sp, ep, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_vhf(size_t argc, tbs_value_t *a, tbs_env_t *e, mem_pool_t *ar) {
+static toad_value_t fn_ta_vhf(size_t argc, toad_value_t *a, toad_env_t *e, mem_pool_t *ar) {
   (void)e;
   if (argc >= 2 && V(0)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[1].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_vhf(D(0), n, p, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_vhf(D(0), n, p, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_volatility_ratio(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_volatility_ratio(size_t argc, toad_value_t *a, toad_env_t *e,
                                              mem_pool_t *ar) {
   (void)e;
   if (argc >= 4 && V(0) && V(1) && V(2)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[3].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_volatility_ratio(D(0), D(1), D(2), n, p, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_volatility_ratio(D(0), D(1), D(2), n, p, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_sar(size_t argc, tbs_value_t *a, tbs_env_t *e, mem_pool_t *ar) {
+static toad_value_t fn_ta_sar(size_t argc, toad_value_t *a, toad_env_t *e, mem_pool_t *ar) {
   (void)e;
   if (argc == 4 && V(0) && V(1)) {
     size_t n = a[0].data.vector.size;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_sar(D(0), D(1), n, a[2].data.number, a[3].data.number, o))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_sar(D(0), D(1), n, a[2].data.number, a[3].data.number, o))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_macd(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_macd(size_t argc, toad_value_t *a, toad_env_t *e,
                                  mem_pool_t *ar) {
   (void)e;
   if (argc == 4 && V(0)) {
     size_t n = a[0].data.vector.size, fp = (size_t)a[1].data.number, sp = (size_t)a[2].data.number,
            sip = (size_t)a[3].data.number;
     double *line = MEM_ALLOC_ARRAY(ar, double, n), *sig = MEM_ALLOC_ARRAY(ar, double, n), *hist = MEM_ALLOC_ARRAY(ar, double, n);
-    if (line && sig && hist && tbs_ta_macd(D(0), n, fp, sp, sip, line, sig, hist, ar))
-      return tbs_val_vec(line, n);
+    if (line && sig && hist && toad_ta_macd(D(0), n, fp, sp, sip, line, sig, hist, ar))
+      return toad_val_vec(line, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_stoch(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_stoch(size_t argc, toad_value_t *a, toad_env_t *e,
                                   mem_pool_t *ar) {
   (void)e;
   if (argc == 5 && V(0) && V(1) && V(2)) {
     size_t n = a[0].data.vector.size, kp = (size_t)a[3].data.number, dp = (size_t)a[4].data.number;
     double *ok = MEM_ALLOC_ARRAY(ar, double, n), *od = MEM_ALLOC_ARRAY(ar, double, n);
-    if (ok && od && tbs_ta_stoch(D(0), D(1), D(2), n, kp, dp, ok, od, ar))
-      return tbs_val_vec(ok, n);
+    if (ok && od && toad_ta_stoch(D(0), D(1), D(2), n, kp, dp, ok, od, ar))
+      return toad_val_vec(ok, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_stochrsi(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_stochrsi(size_t argc, toad_value_t *a, toad_env_t *e,
                                      mem_pool_t *ar) {
   (void)e;
   if (argc == 4 && V(0)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[1].data.number, kp = (size_t)a[2].data.number,
            dp = (size_t)a[3].data.number;
     double *ok = MEM_ALLOC_ARRAY(ar, double, n), *od = MEM_ALLOC_ARRAY(ar, double, n);
-    if (ok && od && tbs_ta_stochrsi(D(0), n, p, kp, dp, ok, od, ar))
-      return tbs_val_vec(ok, n);
+    if (ok && od && toad_ta_stochrsi(D(0), n, p, kp, dp, ok, od, ar))
+      return toad_val_vec(ok, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_apo(size_t argc, tbs_value_t *a, tbs_env_t *e, mem_pool_t *ar) {
+static toad_value_t fn_ta_apo(size_t argc, toad_value_t *a, toad_env_t *e, mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0)) {
     size_t n = a[0].data.vector.size, fp = (size_t)a[1].data.number, sp = (size_t)a[2].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_apo(D(0), n, fp, sp, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_apo(D(0), n, fp, sp, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_ppo(size_t argc, tbs_value_t *a, tbs_env_t *e, mem_pool_t *ar) {
+static toad_value_t fn_ta_ppo(size_t argc, toad_value_t *a, toad_env_t *e, mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0)) {
     size_t n = a[0].data.vector.size, fp = (size_t)a[1].data.number, sp = (size_t)a[2].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_ppo(D(0), n, fp, sp, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_ppo(D(0), n, fp, sp, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_ultosc(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_ultosc(size_t argc, toad_value_t *a, toad_env_t *e,
                                    mem_pool_t *ar) {
   (void)e;
   if (argc == 6 && V(0) && V(1) && V(2)) {
     size_t n = a[0].data.vector.size, p1 = (size_t)a[3].data.number, p2 = (size_t)a[4].data.number,
            p3 = (size_t)a[5].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_ultosc(D(0), D(1), D(2), n, p1, p2, p3, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_ultosc(D(0), D(1), D(2), n, p1, p2, p3, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_aroon(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_aroon(size_t argc, toad_value_t *a, toad_env_t *e,
                                   mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0) && V(1)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[2].data.number;
     double *up = MEM_ALLOC_ARRAY(ar, double, n), *dn = MEM_ALLOC_ARRAY(ar, double, n);
-    if (up && dn && tbs_ta_aroon(D(0), D(1), n, p, up, dn, ar))
-      return tbs_val_vec(up, n);
+    if (up && dn && toad_ta_aroon(D(0), D(1), n, p, up, dn, ar))
+      return toad_val_vec(up, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_aroonosc(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_aroonosc(size_t argc, toad_value_t *a, toad_env_t *e,
                                      mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0) && V(1)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[2].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_aroonosc(D(0), D(1), n, p, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_aroonosc(D(0), D(1), n, p, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_trange(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_trange(size_t argc, toad_value_t *a, toad_env_t *e,
                                    mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0) && V(1) && V(2)) {
     size_t n = a[0].data.vector.size;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_trange(D(0), D(1), D(2), n, o))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_trange(D(0), D(1), D(2), n, o))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_obv(size_t argc, tbs_value_t *a, tbs_env_t *e, mem_pool_t *ar) {
+static toad_value_t fn_ta_obv(size_t argc, toad_value_t *a, toad_env_t *e, mem_pool_t *ar) {
   (void)e;
   if (argc == 2 && V(0) && V(1)) {
     size_t n = a[0].data.vector.size;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_obv(D(0), D(1), n, o))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_obv(D(0), D(1), n, o))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_ad(size_t argc, tbs_value_t *a, tbs_env_t *e, mem_pool_t *ar) {
+static toad_value_t fn_ta_ad(size_t argc, toad_value_t *a, toad_env_t *e, mem_pool_t *ar) {
   (void)e;
   if (argc == 4 && V(0) && V(1) && V(2) && V(3)) {
     size_t n = a[0].data.vector.size;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_ad(D(0), D(1), D(2), D(3), n, o))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_ad(D(0), D(1), D(2), D(3), n, o))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_adosc(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_adosc(size_t argc, toad_value_t *a, toad_env_t *e,
                                   mem_pool_t *ar) {
   (void)e;
   if (argc == 6 && V(0) && V(1) && V(2) && V(3)) {
     size_t n = a[0].data.vector.size, fp = (size_t)a[4].data.number, sp = (size_t)a[5].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_adosc(D(0), D(1), D(2), D(3), n, fp, sp, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_adosc(D(0), D(1), D(2), D(3), n, fp, sp, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_mfi(size_t argc, tbs_value_t *a, tbs_env_t *e, mem_pool_t *ar) {
+static toad_value_t fn_ta_mfi(size_t argc, toad_value_t *a, toad_env_t *e, mem_pool_t *ar) {
   (void)e;
   if (argc == 5 && V(0) && V(1) && V(2) && V(3)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[4].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_mfi(D(0), D(1), D(2), D(3), n, p, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_mfi(D(0), D(1), D(2), D(3), n, p, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_plus_dm(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_plus_dm(size_t argc, toad_value_t *a, toad_env_t *e,
                                     mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0) && V(1)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[2].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_plus_dm(D(0), D(1), n, p, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_plus_dm(D(0), D(1), n, p, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_minus_dm(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_minus_dm(size_t argc, toad_value_t *a, toad_env_t *e,
                                      mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0) && V(1)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[2].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_minus_dm(D(0), D(1), n, p, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_minus_dm(D(0), D(1), n, p, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_stddev(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_stddev(size_t argc, toad_value_t *a, toad_env_t *e,
                                    mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[1].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_stddev(D(0), n, p, a[2].data.number, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_stddev(D(0), n, p, a[2].data.number, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_var(size_t argc, tbs_value_t *a, tbs_env_t *e, mem_pool_t *ar) {
+static toad_value_t fn_ta_var(size_t argc, toad_value_t *a, toad_env_t *e, mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[1].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_var(D(0), n, p, a[2].data.number, o, ar))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_var(D(0), n, p, a[2].data.number, o, ar))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_beta(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_beta(size_t argc, toad_value_t *a, toad_env_t *e,
                                  mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0) && V(1)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[2].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_beta(D(0), D(1), n, p, o))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_beta(D(0), D(1), n, p, o))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_correl(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_correl(size_t argc, toad_value_t *a, toad_env_t *e,
                                    mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0) && V(1)) {
     size_t n = a[0].data.vector.size, p = (size_t)a[2].data.number;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_correl(D(0), D(1), n, p, o))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_correl(D(0), D(1), n, p, o))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_avgprice(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_avgprice(size_t argc, toad_value_t *a, toad_env_t *e,
                                      mem_pool_t *ar) {
   (void)e;
   if (argc == 4 && V(0) && V(1) && V(2) && V(3)) {
     size_t n = a[0].data.vector.size;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_avgprice(D(0), D(1), D(2), D(3), n, o))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_avgprice(D(0), D(1), D(2), D(3), n, o))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_medprice(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_medprice(size_t argc, toad_value_t *a, toad_env_t *e,
                                      mem_pool_t *ar) {
   (void)e;
   if (argc == 2 && V(0) && V(1)) {
     size_t n = a[0].data.vector.size;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_medprice(D(0), D(1), n, o))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_medprice(D(0), D(1), n, o))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_typprice(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_typprice(size_t argc, toad_value_t *a, toad_env_t *e,
                                      mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0) && V(1) && V(2)) {
     size_t n = a[0].data.vector.size;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_typprice(D(0), D(1), D(2), n, o))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_typprice(D(0), D(1), D(2), n, o))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_wclprice(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_wclprice(size_t argc, toad_value_t *a, toad_env_t *e,
                                      mem_pool_t *ar) {
   (void)e;
   if (argc == 3 && V(0) && V(1) && V(2)) {
     size_t n = a[0].data.vector.size;
     double *o = MEM_ALLOC_ARRAY(ar, double, n);
-    if (o && tbs_ta_wclprice(D(0), D(1), D(2), n, o))
-      return tbs_val_vec(o, n);
+    if (o && toad_ta_wclprice(D(0), D(1), D(2), n, o))
+      return toad_val_vec(o, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_opt_binomial(size_t argc, tbs_value_t *a, tbs_env_t *e,
+static toad_value_t fn_ta_opt_binomial(size_t argc, toad_value_t *a, toad_env_t *e,
                                          mem_pool_t *ar) {
   (void)e;
   if (argc == 7) {
     double opt;
-    if (tbs_ta_opt_binomial(a[0].data.number, a[1].data.number, a[2].data.number,
+    if (toad_ta_opt_binomial(a[0].data.number, a[1].data.number, a[2].data.number,
                                a[3].data.number, a[4].data.number, (size_t)a[5].data.number,
                                (int)a[6].data.number, &opt, ar))
-      return tbs_val_num(opt);
+      return toad_val_num(opt);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
 /* =========================================================================
  * Phase C: New Indicator wrappers
  * ========================================================================= */
 
-static tbs_value_t fn_ta_fisher(size_t argc, tbs_value_t *a, tbs_env_t *env,
+static toad_value_t fn_ta_fisher(size_t argc, toad_value_t *a, toad_env_t *env,
                                    mem_pool_t *arena) {
   (void)env;
-  if (argc >= 3 && a[0].type == TBS_VAL_VECTOR && a[1].type == TBS_VAL_VECTOR) {
+  if (argc >= 3 && a[0].type == TOAD_VAL_VECTOR && a[1].type == TOAD_VAL_VECTOR) {
     size_t n = a[0].data.vector.size, p = (size_t)a[2].data.number;
     double *fisher = MEM_ALLOC_ARRAY(arena, double, n);
     double *trigger = MEM_ALLOC_ARRAY(arena, double, n);
     if (fisher && trigger &&
-        tbs_ta_fisher(a[0].data.vector.data, a[1].data.vector.data, n, p, fisher, trigger,
+        toad_ta_fisher(a[0].data.vector.data, a[1].data.vector.data, n, p, fisher, trigger,
                          arena))
-      return tbs_val_vec(fisher, n);
+      return toad_val_vec(fisher, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_fisher_trigger(size_t argc, tbs_value_t *a, tbs_env_t *env,
+static toad_value_t fn_ta_fisher_trigger(size_t argc, toad_value_t *a, toad_env_t *env,
                                            mem_pool_t *arena) {
   (void)env;
-  if (argc >= 3 && a[0].type == TBS_VAL_VECTOR && a[1].type == TBS_VAL_VECTOR) {
+  if (argc >= 3 && a[0].type == TOAD_VAL_VECTOR && a[1].type == TOAD_VAL_VECTOR) {
     size_t n = a[0].data.vector.size, p = (size_t)a[2].data.number;
     double *fisher = MEM_ALLOC_ARRAY(arena, double, n);
     double *trigger = MEM_ALLOC_ARRAY(arena, double, n);
     if (fisher && trigger &&
-        tbs_ta_fisher(a[0].data.vector.data, a[1].data.vector.data, n, p, fisher, trigger,
+        toad_ta_fisher(a[0].data.vector.data, a[1].data.vector.data, n, p, fisher, trigger,
                          arena))
-      return tbs_val_vec(trigger, n);
+      return toad_val_vec(trigger, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_squeeze(size_t argc, tbs_value_t *a, tbs_env_t *env,
+static toad_value_t fn_ta_squeeze(size_t argc, toad_value_t *a, toad_env_t *env,
                                     mem_pool_t *arena) {
   (void)env;
-  if (argc >= 3 && a[0].type == TBS_VAL_VECTOR && a[1].type == TBS_VAL_VECTOR &&
-      a[2].type == TBS_VAL_VECTOR) {
+  if (argc >= 3 && a[0].type == TOAD_VAL_VECTOR && a[1].type == TOAD_VAL_VECTOR &&
+      a[2].type == TOAD_VAL_VECTOR) {
     size_t n = a[0].data.vector.size;
     size_t bb_p = (argc >= 4) ? (size_t)a[3].data.number : 20;
     double bb_m = (argc >= 5) ? a[4].data.number : 2.0;
@@ -969,18 +969,18 @@ static tbs_value_t fn_ta_squeeze(size_t argc, tbs_value_t *a, tbs_env_t *env,
     double *mom = MEM_ALLOC_ARRAY(arena, double, n);
     double *on = MEM_ALLOC_ARRAY(arena, double, n);
     if (sq && mom && on &&
-        tbs_ta_squeeze(a[0].data.vector.data, a[1].data.vector.data, a[2].data.vector.data, n,
+        toad_ta_squeeze(a[0].data.vector.data, a[1].data.vector.data, a[2].data.vector.data, n,
                           bb_p, bb_m, kc_p, kc_m, sq, mom, on, arena))
-      return tbs_val_vec(mom, n);
+      return toad_val_vec(mom, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_squeeze_on(size_t argc, tbs_value_t *a, tbs_env_t *env,
+static toad_value_t fn_ta_squeeze_on(size_t argc, toad_value_t *a, toad_env_t *env,
                                        mem_pool_t *arena) {
   (void)env;
-  if (argc >= 3 && a[0].type == TBS_VAL_VECTOR && a[1].type == TBS_VAL_VECTOR &&
-      a[2].type == TBS_VAL_VECTOR) {
+  if (argc >= 3 && a[0].type == TOAD_VAL_VECTOR && a[1].type == TOAD_VAL_VECTOR &&
+      a[2].type == TOAD_VAL_VECTOR) {
     size_t n = a[0].data.vector.size;
     size_t bb_p = (argc >= 4) ? (size_t)a[3].data.number : 20;
     double bb_m = (argc >= 5) ? a[4].data.number : 2.0;
@@ -990,82 +990,82 @@ static tbs_value_t fn_ta_squeeze_on(size_t argc, tbs_value_t *a, tbs_env_t *env,
     double *mom = MEM_ALLOC_ARRAY(arena, double, n);
     double *on = MEM_ALLOC_ARRAY(arena, double, n);
     if (sq && mom && on &&
-        tbs_ta_squeeze(a[0].data.vector.data, a[1].data.vector.data, a[2].data.vector.data, n,
+        toad_ta_squeeze(a[0].data.vector.data, a[1].data.vector.data, a[2].data.vector.data, n,
                           bb_p, bb_m, kc_p, kc_m, sq, mom, on, arena))
-      return tbs_val_vec(on, n);
+      return toad_val_vec(on, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_chop(size_t argc, tbs_value_t *a, tbs_env_t *env,
+static toad_value_t fn_ta_chop(size_t argc, toad_value_t *a, toad_env_t *env,
                                  mem_pool_t *arena) {
   (void)env;
-  if (argc >= 4 && a[0].type == TBS_VAL_VECTOR && a[1].type == TBS_VAL_VECTOR &&
-      a[2].type == TBS_VAL_VECTOR) {
+  if (argc >= 4 && a[0].type == TOAD_VAL_VECTOR && a[1].type == TOAD_VAL_VECTOR &&
+      a[2].type == TOAD_VAL_VECTOR) {
     size_t n = a[0].data.vector.size, p = (size_t)a[3].data.number;
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
-    if (out && tbs_ta_chop(a[0].data.vector.data, a[1].data.vector.data, a[2].data.vector.data,
+    if (out && toad_ta_chop(a[0].data.vector.data, a[1].data.vector.data, a[2].data.vector.data,
                               n, p, out, arena))
-      return tbs_val_vec(out, n);
+      return toad_val_vec(out, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_ehlers_cyber_cycle(size_t argc, tbs_value_t *a, tbs_env_t *env,
+static toad_value_t fn_ta_ehlers_cyber_cycle(size_t argc, toad_value_t *a, toad_env_t *env,
                                                mem_pool_t *arena) {
   (void)env;
-  if (argc >= 2 && a[0].type == TBS_VAL_VECTOR) {
+  if (argc >= 2 && a[0].type == TOAD_VAL_VECTOR) {
     size_t n = a[0].data.vector.size;
     double alpha = a[1].data.number;
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
-    if (out && tbs_ta_ehlers_cyber_cycle(a[0].data.vector.data, n, alpha, out))
-      return tbs_val_vec(out, n);
+    if (out && toad_ta_ehlers_cyber_cycle(a[0].data.vector.data, n, alpha, out))
+      return toad_val_vec(out, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_ehlers_itrend(size_t argc, tbs_value_t *a, tbs_env_t *env,
+static toad_value_t fn_ta_ehlers_itrend(size_t argc, toad_value_t *a, toad_env_t *env,
                                           mem_pool_t *arena) {
   (void)env;
-  if (argc >= 2 && a[0].type == TBS_VAL_VECTOR) {
+  if (argc >= 2 && a[0].type == TOAD_VAL_VECTOR) {
     size_t n = a[0].data.vector.size;
     double alpha = a[1].data.number;
     double *out = MEM_ALLOC_ARRAY(arena, double, n);
-    if (out && tbs_ta_ehlers_itrend(a[0].data.vector.data, n, alpha, out))
-      return tbs_val_vec(out, n);
+    if (out && toad_ta_ehlers_itrend(a[0].data.vector.data, n, alpha, out))
+      return toad_val_vec(out, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_ehlers_mama(size_t argc, tbs_value_t *a, tbs_env_t *env,
+static toad_value_t fn_ta_ehlers_mama(size_t argc, toad_value_t *a, toad_env_t *env,
                                         mem_pool_t *arena) {
   (void)env;
-  if (argc >= 3 && a[0].type == TBS_VAL_VECTOR) {
+  if (argc >= 3 && a[0].type == TOAD_VAL_VECTOR) {
     size_t n = a[0].data.vector.size;
     double fl = a[1].data.number, sl = a[2].data.number;
     double *mama = MEM_ALLOC_ARRAY(arena, double, n);
     double *fama = MEM_ALLOC_ARRAY(arena, double, n);
-    if (mama && fama && tbs_ta_ehlers_mama(a[0].data.vector.data, n, fl, sl, mama, fama))
-      return tbs_val_vec(mama, n);
+    if (mama && fama && toad_ta_ehlers_mama(a[0].data.vector.data, n, fl, sl, mama, fama))
+      return toad_val_vec(mama, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static tbs_value_t fn_ta_ehlers_fama(size_t argc, tbs_value_t *a, tbs_env_t *env,
+static toad_value_t fn_ta_ehlers_fama(size_t argc, toad_value_t *a, toad_env_t *env,
                                         mem_pool_t *arena) {
   (void)env;
-  if (argc >= 3 && a[0].type == TBS_VAL_VECTOR) {
+  if (argc >= 3 && a[0].type == TOAD_VAL_VECTOR) {
     size_t n = a[0].data.vector.size;
     double fl = a[1].data.number, sl = a[2].data.number;
     double *mama = MEM_ALLOC_ARRAY(arena, double, n);
     double *fama = MEM_ALLOC_ARRAY(arena, double, n);
-    if (mama && fama && tbs_ta_ehlers_mama(a[0].data.vector.data, n, fl, sl, mama, fama))
-      return tbs_val_vec(fama, n);
+    if (mama && fama && toad_ta_ehlers_mama(a[0].data.vector.data, n, fl, sl, mama, fama))
+      return toad_val_vec(fama, n);
   }
-  return tbs_val_num(0);
+  return toad_val_num(0);
 }
 
-static const tbs_func_entry_t ta_entries[] = {
+static const toad_func_entry_t ta_entries[] = {
     {"ad", fn_ta_ad},
     {"adosc", fn_ta_adosc},
     {"adx", fn_ta_adx},
@@ -1181,7 +1181,7 @@ static const tbs_func_entry_t ta_entries[] = {
     {"zlema", fn_ta_zlema},
 };
 
-static const tbs_module_t ta_module = {"ta", ta_entries,
+static const toad_module_t ta_module = {"ta", ta_entries,
                                           sizeof(ta_entries) / sizeof(ta_entries[0])};
 
-const tbs_module_t *tbs_module_ta(void) { return &ta_module; }
+const toad_module_t *toad_module_ta(void) { return &ta_module; }

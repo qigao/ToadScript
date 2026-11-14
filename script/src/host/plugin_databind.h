@@ -1,11 +1,11 @@
-#ifndef TS_PLUGIN_DATABIND_H
-#define TS_PLUGIN_DATABIND_H
+#ifndef TOAD_PLUGIN_DATABIND_H
+#define TOAD_PLUGIN_DATABIND_H
 
-#include <turboscript/module.h>
+#include <toad/module.h>
 
 #include <stddef.h>
 
-struct ts_plugin_handle_s;
+struct toad_plugin_handle_s;
 
 /*
  * Compile the generated DataBind Service catalog under the handle's retained
@@ -13,25 +13,25 @@ struct ts_plugin_handle_s;
  * performed atomically together with raw scalar Function exports by the host
  * loader.
  */
-int ts_plugin_databind_prepare(
-    struct ts_plugin_handle_s *handle,
+int toad_plugin_databind_prepare(
+    struct toad_plugin_handle_s *handle,
     char *error, size_t error_size);
 
-size_t ts_plugin_databind_count(
-    const struct ts_plugin_handle_s *handle);
+size_t toad_plugin_databind_count(
+    const struct toad_plugin_handle_s *handle);
 
 /* Return the private immutable binding cache row for one catalog export. */
-void *ts_plugin_databind_find(
-    const struct ts_plugin_handle_s *handle,
+void *toad_plugin_databind_find(
+    const struct toad_plugin_handle_s *handle,
     const char *export_id);
 
 /* Generic Engine callback for one prepared DataBind Service operation. */
-tbs_value_t ts_plugin_databind_call(
-    size_t argc, tbs_value_t *args,
-    tbs_env_t *env, void *user_data);
+toad_value_t toad_plugin_databind_call(
+    size_t argc, toad_value_t *args,
+    toad_env_t *env, void *user_data);
 
 /* Destroy BindingPlans/codec while the Plugin lease is still live. */
-void ts_plugin_databind_clear(
-    struct ts_plugin_handle_s *handle);
+void toad_plugin_databind_clear(
+    struct toad_plugin_handle_s *handle);
 
-#endif /* TS_PLUGIN_DATABIND_H */
+#endif /* TOAD_PLUGIN_DATABIND_H */

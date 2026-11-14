@@ -1,7 +1,7 @@
 #include "../src/internal.h"
 #include "../src/graph/cflow_lower.h"
 
-#include <turboscript/engine.h>
+#include <toad/engine.h>
 #include "tinytest.h"
 
 #include <cflow/adapters.h>
@@ -12,21 +12,21 @@
 #include <math.h>
 #include <string.h>
 
-static tbs_node_t *ts_cflow_qualification_single_expr(
-    turbo_script_ctx_t *ctx,
+static toad_node_t *ts_cflow_qualification_single_expr(
+    toad_script_ctx_t *ctx,
     const char *source,
-    tbs_node_t **root_out) {
-  tbs_node_t *root = turbo_script_parse_with_error(ctx, source);
+    toad_node_t **root_out) {
+  toad_node_t *root = toad_script_parse_with_error(ctx, source);
   if (root_out) *root_out = root;
   if (!root) return NULL;
-  if (root->type == TBS_NODE_BLOCK && root->data.block.count == 1u)
+  if (root->type == TOAD_NODE_BLOCK && root->data.block.count == 1u)
     return root->data.block.statements[0];
   return root;
 }
 
-static const tbs_node_t *ts_cflow_qualification_count_pipeline(
-    const tbs_node_t *expr) {
-  if (!expr || expr->type != TBS_NODE_MEMBER_CALL ||
+static const toad_node_t *ts_cflow_qualification_count_pipeline(
+    const toad_node_t *expr) {
+  if (!expr || expr->type != TOAD_NODE_MEMBER_CALL ||
       !expr->data.member_call.method ||
       strcmp(expr->data.member_call.method, "count") != 0 ||
       expr->data.member_call.arg_count != 0u)
@@ -47,13 +47,13 @@ static const cflow_node *ts_cflow_qualification_find_op(
   return NULL;
 }
 
-spec("TurboScript CFlow qualification") {
+spec("Toad CFlow qualification") {
   it("records stable optimizer structure for a real two-map pipeline") {
-    turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_BARE);
+    toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
     const double input[] = {1.0, 2.0, 3.0, 4.0};
-    tbs_node_t *root = NULL;
-    tbs_node_t *expr;
-    const tbs_node_t *pipeline;
+    toad_node_t *root = NULL;
+    toad_node_t *expr;
+    const toad_node_t *pipeline;
     ts_cflow_lowered_pipeline_t lowered = {0};
     cflow_graph normalized = {0};
     cflow_graph optimized = {0};
@@ -62,7 +62,7 @@ spec("TurboScript CFlow qualification") {
     cflow_plan_compile_stats compile_stats = {0};
     cflow_result direct = {0};
     cflow_result compiled = {0};
-    tbs_value_t legacy = {.type = TBS_VAL_NULL};
+    toad_value_t legacy = {.type = TOAD_VAL_NULL};
     const cflow_subgraph *surface_root;
     const cflow_subgraph *optimized_root;
     const cflow_node *fused_map;
@@ -72,9 +72,9 @@ spec("TurboScript CFlow qualification") {
     normalized.root = CMETA_INVALID_ID;
     optimized.root = CMETA_INVALID_ID;
     check_not_null(ctx);
-    tbs_env_set(
+    toad_env_set(
         &ctx->env, "values",
-        tbs_val_vec((double *)input, sizeof(input) / sizeof(input[0])));
+        toad_val_vec((double *)input, sizeof(input) / sizeof(input[0])));
 
     expr = ts_cflow_qualification_single_expr(
         ctx,
@@ -87,8 +87,8 @@ spec("TurboScript CFlow qualification") {
     pipeline = ts_cflow_qualification_count_pipeline(expr);
     check_not_null(pipeline);
 
-    legacy = tbs_eval(expr, &ctx->env);
-    check_equal(legacy.type, TBS_VAL_NUMBER);
+    legacy = toad_eval(expr, &ctx->env);
+    check_equal(legacy.type, TOAD_VAL_NUMBER);
     check(fabs(legacy.data.number - 4.0) <= 1e-9);
 
     check_true(ts_cflow_lower_pipeline_executable(
@@ -156,17 +156,17 @@ spec("TurboScript CFlow qualification") {
     cflow_graph_destroy(&optimized);
     cflow_graph_destroy(&normalized);
     ts_cflow_lowered_pipeline_destroy(&lowered);
-    tbs_value_destroy(&legacy);
-    tbs_free(root);
-    turbo_script_free(ctx);
+    toad_value_destroy(&legacy);
+    toad_free(root);
+    toad_script_free(ctx);
   }
 
   it("reuses one compiled Plan without rebuilding MIR kernel bindings") {
-    turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_BARE);
+    toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
     double input[64];
-    tbs_node_t *root = NULL;
-    tbs_node_t *expr;
-    const tbs_node_t *pipeline;
+    toad_node_t *root = NULL;
+    toad_node_t *expr;
+    const toad_node_t *pipeline;
     ts_cflow_lowered_pipeline_t lowered = {0};
     cflow_plan plan = {0};
     const char *error = NULL;
@@ -174,8 +174,8 @@ spec("TurboScript CFlow qualification") {
     check_not_null(ctx);
     for (size_t i = 0u; i < 64u; ++i)
       input[i] = (double)((int)(i % 4u) - 1);
-    tbs_env_set(
-        &ctx->env, "values", tbs_val_vec(input, 64u));
+    toad_env_set(
+        &ctx->env, "values", toad_val_vec(input, 64u));
 
     expr = ts_cflow_qualification_single_expr(
         ctx,
@@ -207,7 +207,7 @@ spec("TurboScript CFlow qualification") {
 
     cflow_plan_destroy(&plan);
     ts_cflow_lowered_pipeline_destroy(&lowered);
-    tbs_free(root);
-    turbo_script_free(ctx);
+    toad_free(root);
+    toad_script_free(ctx);
   }
 }

@@ -1,7 +1,7 @@
-#include <turboscript/script.h>
-#include <turboscript/engine.h>
-#include <turboscript/plugin.h>
-#include <turboscript/plugin_loader.h>
+#include <toad/script.h>
+#include <toad/engine.h>
+#include <toad/plugin.h>
+#include <toad/plugin_loader.h>
 #include "memory/buffer.h"
 #include "file/fs.h"
 #include "threads/threads.h"
@@ -18,23 +18,23 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void ts_print_value(const tbs_value_t *val, int repl_mode);
-static void set_error_msg(turbo_script_ctx_t *ctx, const char *msg);
-static void set_error(turbo_script_ctx_t *ctx, turbo_script_error_code_t code, const char *msg);
-static void clear_error(turbo_script_ctx_t *ctx);
-tbs_env_t *tbs_env_snapshot(tbs_env_t *env);
-static void ts_context_destroy_final(turbo_script_ctx_t *ctx);
+static void ts_print_value(const toad_value_t *val, int repl_mode);
+static void set_error_msg(toad_script_ctx_t *ctx, const char *msg);
+static void set_error(toad_script_ctx_t *ctx, toad_script_error_code_t code, const char *msg);
+static void clear_error(toad_script_ctx_t *ctx);
+toad_env_t *toad_env_snapshot(toad_env_t *env);
+static void ts_context_destroy_final(toad_script_ctx_t *ctx);
 static SALTS_THREAD_LOCAL unsigned char ts_context_thread_owner_token;
 
 static const void *ts_context_current_thread_token(void) {
   return &ts_context_thread_owner_token;
 }
 
-int ts_context_is_owner_thread(const turbo_script_ctx_t *ctx) {
+int ts_context_is_owner_thread(const toad_script_ctx_t *ctx) {
   return ctx && ctx->owner_thread_token == ts_context_current_thread_token();
 }
 
-const char *turbo_script_version(void) { return TURBO_SCRIPT_VERSION_STRING; }
+const char *toad_script_version(void) { return TOAD_SCRIPT_VERSION_STRING; }
 
 static int ts_copy_path(char *dst, size_t dst_size, const char *src) {
   if (!dst || dst_size == 0 || !src) return -1;
@@ -46,7 +46,7 @@ static int ts_copy_path(char *dst, size_t dst_size, const char *src) {
   return 0;
 }
 
-static int ts_push_script_dir(turbo_script_ctx_t *ctx, const char *path, char **prev_dir) {
+static int ts_push_script_dir(toad_script_ctx_t *ctx, const char *path, char **prev_dir) {
   char dirname[SALTS_FS_MAX_PATH];
   char *new_dir = NULL;
 
@@ -61,14 +61,14 @@ static int ts_push_script_dir(turbo_script_ctx_t *ctx, const char *path, char **
   return 0;
 }
 
-static void ts_pop_script_dir(turbo_script_ctx_t *ctx, char *prev_dir) {
+static void ts_pop_script_dir(toad_script_ctx_t *ctx, char *prev_dir) {
   if (!ctx) return;
 
   free(ctx->current_script_dir);
   ctx->current_script_dir = prev_dir;
 }
 
-static int ts_resolve_script_path(turbo_script_ctx_t *ctx, const char *name, char *resolved,
+static int ts_resolve_script_path(toad_script_ctx_t *ctx, const char *name, char *resolved,
                                   size_t resolved_size) {
   if (!ctx || !name || !resolved || resolved_size == 0) return -1;
 
@@ -83,7 +83,7 @@ static int ts_resolve_script_path(turbo_script_ctx_t *ctx, const char *name, cha
   return fs_path_join(resolved, resolved_size, ctx->current_script_dir, name);
 }
 
-static int ts_prepare_expr(turbo_script_ctx_t *ctx, const char *script) {
+static int ts_prepare_expr(toad_script_ctx_t *ctx, const char *script) {
   if (!ctx || !script) return -1;
 
   if (ctx->expr && ctx->expr_source && strcmp(ctx->expr_source, script) == 0) {
@@ -93,7 +93,7 @@ static int ts_prepare_expr(turbo_script_ctx_t *ctx, const char *script) {
 
   if (ctx->expr) {
     if (!ctx->expr_in_compiled_asts) {
-      tbs_free(ctx->expr);
+      toad_free(ctx->expr);
     }
     ctx->expr = NULL;
     ctx->expr_in_compiled_asts = 0;
@@ -101,22 +101,22 @@ static int ts_prepare_expr(turbo_script_ctx_t *ctx, const char *script) {
   free(ctx->expr_source);
   ctx->expr_source = NULL;
 
-  ctx->expr = turbo_script_parse_with_error(ctx, script);
+  ctx->expr = toad_script_parse_with_error(ctx, script);
   if (!ctx->expr) return -1;
 
   ctx->expr_source = strdup(script);
   if (!ctx->expr_source) {
-    tbs_free(ctx->expr);
+    toad_free(ctx->expr);
     ctx->expr = NULL;
     ctx->expr_in_compiled_asts = 0;
-    set_error(ctx, TURBO_SCRIPT_ERROR_OOM, "Out of memory");
+    set_error(ctx, TOAD_SCRIPT_ERROR_OOM, "Out of memory");
     return -1;
   }
 
   return 0;
 }
 
-static void ts_context_destroy_final(turbo_script_ctx_t *ctx) {
+static void ts_context_destroy_final(toad_script_ctx_t *ctx) {
   if (!ctx) return;
 
   ts_task_scheduler_destroy(ctx);
@@ -148,14 +148,14 @@ static void ts_context_destroy_final(turbo_script_ctx_t *ctx) {
 
   /* expr is freed by compiled_asts[] loop below if expr_in_compiled_asts == 1;
    * otherwise free it directly here. */
-  if (ctx->expr && !ctx->expr_in_compiled_asts) tbs_free(ctx->expr);
+  if (ctx->expr && !ctx->expr_in_compiled_asts) toad_free(ctx->expr);
   free(ctx->expr_source);
 
   // Free compiled ASTs
   if (ctx->compiled_asts) {
     for (size_t i = 0; i < ctx->compiled_ast_count; ++i) {
       if (ctx->compiled_asts[i]) {
-        tbs_free(ctx->compiled_asts[i]);
+        toad_free(ctx->compiled_asts[i]);
       }
     }
     free(ctx->compiled_asts);
@@ -166,17 +166,17 @@ static void ts_context_destroy_final(turbo_script_ctx_t *ctx) {
   while (mod) {
     imported_module_t *next = mod->next;
     free(mod->name);
-    if (mod->expr) tbs_free(mod->expr);
-    if (mod->has_exports && tbs_value_is_object_like(&mod->exports)) tbs_map_free(&mod->exports);
+    if (mod->expr) toad_free(mod->expr);
+    if (mod->has_exports && toad_value_is_object_like(&mod->exports)) toad_map_free(&mod->exports);
     free(mod);
     mod = next;
   }
 
-  tbs_env_free(&ctx->env);
+  toad_env_free(&ctx->env);
 
   // Unload plugins after env teardown, so module/function pointers are no longer referenced.
   for (size_t i = 0; i < ctx->plugin_count; ++i) {
-    ts_plugin_unload(ctx->plugins[i]);
+    toad_plugin_unload(ctx->plugins[i]);
     free(ctx->loaded_names[i]);
   }
 
@@ -186,18 +186,18 @@ static void ts_context_destroy_final(turbo_script_ctx_t *ctx) {
   free(ctx);
 }
 
-void ts_context_retain(turbo_script_ctx_t *ctx) {
+void ts_context_retain(toad_script_ctx_t *ctx) {
   if (!ctx) return;
   (void)atomic_fetch_add_explicit(&ctx->ref_count, 1U, memory_order_relaxed);
 }
 
-void ts_context_release(turbo_script_ctx_t *ctx) {
+void ts_context_release(toad_script_ctx_t *ctx) {
   if (!ctx) return;
   if (atomic_fetch_sub_explicit(&ctx->ref_count, 1U, memory_order_acq_rel) == 1U)
     ts_context_destroy_final(ctx);
 }
 
-void turbo_script_free(turbo_script_ctx_t *ctx) {
+void toad_script_free(toad_script_ctx_t *ctx) {
   if (!ctx) return;
   if (atomic_exchange_explicit(&ctx->closing, 1, memory_order_acq_rel)) return;
   ts_timer_scheduler_shutdown(ctx);
@@ -209,7 +209,7 @@ void turbo_script_free(turbo_script_ctx_t *ctx) {
   ts_context_release(ctx);
 }
 
-static void set_error_msg(turbo_script_ctx_t *ctx, const char *msg) {
+static void set_error_msg(toad_script_ctx_t *ctx, const char *msg) {
   if (!ctx) return;
   if (msg) {
     strncpy(ctx->error_msg, msg, sizeof(ctx->error_msg) - 1);
@@ -219,35 +219,35 @@ static void set_error_msg(turbo_script_ctx_t *ctx, const char *msg) {
   ctx->error_msg[0] = '\0';
 }
 
-static void set_error(turbo_script_ctx_t *ctx, turbo_script_error_code_t code, const char *msg) {
+static void set_error(toad_script_ctx_t *ctx, toad_script_error_code_t code, const char *msg) {
   if (!ctx) return;
   ctx->error_code = code;
   set_error_msg(ctx, msg);
 }
 
-static void clear_error(turbo_script_ctx_t *ctx) {
+static void clear_error(toad_script_ctx_t *ctx) {
   if (!ctx) return;
-  ctx->error_code = TURBO_SCRIPT_ERROR_NONE;
+  ctx->error_code = TOAD_SCRIPT_ERROR_NONE;
   set_error_msg(ctx, NULL);
 }
 
 static int ts_context_interrupt_safe_point(void *user_data,
-                                           tbs_safe_point_kind_t kind,
+                                           toad_safe_point_kind_t kind,
                                            size_t cost) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)user_data;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)user_data;
   (void)kind;
   (void)cost;
   if (!ctx || !ctx->interrupt || !ctx->interrupt(ctx->interrupt_user_data)) return 0;
 
-  set_error(ctx, TURBO_SCRIPT_ERROR_CANCELLED, "script execution interrupted");
+  set_error(ctx, TOAD_SCRIPT_ERROR_CANCELLED, "script execution interrupted");
   ctx->env.aborted = 1;
   snprintf(ctx->env.error_msg, sizeof(ctx->env.error_msg), "%s",
            "script execution interrupted");
   return 1;
 }
 
-int turbo_script_set_interrupt(turbo_script_ctx_t *ctx,
-                               turbo_script_interrupt_fn interrupt,
+int toad_script_set_interrupt(toad_script_ctx_t *ctx,
+                               toad_script_interrupt_fn interrupt,
                                void *user_data) {
   if (!ctx || atomic_load_explicit(&ctx->closing, memory_order_acquire)) return -1;
 
@@ -264,9 +264,9 @@ int turbo_script_set_interrupt(turbo_script_ctx_t *ctx,
   return 0;
 }
 
-static int ts_memory_policy_valid(const turbo_script_memory_policy_t *policy) {
-  return policy && policy->profile >= TURBO_SCRIPT_MEMORY_BATCH &&
-         policy->profile <= TURBO_SCRIPT_MEMORY_SANDBOX &&
+static int ts_memory_policy_valid(const toad_script_memory_policy_t *policy) {
+  return policy && policy->profile >= TOAD_SCRIPT_MEMORY_BATCH &&
+         policy->profile <= TOAD_SCRIPT_MEMORY_SANDBOX &&
          policy->max_context_bytes > 0 && policy->max_task_bytes > 0 &&
          policy->max_external_value_bytes > 0 &&
          policy->scratch_trim_threshold_bytes > 0 &&
@@ -274,29 +274,29 @@ static int ts_memory_policy_valid(const turbo_script_memory_policy_t *policy) {
          policy->max_task_bytes <= policy->max_context_bytes;
 }
 
-int turbo_script_memory_policy_init(turbo_script_memory_profile_t profile,
-                                    turbo_script_memory_policy_t *policy) {
-  static const turbo_script_memory_policy_t policies[] = {
-      {TURBO_SCRIPT_MEMORY_BATCH, 512U * 1024U * 1024U, 64U * 1024U * 1024U,
+int toad_script_memory_policy_init(toad_script_memory_profile_t profile,
+                                    toad_script_memory_policy_t *policy) {
+  static const toad_script_memory_policy_t policies[] = {
+      {TOAD_SCRIPT_MEMORY_BATCH, 512U * 1024U * 1024U, 64U * 1024U * 1024U,
        16U * 1024U * 1024U, 4U * 1024U * 1024U},
-      {TURBO_SCRIPT_MEMORY_INTERACTIVE, 128U * 1024U * 1024U, 16U * 1024U * 1024U,
+      {TOAD_SCRIPT_MEMORY_INTERACTIVE, 128U * 1024U * 1024U, 16U * 1024U * 1024U,
        4U * 1024U * 1024U, 512U * 1024U},
-      {TURBO_SCRIPT_MEMORY_SERVICE, 256U * 1024U * 1024U, 16U * 1024U * 1024U,
+      {TOAD_SCRIPT_MEMORY_SERVICE, 256U * 1024U * 1024U, 16U * 1024U * 1024U,
        4U * 1024U * 1024U, 512U * 1024U},
-      {TURBO_SCRIPT_MEMORY_STREAMING, 128U * 1024U * 1024U, 8U * 1024U * 1024U,
+      {TOAD_SCRIPT_MEMORY_STREAMING, 128U * 1024U * 1024U, 8U * 1024U * 1024U,
        1U * 1024U * 1024U, 256U * 1024U},
-      {TURBO_SCRIPT_MEMORY_SANDBOX, 32U * 1024U * 1024U, 4U * 1024U * 1024U,
+      {TOAD_SCRIPT_MEMORY_SANDBOX, 32U * 1024U * 1024U, 4U * 1024U * 1024U,
        256U * 1024U, 64U * 1024U},
   };
-  if (!policy || profile < TURBO_SCRIPT_MEMORY_BATCH ||
-      profile > TURBO_SCRIPT_MEMORY_SANDBOX)
+  if (!policy || profile < TOAD_SCRIPT_MEMORY_BATCH ||
+      profile > TOAD_SCRIPT_MEMORY_SANDBOX)
     return -1;
   *policy = policies[(size_t)profile];
   return 0;
 }
 
-int turbo_script_get_memory_stats(turbo_script_ctx_t *ctx,
-                                  turbo_script_memory_stats_t *stats) {
+int toad_script_get_memory_stats(toad_script_ctx_t *ctx,
+                                  toad_script_memory_stats_t *stats) {
   size_t root_bytes;
   size_t task_bytes;
   size_t scratch_bytes;
@@ -306,7 +306,7 @@ int turbo_script_get_memory_stats(turbo_script_ctx_t *ctx,
    * are attached to the root env closure chain and retained until the context
    * is destroyed. Count their arenas so the context quota covers them too. */
   root_bytes = mem_pool_total_used(&ctx->env.arena);
-  for (const tbs_env_t *closure = ctx->env.next_closure; closure;
+  for (const toad_env_t *closure = ctx->env.next_closure; closure;
        closure = closure->next_closure) {
     if (root_bytes > SIZE_MAX - mem_pool_total_used(&closure->arena)) return -1;
     root_bytes += mem_pool_total_used(&closure->arena);
@@ -324,14 +324,14 @@ int turbo_script_get_memory_stats(turbo_script_ctx_t *ctx,
   return 0;
 }
 
-int turbo_script_set_memory_policy(turbo_script_ctx_t *ctx,
-                                   const turbo_script_memory_policy_t *policy) {
-  turbo_script_memory_stats_t stats;
+int toad_script_set_memory_policy(toad_script_ctx_t *ctx,
+                                   const toad_script_memory_policy_t *policy) {
+  toad_script_memory_stats_t stats;
   if (!ctx || !ts_memory_policy_valid(policy)) return -1;
-  if (ctx->memory_exhausted || turbo_script_task_active_count(ctx) != 0 ||
-      turbo_script_timer_active_count(ctx) != 0)
+  if (ctx->memory_exhausted || toad_script_task_active_count(ctx) != 0 ||
+      toad_script_timer_active_count(ctx) != 0)
     return -1;
-  if (turbo_script_get_memory_stats(ctx, &stats) != 0 ||
+  if (toad_script_get_memory_stats(ctx, &stats) != 0 ||
       stats.context_bytes > policy->max_context_bytes ||
       stats.task_bytes > policy->max_context_bytes - stats.context_bytes ||
       ts_task_memory_max_used(ctx) > policy->max_task_bytes ||
@@ -342,8 +342,8 @@ int turbo_script_set_memory_policy(turbo_script_ctx_t *ctx,
   return 0;
 }
 
-int ts_memory_finish_run(turbo_script_ctx_t *ctx, int result) {
-  turbo_script_memory_stats_t stats;
+int ts_memory_finish_run(toad_script_ctx_t *ctx, int result) {
+  toad_script_memory_stats_t stats;
   if (!ctx) return -1;
   /* Reclaim captured closure scopes created by this thread that no live
    * function value references. Short-lived closures created during this run
@@ -351,17 +351,17 @@ int ts_memory_finish_run(turbo_script_ctx_t *ctx, int result) {
    * the context is destroyed. The sweep only touches snapshots owned by the
    * calling thread, so concurrent timer/task callbacks on the event-loop
    * thread are never disturbed. */
-  tbs_env_sweep_closures(&ctx->env);
+  toad_env_sweep_closures(&ctx->env);
   if (mem_pool_total_used(&ctx->scratch_arena) >=
       ctx->memory_policy.scratch_trim_threshold_bytes) {
     mem_reset(&ctx->scratch_arena);
     mem_trim(&ctx->scratch_arena);
   }
-  if (turbo_script_get_memory_stats(ctx, &stats) != 0 ||
+  if (toad_script_get_memory_stats(ctx, &stats) != 0 ||
       stats.context_bytes > ctx->memory_policy.max_context_bytes ||
       stats.task_bytes > ctx->memory_policy.max_context_bytes - stats.context_bytes) {
     ctx->memory_exhausted = 1;
-    set_error(ctx, TURBO_SCRIPT_ERROR_OOM, "memory policy: context quota exceeded");
+    set_error(ctx, TOAD_SCRIPT_ERROR_OOM, "memory policy: context quota exceeded");
     ctx->env.aborted = 1;
     return -1;
   }
@@ -369,7 +369,7 @@ int ts_memory_finish_run(turbo_script_ctx_t *ctx, int result) {
 }
 
 /* Zero-value shorthand */
-#define TS_ZERO ((tbs_value_t){TBS_VAL_NUMBER, .data.number = 0.0})
+#define TS_ZERO ((toad_value_t){TOAD_VAL_NUMBER, .data.number = 0.0})
 #define TS_ERROR(ctx, code, msg)                                                                   \
   do {                                                                                             \
     set_error(ctx, code, msg);                                                                     \
@@ -491,11 +491,11 @@ static char *ts_normalize_braced_map_args(const char *script, int *changed_out) 
   return out;
 }
 
-static tbs_node_t *ts_parse_with_error_impl(turbo_script_ctx_t *ctx,
+static toad_node_t *ts_parse_with_error_impl(toad_script_ctx_t *ctx,
                                                const char *script,
                                                int fail_arena_allocation) {
   mem_pool_t *arena = NULL;
-  tbs_node_t *root = NULL;
+  toad_node_t *root = NULL;
   char *normalized = NULL;
   const char *parse_script = script;
   int normalized_changed = 0;
@@ -507,12 +507,12 @@ static tbs_node_t *ts_parse_with_error_impl(turbo_script_ctx_t *ctx,
 
   arena = fail_arena_allocation ? NULL : (mem_pool_t *)malloc(sizeof(*arena));
   if (!arena) {
-    set_error(ctx, TURBO_SCRIPT_ERROR_OOM, "Out of memory");
+    set_error(ctx, TOAD_SCRIPT_ERROR_OOM, "Out of memory");
     return NULL;
   }
   if (mem_init(arena, 4096) != 0) {
     free(arena);
-    set_error(ctx, TURBO_SCRIPT_ERROR_OOM, "Out of memory");
+    set_error(ctx, TOAD_SCRIPT_ERROR_OOM, "Out of memory");
     return NULL;
   }
 
@@ -520,28 +520,28 @@ static tbs_node_t *ts_parse_with_error_impl(turbo_script_ctx_t *ctx,
   if (normalized_changed && !normalized) {
     mem_destroy(arena);
     free(arena);
-    set_error(ctx, TURBO_SCRIPT_ERROR_OOM, "Out of memory");
+    set_error(ctx, TOAD_SCRIPT_ERROR_OOM, "Out of memory");
     return NULL;
   }
   if (normalized) parse_script = normalized;
 
-  root = tbs_parse_ext(parse_script, 0, arena, &err, ctx->error_msg, sizeof(ctx->error_msg));
+  root = toad_parse_ext(parse_script, 0, arena, &err, ctx->error_msg, sizeof(ctx->error_msg));
   free(normalized);
   if (!err && root) return root;
 
-  if (ctx->error_msg[0] == '\0') set_error(ctx, TURBO_SCRIPT_ERROR_PARSE, "Parse error");
-  else ctx->error_code = TURBO_SCRIPT_ERROR_PARSE;
+  if (ctx->error_msg[0] == '\0') set_error(ctx, TOAD_SCRIPT_ERROR_PARSE, "Parse error");
+  else ctx->error_code = TOAD_SCRIPT_ERROR_PARSE;
   mem_destroy(arena);
   free(arena);
   return NULL;
 }
 
-tbs_node_t *turbo_script_parse_with_error(turbo_script_ctx_t *ctx,
+toad_node_t *toad_script_parse_with_error(toad_script_ctx_t *ctx,
                                              const char *script) {
   return ts_parse_with_error_impl(ctx, script, 0);
 }
 
-tbs_node_t *turbo_script_parse_with_error_test_oom(turbo_script_ctx_t *ctx,
+toad_node_t *toad_script_parse_with_error_test_oom(toad_script_ctx_t *ctx,
                                                       const char *script) {
   return ts_parse_with_error_impl(ctx, script, 1);
 }
@@ -549,10 +549,10 @@ tbs_node_t *turbo_script_parse_with_error_test_oom(turbo_script_ctx_t *ctx,
 /* ── Plugin helpers ───────────────────────────────────────────────── */
 
 typedef enum {
-  TS_PLUGIN_LOAD_OK = 0,
-  TS_PLUGIN_LOAD_FAILED = -1,
-  TS_PLUGIN_LOAD_DENIED = -2,
-} ts_plugin_load_result_t;
+  TOAD_PLUGIN_LOAD_OK = 0,
+  TOAD_PLUGIN_LOAD_FAILED = -1,
+  TOAD_PLUGIN_LOAD_DENIED = -2,
+} toad_plugin_load_result_t;
 
 enum { TS_MAX_PLUGIN_NAME_LENGTH = 128 };
 
@@ -596,7 +596,7 @@ static int ts_is_builtin_module(const char *name) {
 }
 
 /* Check if a plugin with the given import name is already loaded */
-static int ts_plugin_already_loaded(turbo_script_ctx_t *ctx, const char *name) {
+static int toad_plugin_already_loaded(toad_script_ctx_t *ctx, const char *name) {
   for (size_t i = 0; i < ctx->plugin_count; ++i) {
     if (ctx->loaded_names[i] && strcmp(ctx->loaded_names[i], name) == 0) return 1;
   }
@@ -604,23 +604,24 @@ static int ts_plugin_already_loaded(turbo_script_ctx_t *ctx, const char *name) {
 }
 
 /* Build plugin filename from logical name and platform suffix. */
-static const char *ts_plugin_file_name(mem_pool_t *a, const char *name, const char *suffix,
+static const char *toad_plugin_file_name(mem_pool_t *a, const char *name, const char *suffix,
                                        int use_tbs_prefix) {
   size_t name_len, suffix_len, prefix_len;
   char *buf;
-  const char tbs_prefix[] = "tbs_";
+  /* Preserve the existing optional plugin filename convention. */
+  const char legacy_prefix[] = "tbs_";
 
   if (!a || !name || !suffix) return NULL;
 
   name_len = strlen(name);
   suffix_len = strlen(suffix);
-  prefix_len = use_tbs_prefix ? strlen(tbs_prefix) : 0;
+  prefix_len = use_tbs_prefix ? strlen(legacy_prefix) : 0;
   buf = mem_alloc(a, prefix_len + name_len + suffix_len + 1);
-  if (buf) sprintf(buf, "%s%s%s", use_tbs_prefix ? tbs_prefix : "", name, suffix);
+  if (buf) sprintf(buf, "%s%s%s", use_tbs_prefix ? legacy_prefix : "", name, suffix);
   return buf;
 }
 
-static const char *ts_plugin_file_stem(const char *name) {
+static const char *toad_plugin_file_stem(const char *name) {
   /* Keep dependency DLL names distinct from plugin DLL names while preserving
    * the public logical names used by import() and descriptor validation. */
   if (name && strcmp(name, "crypto") == 0) return "crypto_plugin";
@@ -629,8 +630,8 @@ static const char *ts_plugin_file_stem(const char *name) {
 }
 
 /* Load a plugin by logical name ("io", "fin", ...) */
-static int ts_load_plugin(turbo_script_ctx_t *ctx, const char *name,
-                          ts_plugin_error_t *plugin_error) {
+static int ts_load_plugin(toad_script_ctx_t *ctx, const char *name,
+                          toad_plugin_error_t *plugin_error) {
   char *loaded_name = NULL;
   static const char *const suffixes[] = {
 #ifdef _WIN32
@@ -642,84 +643,84 @@ static int ts_load_plugin(turbo_script_ctx_t *ctx, const char *name,
 #endif
       NULL};
   int load_error;
-  ts_plugin_handle_t *h = NULL;
+  toad_plugin_handle_t *h = NULL;
 
   if (plugin_error) memset(plugin_error, 0, sizeof(*plugin_error));
-  if (!ctx || !name || !*name) return TS_PLUGIN_LOAD_FAILED;
+  if (!ctx || !name || !*name) return TOAD_PLUGIN_LOAD_FAILED;
   if (!ts_is_valid_plugin_name(name)) {
     if (plugin_error) {
-      plugin_error->code = TS_PLUGIN_ERROR_INVALID_ARGUMENT;
-      plugin_error->stage = TS_PLUGIN_STAGE_ARGUMENT;
+      plugin_error->code = TOAD_PLUGIN_ERROR_INVALID_ARGUMENT;
+      plugin_error->stage = TOAD_PLUGIN_STAGE_ARGUMENT;
       snprintf(plugin_error->message, sizeof(plugin_error->message),
                "invalid plugin name");
     }
-    return TS_PLUGIN_LOAD_FAILED;
+    return TOAD_PLUGIN_LOAD_FAILED;
   }
-  if (ts_is_builtin_module(name)) return TS_PLUGIN_LOAD_OK;
+  if (ts_is_builtin_module(name)) return TOAD_PLUGIN_LOAD_OK;
 
-  if (ts_plugin_already_loaded(ctx, name)) return TS_PLUGIN_LOAD_OK;
-  if (ctx->plugin_count >= TS_MAX_PLUGINS) return TS_PLUGIN_LOAD_FAILED;
+  if (toad_plugin_already_loaded(ctx, name)) return TOAD_PLUGIN_LOAD_OK;
+  if (ctx->plugin_count >= TS_MAX_PLUGINS) return TOAD_PLUGIN_LOAD_FAILED;
   if (ctx->plugin_authorizer &&
       !ctx->plugin_authorizer(name, ctx->plugin_authorizer_data))
-    return TS_PLUGIN_LOAD_DENIED;
+    return TOAD_PLUGIN_LOAD_DENIED;
 
   for (size_t i = 0; suffixes[i] != NULL; ++i) {
-    const char *dll = ts_plugin_file_name(&ctx->scratch_arena,
-                                          ts_plugin_file_stem(name), suffixes[i], 0);
+    const char *dll = toad_plugin_file_name(&ctx->scratch_arena,
+                                          toad_plugin_file_stem(name), suffixes[i], 0);
     if (!dll) continue;
-    load_error = ts_plugin_load_ex(dll, name, &h, plugin_error);
-    if (load_error == TS_PLUGIN_ERROR_NONE) break;
-    if (load_error != TS_PLUGIN_ERROR_OPEN) return TS_PLUGIN_LOAD_FAILED;
+    load_error = toad_plugin_load_ex(dll, name, &h, plugin_error);
+    if (load_error == TOAD_PLUGIN_ERROR_NONE) break;
+    if (load_error != TOAD_PLUGIN_ERROR_OPEN) return TOAD_PLUGIN_LOAD_FAILED;
 
-    dll = ts_plugin_file_name(&ctx->scratch_arena, name, suffixes[i], 1);
+    dll = toad_plugin_file_name(&ctx->scratch_arena, name, suffixes[i], 1);
     if (!dll) continue;
-    if (ts_plugin_load_ex(dll, name, &h, plugin_error) == TS_PLUGIN_ERROR_NONE) break;
+    if (toad_plugin_load_ex(dll, name, &h, plugin_error) == TOAD_PLUGIN_ERROR_NONE) break;
   }
-  if (!h) return TS_PLUGIN_LOAD_FAILED;
+  if (!h) return TOAD_PLUGIN_LOAD_FAILED;
 
-  if (ts_plugin_init_ex(h, &ctx->env, &ctx->scratch_arena, plugin_error) !=
-      TS_PLUGIN_ERROR_NONE) {
-    ts_plugin_unload(h);
-    return TS_PLUGIN_LOAD_FAILED;
+  if (toad_plugin_init_ex(h, &ctx->env, &ctx->scratch_arena, plugin_error) !=
+      TOAD_PLUGIN_ERROR_NONE) {
+    toad_plugin_unload(h);
+    return TOAD_PLUGIN_LOAD_FAILED;
   }
 
   loaded_name = strdup(name);
   if (!loaded_name) {
-    ts_plugin_unload(h);
-    return TS_PLUGIN_LOAD_FAILED;
+    toad_plugin_unload(h);
+    return TOAD_PLUGIN_LOAD_FAILED;
   }
 
   size_t idx = ctx->plugin_count;
   ctx->plugins[idx] = h;
   ctx->loaded_names[idx] = loaded_name;
   ctx->plugin_count++;
-  return TS_PLUGIN_LOAD_OK;
+  return TOAD_PLUGIN_LOAD_OK;
 }
 
-static const char *ts_plugin_stage_name(ts_plugin_error_stage_t stage) {
+static const char *toad_plugin_stage_name(toad_plugin_error_stage_t stage) {
   switch (stage) {
-    case TS_PLUGIN_STAGE_ARGUMENT: return "argument";
-    case TS_PLUGIN_STAGE_OPEN: return "open";
-    case TS_PLUGIN_STAGE_SYMBOL: return "symbol";
-    case TS_PLUGIN_STAGE_ABI: return "ABI";
-    case TS_PLUGIN_STAGE_INITIALIZE: return "initialize";
-    case TS_PLUGIN_STAGE_NONE: return "unknown";
+    case TOAD_PLUGIN_STAGE_ARGUMENT: return "argument";
+    case TOAD_PLUGIN_STAGE_OPEN: return "open";
+    case TOAD_PLUGIN_STAGE_SYMBOL: return "symbol";
+    case TOAD_PLUGIN_STAGE_ABI: return "ABI";
+    case TOAD_PLUGIN_STAGE_INITIALIZE: return "initialize";
+    case TOAD_PLUGIN_STAGE_NONE: return "unknown";
   }
   return "unknown";
 }
 
-static void ts_set_plugin_load_error(turbo_script_ctx_t *ctx, const char *operation,
+static void ts_set_plugin_load_error(toad_script_ctx_t *ctx, const char *operation,
                                      const char *name, int load_result,
-                                     const ts_plugin_error_t *plugin_error) {
-  const char *reason = load_result == TS_PLUGIN_LOAD_DENIED
+                                     const toad_plugin_error_t *plugin_error) {
+  const char *reason = load_result == TOAD_PLUGIN_LOAD_DENIED
                            ? "denied by host policy"
                            : "failed to load native plugin";
   if (!ctx) return;
-  ctx->error_code = TURBO_SCRIPT_ERROR_PLUGIN;
-  if (load_result != TS_PLUGIN_LOAD_DENIED && plugin_error &&
-      plugin_error->code != TS_PLUGIN_ERROR_NONE) {
+  ctx->error_code = TOAD_SCRIPT_ERROR_PLUGIN;
+  if (load_result != TOAD_PLUGIN_LOAD_DENIED && plugin_error &&
+      plugin_error->code != TOAD_PLUGIN_ERROR_NONE) {
     snprintf(ctx->error_msg, sizeof(ctx->error_msg), "%s '%s': %s stage failed: %s",
-             operation, name ? name : "", ts_plugin_stage_name(plugin_error->stage),
+             operation, name ? name : "", toad_plugin_stage_name(plugin_error->stage),
              plugin_error->message[0] ? plugin_error->message : reason);
   } else {
     snprintf(ctx->error_msg, sizeof(ctx->error_msg), "%s '%s': %s", operation,
@@ -734,7 +735,7 @@ static int ts_is_script_import(const char *name) {
   return len >= 4 && strcmp(name + len - 4, ".tbs") == 0;
 }
 
-static int ts_script_already_imported(const turbo_script_ctx_t *ctx, const char *name) {
+static int ts_script_already_imported(const toad_script_ctx_t *ctx, const char *name) {
   const imported_module_t *mod = ctx ? ctx->imports : NULL;
   while (mod) {
     if (mod->name && strcmp(mod->name, name) == 0) return 1;
@@ -743,7 +744,7 @@ static int ts_script_already_imported(const turbo_script_ctx_t *ctx, const char 
   return 0;
 }
 
-static const imported_module_t *ts_find_imported_script(const turbo_script_ctx_t *ctx, const char *name,
+static const imported_module_t *ts_find_imported_script(const toad_script_ctx_t *ctx, const char *name,
                                                         int isolated) {
   const imported_module_t *mod = ctx ? ctx->imports : NULL;
   while (mod) {
@@ -753,7 +754,7 @@ static const imported_module_t *ts_find_imported_script(const turbo_script_ctx_t
   return NULL;
 }
 
-static int ts_mark_script_imported(turbo_script_ctx_t *ctx, const char *name, tbs_value_t exports,
+static int ts_mark_script_imported(toad_script_ctx_t *ctx, const char *name, toad_value_t exports,
                                    int has_exports, int isolated) {
   imported_module_t *mod = (imported_module_t *)calloc(1, sizeof(*mod));
   if (!mod) return -1;
@@ -762,7 +763,7 @@ static int ts_mark_script_imported(turbo_script_ctx_t *ctx, const char *name, tb
     free(mod);
     return -1;
   }
-  mod->exports = has_exports ? tbs_value_clone_to_env(exports, &ctx->env) : exports;
+  mod->exports = has_exports ? toad_value_clone_to_env(exports, &ctx->env) : exports;
   mod->has_exports = has_exports;
   mod->isolated = isolated;
   mod->next = ctx->imports;
@@ -770,15 +771,15 @@ static int ts_mark_script_imported(turbo_script_ctx_t *ctx, const char *name, tb
   return 0;
 }
 
-static int ts_lookup_named_script_function(tbs_env_t *env, const char *name, tbs_value_t *value_out) {
+static int ts_lookup_named_script_function(toad_env_t *env, const char *name, toad_value_t *value_out) {
   if (!env || !name || !value_out) return -1;
 
   while (env) {
-    tbs_func_t *fn = env->funcs;
+    toad_func_t *fn = env->funcs;
     while (fn) {
       if (fn->is_script && fn->name && strcmp(fn->name, name) == 0) {
-        tbs_value_t val = {0};
-        val.type = TBS_VAL_FUNCTION;
+        toad_value_t val = {0};
+        val.type = TOAD_VAL_FUNCTION;
         val.data.function.arg_params = fn->data.script.arg_params;
         val.data.function.arg_count = fn->data.script.arg_count;
         val.data.function.body = fn->data.script.body;
@@ -794,26 +795,26 @@ static int ts_lookup_named_script_function(tbs_env_t *env, const char *name, tbs
   return -1;
 }
 
-static tbs_value_t ts_rebind_function_closures(tbs_value_t value, tbs_env_t *from,
-                                                  tbs_env_t *to) {
+static toad_value_t ts_rebind_function_closures(toad_value_t value, toad_env_t *from,
+                                                  toad_env_t *to) {
   if (!from || !to) return value;
 
   switch (value.type) {
-  case TBS_VAL_FUNCTION:
+  case TOAD_VAL_FUNCTION:
     if (value.data.function.closure_env == from) value.data.function.closure_env = to;
     break;
-  case TBS_VAL_LIST:
+  case TOAD_VAL_LIST:
     for (size_t i = 0; i < value.data.list.count; ++i) {
       value.data.list.items[i] = ts_rebind_function_closures(value.data.list.items[i], from, to);
     }
     break;
-  case TBS_VAL_MAP:
-  case TBS_VAL_OBJECT: {
-    tbs_map_iter_t it = tbs_map_iter_begin(&value);
+  case TOAD_VAL_MAP:
+  case TOAD_VAL_OBJECT: {
+    toad_map_iter_t it = toad_map_iter_begin(&value);
     const char *key = NULL;
-    tbs_value_t child;
-    while (tbs_map_iter_next(&it, &key, &child)) {
-      tbs_map_set(&value, key, ts_rebind_function_closures(child, from, to));
+    toad_value_t child;
+    while (toad_map_iter_next(&it, &key, &child)) {
+      toad_map_set(&value, key, ts_rebind_function_closures(child, from, to));
     }
     break;
   }
@@ -824,66 +825,66 @@ static tbs_value_t ts_rebind_function_closures(tbs_value_t value, tbs_env_t *fro
   return value;
 }
 
-static tbs_value_t ts_export(size_t argc, tbs_value_t *args, tbs_env_t *env, void *user_data) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)user_data;
-  tbs_value_t value;
-  tbs_env_t *import_env = ctx ? ctx->current_import_env : NULL;
+static toad_value_t ts_export(size_t argc, toad_value_t *args, toad_env_t *env, void *user_data) {
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)user_data;
+  toad_value_t value;
+  toad_env_t *import_env = ctx ? ctx->current_import_env : NULL;
 
   if (!ctx || !ctx->current_import_name) {
-    TS_ERROR(ctx, TURBO_SCRIPT_ERROR_RUNTIME, "export: only valid while importing a script module");
+    TS_ERROR(ctx, TOAD_SCRIPT_ERROR_RUNTIME, "export: only valid while importing a script module");
     return TS_ZERO;
   }
 
   if (argc != 1 && argc != 2) {
-    TS_ERROR(ctx, TURBO_SCRIPT_ERROR_ARGUMENT, "export: expected export(name) or export(name, value)");
+    TS_ERROR(ctx, TOAD_SCRIPT_ERROR_ARGUMENT, "export: expected export(name) or export(name, value)");
     return TS_ZERO;
   }
-  if (args[0].type != TBS_VAL_STRING) {
-    TS_ERROR(ctx, TURBO_SCRIPT_ERROR_ARGUMENT, "export: name must be a string");
+  if (args[0].type != TOAD_VAL_STRING) {
+    TS_ERROR(ctx, TOAD_SCRIPT_ERROR_ARGUMENT, "export: name must be a string");
     return TS_ZERO;
   }
 
   if (argc == 2) {
-    value = tbs_value_clone_to_env(args[1], import_env ? import_env : &ctx->env);
-  } else if (import_env && tbs_env_has(import_env, args[0].data.string.data)) {
-    value = tbs_value_clone_to_env(tbs_env_get(import_env, args[0].data.string.data),
+    value = toad_value_clone_to_env(args[1], import_env ? import_env : &ctx->env);
+  } else if (import_env && toad_env_has(import_env, args[0].data.string.data)) {
+    value = toad_value_clone_to_env(toad_env_get(import_env, args[0].data.string.data),
                                       import_env ? import_env : &ctx->env);
   } else if (ts_lookup_named_script_function(import_env ? import_env : &ctx->env, args[0].data.string.data,
                                              &value) != 0) {
-    TS_ERROR(ctx, TURBO_SCRIPT_ERROR_ARGUMENT, "export: unknown symbol");
+    TS_ERROR(ctx, TOAD_SCRIPT_ERROR_ARGUMENT, "export: unknown symbol");
     return TS_ZERO;
   }
 
-  if (ctx->current_import_exports.type != TBS_VAL_MAP)
-    ctx->current_import_exports = tbs_val_map();
+  if (ctx->current_import_exports.type != TOAD_VAL_MAP)
+    ctx->current_import_exports = toad_val_map();
 
-  tbs_map_set(&ctx->current_import_exports, args[0].data.string.data, value);
+  toad_map_set(&ctx->current_import_exports, args[0].data.string.data, value);
   ctx->current_import_has_exports = 1;
   return value;
 }
 
-static int ts_run_script_file_in_env(turbo_script_ctx_t *ctx, const char *filename,
-                                     tbs_env_t *exec_env, tbs_value_t *exports_out,
+static int ts_run_script_file_in_env(toad_script_ctx_t *ctx, const char *filename,
+                                     toad_env_t *exec_env, toad_value_t *exports_out,
                                      int *has_exports_out) {
   fs_buf_t buf;
-  tbs_node_t *ast = NULL;
+  toad_node_t *ast = NULL;
   char *prev_dir = NULL;
   const char *prev_import_name = NULL;
-  tbs_value_t prev_import_exports = tbs_val_num(0);
+  toad_value_t prev_import_exports = toad_val_num(0);
   int prev_import_has_exports = 0;
-  tbs_env_t *prev_import_env = NULL;
+  toad_env_t *prev_import_env = NULL;
   int import_state_pushed = 0;
   int rc = -1;
 
   if (fs_read_file(filename, &buf) != 0) {
-    set_error(ctx, TURBO_SCRIPT_ERROR_IO, "import: failed to read script");
+    set_error(ctx, TOAD_SCRIPT_ERROR_IO, "import: failed to read script");
     return -1;
   }
 
   char *script = (char *)malloc(buf.len + 1);
   if (!script) {
     fs_buf_free(&buf);
-    set_error(ctx, TURBO_SCRIPT_ERROR_OOM, "import: out of memory");
+    set_error(ctx, TOAD_SCRIPT_ERROR_OOM, "import: out of memory");
     return -1;
   }
 
@@ -897,17 +898,17 @@ static int ts_run_script_file_in_env(turbo_script_ctx_t *ctx, const char *filena
   prev_import_env = ctx->current_import_env;
 
   if (ts_push_script_dir(ctx, filename, &prev_dir) != 0) {
-    set_error(ctx, TURBO_SCRIPT_ERROR_IO, "import: path too long");
+    set_error(ctx, TOAD_SCRIPT_ERROR_IO, "import: path too long");
     goto done;
   }
 
   ctx->current_import_name = filename;
-  ctx->current_import_exports = tbs_val_map();
+  ctx->current_import_exports = toad_val_map();
   ctx->current_import_has_exports = 0;
   ctx->current_import_env = exec_env;
   import_state_pushed = 1;
 
-  ast = turbo_script_parse_with_error(ctx, script);
+  ast = toad_script_parse_with_error(ctx, script);
   if (!ast) {
     char parse_error[sizeof(ctx->error_msg)];
     strncpy(parse_error, ctx->error_msg, sizeof(parse_error) - 1);
@@ -916,22 +917,22 @@ static int ts_run_script_file_in_env(turbo_script_ctx_t *ctx, const char *filena
     goto done;
   }
 
-  if (tbs_validate(ast, exec_env, ctx->error_msg, sizeof(ctx->error_msg)) != 0) {
-    ctx->error_code = TURBO_SCRIPT_ERROR_VALIDATE;
+  if (toad_validate(ast, exec_env, ctx->error_msg, sizeof(ctx->error_msg)) != 0) {
+    ctx->error_code = TOAD_SCRIPT_ERROR_VALIDATE;
     goto done;
   }
 
-  tbs_free(ast);
+  toad_free(ast);
   ast = NULL;
 
   if (exec_env == &ctx->env) {
-    rc = turbo_script_run_mir_interp(ctx, script);
+    rc = toad_script_run_mir_interp(ctx, script);
   } else {
-    tbs_env_t *saved_import_env = ctx->current_import_env;
-    tbs_env_t *saved_parent = exec_env->parent;
+    toad_env_t *saved_import_env = ctx->current_import_env;
+    toad_env_t *saved_parent = exec_env->parent;
 
     // Swap exec_env and ctx->env to transfer ownership of internal tables
-    tbs_env_t tmp = ctx->env;
+    toad_env_t tmp = ctx->env;
     ctx->env = *exec_env;
     *exec_env = tmp;
 
@@ -939,11 +940,11 @@ static int ts_run_script_file_in_env(turbo_script_ctx_t *ctx, const char *filena
     ctx->env.parent = exec_env;
     ctx->current_import_env = &ctx->env;
 
-    rc = turbo_script_run_mir_interp(ctx, script);
+    rc = toad_script_run_mir_interp(ctx, script);
 
     // Rebind internal functions in the module environment (currently in ctx->env)
     // so their closure scopes point to the stable exec_env instead of the temporary &ctx->env.
-    tbs_func_t *f = ctx->env.funcs;
+    toad_func_t *f = ctx->env.funcs;
     while (f) {
       if (f->is_script && f->closure_env == &ctx->env) {
         f->closure_env = exec_env;
@@ -969,7 +970,7 @@ static int ts_run_script_file_in_env(turbo_script_ctx_t *ctx, const char *filena
 done:
   if (import_state_pushed) {
     if (exports_out) *exports_out = ctx->current_import_exports;
-    else if (tbs_value_is_object_like(&ctx->current_import_exports)) tbs_map_free(&ctx->current_import_exports);
+    else if (toad_value_is_object_like(&ctx->current_import_exports)) toad_map_free(&ctx->current_import_exports);
     if (has_exports_out) *has_exports_out = ctx->current_import_has_exports;
     ctx->current_import_name = prev_import_name;
     ctx->current_import_exports = prev_import_exports;
@@ -977,31 +978,31 @@ done:
     ctx->current_import_env = prev_import_env;
   }
   if (ctx->current_script_dir != prev_dir) ts_pop_script_dir(ctx, prev_dir);
-  if (ast) tbs_free(ast);
+  if (ast) toad_free(ast);
   free(script);
   return rc;
 }
 
-static tbs_value_t ts_import_script_common(turbo_script_ctx_t *ctx, const char *name, int isolated) {
-  tbs_value_t exports = tbs_val_num(0);
+static toad_value_t ts_import_script_common(toad_script_ctx_t *ctx, const char *name, int isolated) {
+  toad_value_t exports = toad_val_num(0);
   int has_exports = 0;
   char resolved[SALTS_FS_MAX_PATH];
   const imported_module_t *mod = NULL;
 
   if (ts_resolve_script_path(ctx, name, resolved, sizeof(resolved)) != 0) {
-    TS_ERROR(ctx, TURBO_SCRIPT_ERROR_IO, "import: path too long");
+    TS_ERROR(ctx, TOAD_SCRIPT_ERROR_IO, "import: path too long");
     return TS_ZERO;
   }
 
   mod = ts_find_imported_script(ctx, resolved, isolated);
   if (!mod) {
-    tbs_env_t *exec_env = &ctx->env;
-    tbs_env_t *isolated_env = NULL;
+    toad_env_t *exec_env = &ctx->env;
+    toad_env_t *isolated_env = NULL;
 
     if (isolated) {
-      isolated_env = tbs_env_snapshot(&ctx->env);
+      isolated_env = toad_env_snapshot(&ctx->env);
       if (!isolated_env) {
-        TS_ERROR(ctx, TURBO_SCRIPT_ERROR_OOM, "import_module: out of memory");
+        TS_ERROR(ctx, TOAD_SCRIPT_ERROR_OOM, "import_module: out of memory");
         return TS_ZERO;
       }
       isolated_env->parent = &ctx->env;
@@ -1014,30 +1015,30 @@ static tbs_value_t ts_import_script_common(turbo_script_ctx_t *ctx, const char *
       return TS_ZERO;
     }
     if (ts_mark_script_imported(ctx, resolved, exports, has_exports, isolated) != 0) {
-      if (tbs_value_is_object_like(&exports)) tbs_map_free(&exports);
-      TS_ERROR(ctx, TURBO_SCRIPT_ERROR_OOM, "import: out of memory");
+      if (toad_value_is_object_like(&exports)) toad_map_free(&exports);
+      TS_ERROR(ctx, TOAD_SCRIPT_ERROR_OOM, "import: out of memory");
       return TS_ZERO;
     }
-    if (tbs_value_is_object_like(&exports)) tbs_map_free(&exports);
+    if (toad_value_is_object_like(&exports)) toad_map_free(&exports);
     mod = ts_find_imported_script(ctx, resolved, isolated);
   }
 
   if (mod && mod->has_exports)
-    return tbs_value_clone_to_env(mod->exports, &ctx->env);
-  return (tbs_value_t){TBS_VAL_NUMBER, .data.number = 1.0};
+    return toad_value_clone_to_env(mod->exports, &ctx->env);
+  return (toad_value_t){TOAD_VAL_NUMBER, .data.number = 1.0};
 }
 
-static tbs_value_t ts_import(size_t argc, tbs_value_t *args, tbs_env_t *env, void *user_data) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)user_data;
+static toad_value_t ts_import(size_t argc, toad_value_t *args, toad_env_t *env, void *user_data) {
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)user_data;
   int load_result;
-  if (argc != 1 || args[0].type != TBS_VAL_STRING) {
-    TS_ERROR(ctx, TURBO_SCRIPT_ERROR_ARGUMENT, "import: expected 1 string arg");
+  if (argc != 1 || args[0].type != TOAD_VAL_STRING) {
+    TS_ERROR(ctx, TOAD_SCRIPT_ERROR_ARGUMENT, "import: expected 1 string arg");
     return TS_ZERO;
   }
 
   char *name = vstr_to_arena(args[0].data.string, &ctx->scratch_arena);
   if (!name) {
-    TS_ERROR(ctx, TURBO_SCRIPT_ERROR_OOM, "import: out of memory");
+    TS_ERROR(ctx, TOAD_SCRIPT_ERROR_OOM, "import: out of memory");
     return TS_ZERO;
   }
 
@@ -1046,13 +1047,13 @@ static tbs_value_t ts_import(size_t argc, tbs_value_t *args, tbs_env_t *env, voi
   }
 
   if (ts_is_builtin_module(name)) {
-    return (tbs_value_t){TBS_VAL_NUMBER, .data.number = 1.0};
+    return (toad_value_t){TOAD_VAL_NUMBER, .data.number = 1.0};
   }
 
-  ts_plugin_error_t plugin_error = {0};
+  toad_plugin_error_t plugin_error = {0};
   load_result = ts_load_plugin(ctx, name, &plugin_error);
-  if (load_result == TS_PLUGIN_LOAD_OK) {
-    return (tbs_value_t){TBS_VAL_NUMBER, .data.number = 1.0};
+  if (load_result == TOAD_PLUGIN_LOAD_OK) {
+    return (toad_value_t){TOAD_VAL_NUMBER, .data.number = 1.0};
   }
 
   ts_set_plugin_load_error(ctx, "import", name, load_result, &plugin_error);
@@ -1060,29 +1061,29 @@ static tbs_value_t ts_import(size_t argc, tbs_value_t *args, tbs_env_t *env, voi
   return TS_ZERO;
 }
 
-static tbs_value_t ts_import_module(size_t argc, tbs_value_t *args, tbs_env_t *env, void *user_data) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)user_data;
+static toad_value_t ts_import_module(size_t argc, toad_value_t *args, toad_env_t *env, void *user_data) {
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)user_data;
   char *name = NULL;
 
-  if (argc != 1 || args[0].type != TBS_VAL_STRING) {
-    TS_ERROR(ctx, TURBO_SCRIPT_ERROR_ARGUMENT, "import_module: expected 1 string arg");
+  if (argc != 1 || args[0].type != TOAD_VAL_STRING) {
+    TS_ERROR(ctx, TOAD_SCRIPT_ERROR_ARGUMENT, "import_module: expected 1 string arg");
     return TS_ZERO;
   }
 
   name = vstr_to_arena(args[0].data.string, &ctx->scratch_arena);
   if (!name) {
-    TS_ERROR(ctx, TURBO_SCRIPT_ERROR_OOM, "import_module: out of memory");
+    TS_ERROR(ctx, TOAD_SCRIPT_ERROR_OOM, "import_module: out of memory");
     return TS_ZERO;
   }
   if (!ts_is_script_import(name)) {
-    TS_ERROR(ctx, TURBO_SCRIPT_ERROR_ARGUMENT, "import_module: script path required");
+    TS_ERROR(ctx, TOAD_SCRIPT_ERROR_ARGUMENT, "import_module: script path required");
     return TS_ZERO;
   }
 
   return ts_import_script_common(ctx, name, 1);
 }
 
-static tbs_value_t ts_print(size_t argc, tbs_value_t *args, tbs_env_t *env, void *user_data) {
+static toad_value_t ts_print(size_t argc, toad_value_t *args, toad_env_t *env, void *user_data) {
   (void)user_data;
   for (size_t i = 0; i < argc; ++i) {
     if (i > 0) printf(" ");
@@ -1093,7 +1094,7 @@ static tbs_value_t ts_print(size_t argc, tbs_value_t *args, tbs_env_t *env, void
   return TS_ZERO;
 }
 
-static void ts_print_vector(const tbs_value_t *val) {
+static void ts_print_vector(const toad_value_t *val) {
   size_t n = val->data.vector.size;
   printf("[");
   for (size_t j = 0; j < n; ++j) {
@@ -1103,30 +1104,30 @@ static void ts_print_vector(const tbs_value_t *val) {
   printf("]");
 }
 
-static void ts_print_value(const tbs_value_t *val, int repl_mode) {
+static void ts_print_value(const toad_value_t *val, int repl_mode) {
   switch (val->type) {
-  case TBS_VAL_NUMBER:
+  case TOAD_VAL_NUMBER:
     printf("%g", val->data.number);
     break;
-  case TBS_VAL_INTEGER:
+  case TOAD_VAL_INTEGER:
     printf("%lld", (long long)val->data.integer);
     break;
-  case TBS_VAL_BOOL:
+  case TOAD_VAL_BOOL:
     printf("%s", val->data.boolean ? "true" : "false");
     break;
-  case TBS_VAL_STRING:
+  case TOAD_VAL_STRING:
     printf("%.*s", (int)val->data.string.len, val->data.string.data);
     break;
-  case TBS_VAL_BYTES:
+  case TOAD_VAL_BYTES:
     printf("bytes(%zu)", val->data.bytes.len);
     break;
-  case TBS_VAL_UUID: {
+  case TOAD_VAL_UUID: {
     char text[SALTS_UUID_STRING_SIZE];
     if (uuid_format(val->data.uuid, text, sizeof(text)) == SALTS_OK) printf("%s", text);
     else printf("[uuid]");
     break;
   }
-  case TBS_VAL_DATETIME: {
+  case TOAD_VAL_DATETIME: {
     char text[64];
     time_t ts = datetime_to_time(&val->data.datetime);
     if (ts != (time_t)-1 && datetime_format_rfc822(ts, text, sizeof(text)) >= 0)
@@ -1135,10 +1136,10 @@ static void ts_print_value(const tbs_value_t *val, int repl_mode) {
       printf("[datetime]");
     break;
   }
-  case TBS_VAL_DATE:
+  case TOAD_VAL_DATE:
     printf("%04d-%02d-%02d", val->data.date.year, val->data.date.month, val->data.date.day);
     break;
-  case TBS_VAL_TIME:
+  case TOAD_VAL_TIME:
     if (val->data.time.millisecond > 0)
       printf("%02d:%02d:%02d.%03d", val->data.time.hour, val->data.time.minute,
              val->data.time.second, val->data.time.millisecond);
@@ -1146,7 +1147,7 @@ static void ts_print_value(const tbs_value_t *val, int repl_mode) {
       printf("%02d:%02d:%02d", val->data.time.hour, val->data.time.minute,
              val->data.time.second);
     break;
-  case TBS_VAL_DURATION: {
+  case TOAD_VAL_DURATION: {
     int64_t rem = val->data.duration_ms < 0 ? -val->data.duration_ms : val->data.duration_ms;
     int64_t h = rem / 3600000;
     int64_t m;
@@ -1160,8 +1161,8 @@ static void ts_print_value(const tbs_value_t *val, int repl_mode) {
            (long long)h, (long long)m, (long long)s, (long long)rem);
     break;
   }
-  case TBS_VAL_DECIMAL: {
-    tbs_decimal_t dec = val->data.decimal;
+  case TOAD_VAL_DECIMAL: {
+    toad_decimal_t dec = val->data.decimal;
     char digits[32];
     char *p = digits + sizeof(digits);
     uint64_t mag;
@@ -1194,25 +1195,25 @@ static void ts_print_value(const tbs_value_t *val, int repl_mode) {
     }
     break;
   }
-  case TBS_VAL_VECTOR:
+  case TOAD_VAL_VECTOR:
     ts_print_vector(val);
     break;
-  case TBS_VAL_MAP:
+  case TOAD_VAL_MAP:
     if (repl_mode) printf("{map}");
-    else printf("{map:%zu}", tbs_map_count(val));
+    else printf("{map:%zu}", toad_map_count(val));
     break;
-  case TBS_VAL_OBJECT:
+  case TOAD_VAL_OBJECT:
     if (repl_mode) printf("{object}");
-    else printf("{object:%zu}", tbs_map_count(val));
+    else printf("{object:%zu}", toad_map_count(val));
     break;
-  case TBS_VAL_LIST:
+  case TOAD_VAL_LIST:
     if (repl_mode) printf("[list]");
     else printf("[list:%zu]", val->data.list.count);
     break;
-  case TBS_VAL_NULL:
+  case TOAD_VAL_NULL:
     printf("null");
     break;
-  case TBS_VAL_FUNCTION:
+  case TOAD_VAL_FUNCTION:
     printf("[function]");
     break;
   default:
@@ -1222,10 +1223,10 @@ static void ts_print_value(const tbs_value_t *val, int repl_mode) {
   }
 }
 
-turbo_script_ctx_t *turbo_script_init_with_plugin_authorizer(
-    turbo_script_init_flags_t flags, turbo_script_plugin_authorizer_fn authorizer,
+toad_script_ctx_t *toad_script_init_with_plugin_authorizer(
+    toad_script_init_flags_t flags, toad_script_plugin_authorizer_fn authorizer,
     void *user_data) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)calloc(1, sizeof(turbo_script_ctx_t));
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)calloc(1, sizeof(toad_script_ctx_t));
   if (!ctx) return NULL;
 
   atomic_init(&ctx->ref_count, 1U);
@@ -1233,16 +1234,16 @@ turbo_script_ctx_t *turbo_script_init_with_plugin_authorizer(
   ctx->owner_thread_token = ts_context_current_thread_token();
   ctx->plugin_authorizer = authorizer;
   ctx->plugin_authorizer_data = user_data;
-  if (turbo_script_memory_policy_init(TURBO_SCRIPT_MEMORY_SERVICE,
+  if (toad_script_memory_policy_init(TOAD_SCRIPT_MEMORY_SERVICE,
                                       &ctx->memory_policy) != 0) {
     free(ctx);
     return NULL;
   }
-  if (ts_host_registry_init(ctx) != TURBO_SCRIPT_STATUS_OK) {
+  if (ts_host_registry_init(ctx) != TOAD_SCRIPT_STATUS_OK) {
     free(ctx);
     return NULL;
   }
-  tbs_env_init(&ctx->env);
+  toad_env_init(&ctx->env);
   ctx->env.max_external_value_bytes = ctx->memory_policy.max_external_value_bytes;
   mem_init(&ctx->scratch_arena, 4096);
 
@@ -1254,77 +1255,77 @@ turbo_script_ctx_t *turbo_script_init_with_plugin_authorizer(
     ctx->executor = coro_executor_create(&executor_config);
   }
   if (!ctx->executor) {
-    turbo_script_free(ctx);
+    toad_script_free(ctx);
     return NULL;
   }
 
   if (ts_timer_scheduler_init(ctx, TS_TIMER_DEFAULT_CAPACITY) != 0) {
-    turbo_script_free(ctx);
+    toad_script_free(ctx);
     return NULL;
   }
   if (ts_task_scheduler_init(ctx, TS_TASK_DEFAULT_CAPACITY) != 0) {
-    turbo_script_free(ctx);
+    toad_script_free(ctx);
     return NULL;
   }
 
-  tbs_env_register_func(&ctx->env, "import", ts_import, ctx);
-  tbs_env_register_func(&ctx->env, "import_module", ts_import_module, ctx);
-  tbs_env_register_func(&ctx->env, "export", ts_export, ctx);
+  toad_env_register_func(&ctx->env, "import", ts_import, ctx);
+  toad_env_register_func(&ctx->env, "import_module", ts_import_module, ctx);
+  toad_env_register_func(&ctx->env, "export", ts_export, ctx);
   ts_timer_register_functions(ctx);
   ts_task_register_functions(ctx);
 
-  if (flags == TURBO_SCRIPT_INIT_DEFAULT) {
-    tbs_env_register_func(&ctx->env, "print", ts_print, ctx);
+  if (flags == TOAD_SCRIPT_INIT_DEFAULT) {
+    toad_env_register_func(&ctx->env, "print", ts_print, ctx);
     (void)ts_load_plugin(ctx, "parser", NULL);
   }
 
-  turbo_script_register_modules();
-  turbo_script_register_mir(ctx);
+  toad_script_register_modules();
+  toad_script_register_mir(ctx);
 
   // 检查环境变量启用 JIT 统计
   const char *stats_env = getenv("TS_JIT_STATS");
   if (stats_env && (strcmp(stats_env, "1") == 0 || strcmp(stats_env, "true") == 0)) {
-    turbo_script_enable_jit_stats(ctx, 1);
+    toad_script_enable_jit_stats(ctx, 1);
   }
 
   return ctx;
 }
 
-turbo_script_ctx_t *turbo_script_init(turbo_script_init_flags_t flags) {
-  return turbo_script_init_with_plugin_authorizer(flags, NULL, NULL);
+toad_script_ctx_t *toad_script_init(toad_script_init_flags_t flags) {
+  return toad_script_init_with_plugin_authorizer(flags, NULL, NULL);
 }
 
-int turbo_script_load_plugin(turbo_script_ctx_t *ctx, const char *name) {
+int toad_script_load_plugin(toad_script_ctx_t *ctx, const char *name) {
   int load_result;
-  ts_plugin_error_t plugin_error = {0};
+  toad_plugin_error_t plugin_error = {0};
   if (!ctx) return -1;
   if (!name || !*name) {
-    set_error(ctx, TURBO_SCRIPT_ERROR_ARGUMENT, "plugin name is empty");
+    set_error(ctx, TOAD_SCRIPT_ERROR_ARGUMENT, "plugin name is empty");
     return -1;
   }
   if (!ts_is_valid_plugin_name(name)) {
-    set_error(ctx, TURBO_SCRIPT_ERROR_ARGUMENT, "invalid plugin name");
+    set_error(ctx, TOAD_SCRIPT_ERROR_ARGUMENT, "invalid plugin name");
     return -1;
   }
   clear_error(ctx);
   load_result = ts_load_plugin(ctx, name, &plugin_error);
-  if (load_result != TS_PLUGIN_LOAD_OK) {
+  if (load_result != TOAD_PLUGIN_LOAD_OK) {
     ts_set_plugin_load_error(ctx, "load plugin", name, load_result, &plugin_error);
     return -1;
   }
   return 0;
 }
 
-int turbo_script_run(turbo_script_ctx_t *ctx, const char *script) {
+int toad_script_run(toad_script_ctx_t *ctx, const char *script) {
   if (!ctx) return -1;
   if (atomic_load_explicit(&ctx->closing, memory_order_acquire)) return -1;
   if (ctx->memory_exhausted) {
-    set_error(ctx, TURBO_SCRIPT_ERROR_STATE,
+    set_error(ctx, TOAD_SCRIPT_ERROR_STATE,
               "memory policy: context is exhausted and must be recreated");
     return -1;
   }
   if (!script) {
-    set_error(ctx, TURBO_SCRIPT_ERROR_ARGUMENT, "script is NULL");
+    set_error(ctx, TOAD_SCRIPT_ERROR_ARGUMENT, "script is NULL");
     return -1;
   }
   clear_error(ctx);
@@ -1332,13 +1333,13 @@ int turbo_script_run(turbo_script_ctx_t *ctx, const char *script) {
   if (ts_prepare_expr(ctx, script) != 0) {
     return -1;
   }
-  return ts_memory_finish_run(ctx, turbo_script_run_mir_interp(ctx, script));
+  return ts_memory_finish_run(ctx, toad_script_run_mir_interp(ctx, script));
 }
 
-int turbo_script_repl_run(turbo_script_ctx_t *ctx, const char *script) {
+int toad_run(toad_script_ctx_t *ctx, const char *script) {
   if (!ctx) return -1;
   if (!script) {
-    set_error(ctx, TURBO_SCRIPT_ERROR_ARGUMENT, "script is NULL");
+    set_error(ctx, TOAD_SCRIPT_ERROR_ARGUMENT, "script is NULL");
     return -1;
   }
 
@@ -1355,132 +1356,132 @@ int turbo_script_repl_run(turbo_script_ctx_t *ctx, const char *script) {
   }
 
   double mir_result = 0.0;
-  int ret = turbo_script_compile_mir_interp_ast(ctx, ctx->expr, script);
-  if (ret == 0) ret = turbo_script_exec_mir_interp_result(ctx, &mir_result);
+  int ret = toad_script_compile_mir_interp_ast(ctx, ctx->expr, script);
+  if (ret == 0) ret = toad_script_exec_mir_interp_result(ctx, &mir_result);
   if (!ctx->env.aborted && ctx->expr) {
-    int is_block = ctx->expr->type == TBS_NODE_BLOCK;
+    int is_block = ctx->expr->type == TOAD_NODE_BLOCK;
     int empty_block = is_block && ctx->expr->data.block.count == 0;
     if (!empty_block) {
-      tbs_value_t res = tbs_val_num(mir_result);
+      toad_value_t res = toad_val_num(mir_result);
       ts_print_value(&res, 1);
       printf("\n");
     }
   }
 
-  tbs_env_sweep_closures(&ctx->env);
+  toad_env_sweep_closures(&ctx->env);
   return ret;
 }
 
-int turbo_script_run_and_print(turbo_script_ctx_t *ctx, const char *script) {
-  return turbo_script_repl_run(ctx, script);
+int toad_script_run_and_print(toad_script_ctx_t *ctx, const char *script) {
+  return toad_run(ctx, script);
 }
 
-turbo_script_compiled_t *turbo_script_compile(turbo_script_ctx_t *ctx, const char *script) {
+toad_script_compiled_t *toad_script_compile(toad_script_ctx_t *ctx, const char *script) {
   if (!ctx) return NULL;
   if (!script) {
-    set_error(ctx, TURBO_SCRIPT_ERROR_ARGUMENT, "script is NULL");
+    set_error(ctx, TOAD_SCRIPT_ERROR_ARGUMENT, "script is NULL");
     return NULL;
   }
 
   clear_error(ctx);
 
-  tbs_node_t *ast = turbo_script_parse_with_error(ctx, script);
+  toad_node_t *ast = toad_script_parse_with_error(ctx, script);
   if (!ast) {
     return NULL;
   }
 
-  if (tbs_validate(ast, &ctx->env, ctx->error_msg, sizeof(ctx->error_msg)) != 0) {
-    ctx->error_code = TURBO_SCRIPT_ERROR_VALIDATE;
-    tbs_free(ast);
+  if (toad_validate(ast, &ctx->env, ctx->error_msg, sizeof(ctx->error_msg)) != 0) {
+    ctx->error_code = TOAD_SCRIPT_ERROR_VALIDATE;
+    toad_free(ast);
     return NULL;
   }
 
-  turbo_script_compiled_t *compiled =
-      (turbo_script_compiled_t *)malloc(sizeof(turbo_script_compiled_t));
+  toad_script_compiled_t *compiled =
+      (toad_script_compiled_t *)malloc(sizeof(toad_script_compiled_t));
   if (!compiled) {
-    set_error(ctx, TURBO_SCRIPT_ERROR_OOM, "Out of memory");
-    tbs_free(ast);
+    set_error(ctx, TOAD_SCRIPT_ERROR_OOM, "Out of memory");
+    toad_free(ast);
     return NULL;
   }
   compiled->source = strdup(script);
   if (!compiled->source) {
-    set_error(ctx, TURBO_SCRIPT_ERROR_OOM, "Out of memory");
-    tbs_free(ast);
+    set_error(ctx, TOAD_SCRIPT_ERROR_OOM, "Out of memory");
+    toad_free(ast);
     free(compiled);
     return NULL;
   }
-  tbs_free(ast);
+  toad_free(ast);
   return compiled;
 }
 
-int turbo_script_exec(turbo_script_ctx_t *ctx, turbo_script_compiled_t *compiled) {
+int toad_script_exec(toad_script_ctx_t *ctx, toad_script_compiled_t *compiled) {
   if (!ctx) return -1;
   if (!compiled || !compiled->source) {
-    set_error(ctx, TURBO_SCRIPT_ERROR_ARGUMENT, "compiled script is NULL");
+    set_error(ctx, TOAD_SCRIPT_ERROR_ARGUMENT, "compiled script is NULL");
     return -1;
   }
 
   if (ctx->memory_exhausted) {
-    set_error(ctx, TURBO_SCRIPT_ERROR_STATE,
+    set_error(ctx, TOAD_SCRIPT_ERROR_STATE,
               "memory policy: context is exhausted and must be recreated");
     return -1;
   }
-  return ts_memory_finish_run(ctx, turbo_script_run_mir_interp(ctx, compiled->source));
+  return ts_memory_finish_run(ctx, toad_script_run_mir_interp(ctx, compiled->source));
 }
 
-bool turbo_script_value_as_bool(tbs_value_t val) {
+bool toad_script_value_as_bool(toad_value_t val) {
   switch (val.type) {
-  case TBS_VAL_BOOL:
+  case TOAD_VAL_BOOL:
     return val.data.boolean != 0;
-  case TBS_VAL_INTEGER:
+  case TOAD_VAL_INTEGER:
     return val.data.integer != 0;
-  case TBS_VAL_NUMBER:
+  case TOAD_VAL_NUMBER:
     return fabs(val.data.number) > 1e-9;
-  case TBS_VAL_STRING:
+  case TOAD_VAL_STRING:
     return val.data.string.len > 0;
-  case TBS_VAL_BYTES:
+  case TOAD_VAL_BYTES:
     return val.data.bytes.len > 0;
-  case TBS_VAL_UUID:
-  case TBS_VAL_DATETIME:
-  case TBS_VAL_DATE:
-  case TBS_VAL_TIME:
-  case TBS_VAL_DURATION:
-  case TBS_VAL_DECIMAL:
+  case TOAD_VAL_UUID:
+  case TOAD_VAL_DATETIME:
+  case TOAD_VAL_DATE:
+  case TOAD_VAL_TIME:
+  case TOAD_VAL_DURATION:
+  case TOAD_VAL_DECIMAL:
     return true;
-  case TBS_VAL_VECTOR:
+  case TOAD_VAL_VECTOR:
     return val.data.vector.size > 0;
-  case TBS_VAL_MAP:
-  case TBS_VAL_OBJECT:
-    return tbs_map_count(&val) > 0;
-  case TBS_VAL_LIST:
+  case TOAD_VAL_MAP:
+  case TOAD_VAL_OBJECT:
+    return toad_map_count(&val) > 0;
+  case TOAD_VAL_LIST:
     return val.data.list.count > 0;
-  case TBS_VAL_NULL:
+  case TOAD_VAL_NULL:
     return false;
-  case TBS_VAL_FUNCTION:
+  case TOAD_VAL_FUNCTION:
     return true;
   default:
     return false;
   }
 }
 
-void turbo_script_compiled_free(turbo_script_compiled_t *compiled) {
+void toad_script_compiled_free(toad_script_compiled_t *compiled) {
   if (!compiled) return;
   free(compiled->source);
   free(compiled);
 }
 
-int turbo_script_run_file(turbo_script_ctx_t *ctx, const char *filename) {
+int toad_script_run_file(toad_script_ctx_t *ctx, const char *filename) {
   char *prev_dir = NULL;
   if (!ctx) return -1;
   if (!filename) {
-    set_error(ctx, TURBO_SCRIPT_ERROR_ARGUMENT, "filename is NULL");
+    set_error(ctx, TOAD_SCRIPT_ERROR_ARGUMENT, "filename is NULL");
     return -1;
   }
 
   clear_error(ctx);
   fs_buf_t buf;
   if (fs_read_file(filename, &buf) != 0) {
-    set_error(ctx, TURBO_SCRIPT_ERROR_IO, "run_file: failed to read file");
+    set_error(ctx, TOAD_SCRIPT_ERROR_IO, "run_file: failed to read file");
     return -1;
   }
 
@@ -1488,7 +1489,7 @@ int turbo_script_run_file(turbo_script_ctx_t *ctx, const char *filename) {
   char *script = (char *)malloc(buf.len + 1);
   if (!script) {
     fs_buf_free(&buf);
-    set_error(ctx, TURBO_SCRIPT_ERROR_OOM, "run_file: out of memory");
+    set_error(ctx, TOAD_SCRIPT_ERROR_OOM, "run_file: out of memory");
     return -1;
   }
 
@@ -1498,97 +1499,97 @@ int turbo_script_run_file(turbo_script_ctx_t *ctx, const char *filename) {
 
   if (ts_push_script_dir(ctx, filename, &prev_dir) != 0) {
     free(script);
-    set_error(ctx, TURBO_SCRIPT_ERROR_IO, "run_file: path too long");
+    set_error(ctx, TOAD_SCRIPT_ERROR_IO, "run_file: path too long");
     return -1;
   }
 
-  int ret = turbo_script_run(ctx, script);
+  int ret = toad_script_run(ctx, script);
   ts_pop_script_dir(ctx, prev_dir);
   free(script);
   return ret;
 }
 
-void ts_bind_num(turbo_script_ctx_t *ctx, const char *name, double value) {
+void toad_script_bind_num(toad_script_ctx_t *ctx, const char *name, double value) {
   if (!ctx) return;
-  tbs_value_t v = {TBS_VAL_NUMBER, .data.number = value};
-  tbs_env_set(&ctx->env, name, v);
+  toad_value_t v = {TOAD_VAL_NUMBER, .data.number = value};
+  toad_env_set(&ctx->env, name, v);
 }
 
-void ts_bind_str(turbo_script_ctx_t *ctx, const char *name, const char *value) {
+void toad_script_bind_str(toad_script_ctx_t *ctx, const char *name, const char *value) {
   if (!ctx || !name || !value) return;
-  tbs_value_t owned;
-  if (tbs_value_copy_to_env(tbs_val_str(vstr_from_cstr(value)), &ctx->env,
+  toad_value_t owned;
+  if (toad_value_copy_to_env(toad_val_str(vstr_from_cstr(value)), &ctx->env,
                                &owned) != 0)
     return;
-  tbs_env_set(&ctx->env, name, owned);
+  toad_env_set(&ctx->env, name, owned);
 }
 
-double ts_get_num(turbo_script_ctx_t *ctx, const char *name) {
+double toad_script_get_num(toad_script_ctx_t *ctx, const char *name) {
   if (!ctx) return 0.0;
-  tbs_value_t v = tbs_env_get(&ctx->env, name);
-  if (v.type == TBS_VAL_NUMBER) return v.data.number;
-  if (v.type == TBS_VAL_INTEGER) return (double)v.data.integer;
-  if (v.type == TBS_VAL_BOOL) return v.data.boolean ? 1.0 : 0.0;
+  toad_value_t v = toad_env_get(&ctx->env, name);
+  if (v.type == TOAD_VAL_NUMBER) return v.data.number;
+  if (v.type == TOAD_VAL_INTEGER) return (double)v.data.integer;
+  if (v.type == TOAD_VAL_BOOL) return v.data.boolean ? 1.0 : 0.0;
   return 0.0;
 }
 
-const char *turbo_script_get_error(turbo_script_ctx_t *ctx) { return ctx ? ctx->error_msg : ""; }
+const char *toad_script_get_error(toad_script_ctx_t *ctx) { return ctx ? ctx->error_msg : ""; }
 
-turbo_script_error_code_t turbo_script_get_error_code(turbo_script_ctx_t *ctx) {
-  return ctx ? ctx->error_code : TURBO_SCRIPT_ERROR_ARGUMENT;
+toad_script_error_code_t toad_script_get_error_code(toad_script_ctx_t *ctx) {
+  return ctx ? ctx->error_code : TOAD_SCRIPT_ERROR_ARGUMENT;
 }
 
-int ts_bind_vec(turbo_script_ctx_t *ctx, const char *name, const double *data, size_t len) {
+int toad_script_bind_vec(toad_script_ctx_t *ctx, const char *name, const double *data, size_t len) {
   if (!ctx || !name || !data || len == 0) return -1;
-  tbs_value_t owned;
-  if (tbs_value_copy_to_env(tbs_val_vec((double *)data, len), &ctx->env, &owned) != 0)
+  toad_value_t owned;
+  if (toad_value_copy_to_env(toad_val_vec((double *)data, len), &ctx->env, &owned) != 0)
     return -1;
-  tbs_env_set(&ctx->env, name, owned);
+  toad_env_set(&ctx->env, name, owned);
   return 0;
 }
 
-int ts_get_vec(turbo_script_ctx_t *ctx, const char *name, const double **data, size_t *len) {
+int toad_script_get_vec(toad_script_ctx_t *ctx, const char *name, const double **data, size_t *len) {
   if (!ctx || !name || !data || !len) return -1;
-  tbs_value_t v = tbs_env_get(&ctx->env, name);
-  if (v.type != TBS_VAL_VECTOR) return -1;
+  toad_value_t v = toad_env_get(&ctx->env, name);
+  if (v.type != TOAD_VAL_VECTOR) return -1;
   *data = v.data.vector.data;
   *len = v.data.vector.size;
   return 0;
 }
 
-const char *ts_get_str(turbo_script_ctx_t *ctx, const char *name) {
+const char *toad_script_get_str(toad_script_ctx_t *ctx, const char *name) {
   if (!ctx || !name) return NULL;
-  tbs_value_t v = tbs_env_get(&ctx->env, name);
-  if (v.type != TBS_VAL_STRING) return NULL;
+  toad_value_t v = toad_env_get(&ctx->env, name);
+  if (v.type != TOAD_VAL_STRING) return NULL;
   return v.data.string.data;
 }
 
-void ts_bind_func(turbo_script_ctx_t *ctx, const char *name, turbo_script_func_t fn,
+void toad_script_bind_func(toad_script_ctx_t *ctx, const char *name, toad_script_func_t fn,
                   void *user_data) {
   if (!ctx || !name || !fn) return;
-  tbs_env_register_func(&ctx->env, name, fn, user_data);
+  toad_env_register_func(&ctx->env, name, fn, user_data);
 }
 
-tbs_value_t turbo_script_value_map(void) { return tbs_val_map(); }
+toad_value_t toad_script_value_map(void) { return toad_val_map(); }
 
-void turbo_script_value_map_set(tbs_value_t *map, const char *key, tbs_value_t value) {
+void toad_script_value_map_set(toad_value_t *map, const char *key, toad_value_t value) {
   if (!map || !key) return;
-  tbs_map_set(map, key, value);
+  toad_map_set(map, key, value);
 }
 
-turbo_script_value_map_iterator_t
-turbo_script_value_map_iter_begin(const tbs_value_t *map) {
-  const tbs_map_iter_t iterator = tbs_map_iter_begin(map);
-  turbo_script_value_map_iterator_t result;
+toad_script_value_map_iterator_t
+toad_script_value_map_iter_begin(const toad_value_t *map) {
+  const toad_map_iter_t iterator = toad_map_iter_begin(map);
+  toad_script_value_map_iterator_t result;
   result.storage = iterator.htab;
   result.position = iterator.pos;
   result.bound = iterator.bound;
   return result;
 }
 
-int turbo_script_value_map_iter_next(turbo_script_value_map_iterator_t *iterator,
-                                     const char **key, tbs_value_t *value) {
-  tbs_map_iter_t internal;
+int toad_script_value_map_iter_next(toad_script_value_map_iterator_t *iterator,
+                                     const char **key, toad_value_t *value) {
+  toad_map_iter_t internal;
   int has_entry;
 
   if (!iterator || !key || !value) return 0;
@@ -1596,22 +1597,22 @@ int turbo_script_value_map_iter_next(turbo_script_value_map_iterator_t *iterator
   internal.htab = iterator->storage;
   internal.pos = iterator->position;
   internal.bound = iterator->bound;
-  has_entry = tbs_map_iter_next(&internal, key, value);
+  has_entry = toad_map_iter_next(&internal, key, value);
   iterator->storage = internal.htab;
   iterator->position = internal.pos;
   iterator->bound = internal.bound;
   return has_entry;
 }
 
-tbs_value_t turbo_script_value_list_borrowed(tbs_value_t *items, size_t count) {
-  return tbs_val_list_ex(items, count, 0);
+toad_value_t toad_script_value_list_borrowed(toad_value_t *items, size_t count) {
+  return toad_val_list_ex(items, count, 0);
 }
 
 /* ========================================================================
  * JIT Statistics Implementation
  * ======================================================================== */
 
-void turbo_script_enable_jit_stats(turbo_script_ctx_t *ctx, int enable) {
+void toad_script_enable_jit_stats(toad_script_ctx_t *ctx, int enable) {
   if (!ctx) return;
 
   ctx->jit_stats_enabled = enable ? 1 : 0;
@@ -1622,32 +1623,32 @@ void turbo_script_enable_jit_stats(turbo_script_ctx_t *ctx, int enable) {
   }
 }
 
-const turbo_script_jit_stats_t *turbo_script_get_jit_stats(turbo_script_ctx_t *ctx) {
+const toad_script_jit_stats_t *toad_script_get_jit_stats(toad_script_ctx_t *ctx) {
   if (!ctx || !ctx->jit_stats_enabled) return NULL;
 
   // 返回内部统计结构（类型兼容）
-  return (const turbo_script_jit_stats_t *)&ctx->jit_stats;
+  return (const toad_script_jit_stats_t *)&ctx->jit_stats;
 }
 
-void turbo_script_reset_jit_stats(turbo_script_ctx_t *ctx) {
+void toad_script_reset_jit_stats(toad_script_ctx_t *ctx) {
   if (!ctx) return;
 
   memset(&ctx->jit_stats, 0, sizeof(ctx->jit_stats));
 }
 
-void turbo_script_print_jit_stats(turbo_script_ctx_t *ctx, FILE *fp) {
+void toad_script_print_jit_stats(toad_script_ctx_t *ctx, FILE *fp) {
   if (!ctx || !fp) return;
 
   if (!ctx->jit_stats_enabled) {
     fprintf(fp, "\n=== JIT Statistics (Disabled) ===\n");
-    fprintf(fp, "Enable with turbo_script_enable_jit_stats() or TS_JIT_STATS=1\n\n");
+    fprintf(fp, "Enable with toad_script_enable_jit_stats() or TS_JIT_STATS=1\n\n");
     return;
   }
 
   const ts_jit_stats_t *stats = &ctx->jit_stats;
   uint64_t total_cache_ops = stats->cache_hit_count + stats->cache_miss_count;
 
-  fprintf(fp, "\n=== TurboScript JIT Statistics ===\n");
+  fprintf(fp, "\n=== Toad JIT Statistics ===\n");
   fprintf(fp, "Compile count:       %llu\n", (unsigned long long)stats->compile_count);
   fprintf(fp, "Exec count:          %llu\n", (unsigned long long)stats->exec_count);
 
