@@ -1,7 +1,7 @@
 # Research playbooks
 
 The files in this directory are research specifications adapted from an
-external quantitative playbook. They are not standalone TurboScript examples.
+external quantitative playbook. They are not standalone Toad examples.
 
 They assume that the embedding host provides:
 

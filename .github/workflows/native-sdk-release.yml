@@ -1,4 +1,4 @@
-name: TurboScript native SDK release
+name: Toad native SDK release
 on:
   pull_request:
     branches: [master]
@@ -15,7 +15,7 @@ env:
   CCACHE_COMPILERCHECK: content
   CCACHE_MAXSIZE: 1G
 concurrency:
-  group: turboscript-sdk-${{ github.event.pull_request.number || github.ref }}
+  group: toad-sdk-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
   metadata:
@@ -40,17 +40,17 @@ jobs:
             exit 1
           fi
 
-          header_major="$(awk '/^#define TURBO_SCRIPT_VERSION_MAJOR / {print $3; exit}' turbo_script/include/turbo_script.h)"
-          header_minor="$(awk '/^#define TURBO_SCRIPT_VERSION_MINOR / {print $3; exit}' turbo_script/include/turbo_script.h)"
-          header_patch="$(awk '/^#define TURBO_SCRIPT_VERSION_PATCH / {print $3; exit}' turbo_script/include/turbo_script.h)"
-          header_string="$(awk '/^#define TURBO_SCRIPT_VERSION_STRING / {gsub(/"/, "", $3); print $3; exit}' turbo_script/include/turbo_script.h)"
+          header_major="$(awk '/^#define TOAD_SCRIPT_VERSION_MAJOR / {print $3; exit}' script/include/toad/script.h)"
+          header_minor="$(awk '/^#define TOAD_SCRIPT_VERSION_MINOR / {print $3; exit}' script/include/toad/script.h)"
+          header_patch="$(awk '/^#define TOAD_SCRIPT_VERSION_PATCH / {print $3; exit}' script/include/toad/script.h)"
+          header_string="$(awk '/^#define TOAD_SCRIPT_VERSION_STRING / {gsub(/"/, "", $3); print $3; exit}' script/include/toad/script.h)"
           header_version="$header_major.$header_minor.$header_patch"
           if [[ "$header_version" != "$version" || "$header_string" != "$version" ]]; then
             echo "release version mismatch: CMake=$version public-header=$header_version public-header-string=$header_string" >&2
             exit 1
           fi
 
-          nuget_version="$(python3 -c 'import xml.etree.ElementTree as ET; print(ET.parse("packaging/nuget/TurboScript.Native.csproj").find(".//PackageVersion").text)')"
+          nuget_version="$(python3 -c 'import xml.etree.ElementTree as ET; print(ET.parse("packaging/nuget/Toad.Native.csproj").find(".//PackageVersion").text)')"
           if [[ "$nuget_version" != "$version" ]]; then
             echo "release version mismatch: CMake=$version NuGet=$nuget_version" >&2
             exit 1
@@ -68,328 +68,116 @@ jobs:
             echo "version=$version-ci.$GITHUB_RUN_NUMBER.$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
             echo "release=false" >> "$GITHUB_OUTPUT"
           fi
-  source-test:
-    name: Linux source / full CTest
-    needs: metadata
-    runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    env:
-      GITHUB_TOKEN: ${{ github.token }}
-      QIGAO_TARGET_TRIPLET: x64-linux
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-      - uses: qigao/vcpkg-cache/.github/actions/setup-vcpkg-cache@d4afc8cd2f5ed3585c1e26469e379a087ce9ecf3
-        with:
-          mode: read
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-      - name: Prepare Linux host
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ccache ninja-build pkg-config nasm
-      - uses: actions/cache/restore@v4
-        id: ccache
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: turboscript-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ env.RID || 'linux-x64' }}-${{ hashFiles('CMakeUserPresets.json', 'vcpkg.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            turboscript-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ env.RID || 'linux-x64' }}-${{ hashFiles('CMakeUserPresets.json', 'vcpkg.json') }}-
-      - name: Reset compiler cache statistics
-        run: ccache --zero-stats
-      - name: Restore latest native SDKs
-        shell: pwsh
-        run: ./cmake/ci/restore-native-sdks.ps1 -Rid linux-x64
-      - name: Configure, build and test
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmake --preset ci-linux-release-user
-          cmake --build --preset ci-linux-release-user --parallel 2
-          ctest --preset ci-linux-release-user --no-tests=error --output-on-failure --timeout 180
-      - name: Run CFlow qualification benchmark through CTest
-        run: ctest --preset ci-linux-benchmark-user --no-tests=error --output-on-failure
-
-      - name: Report compiler cache statistics
-        if: always()
-        shell: bash
-        run: |
-          if command -v ccache >/dev/null; then ccache --show-stats; fi
-      - uses: actions/cache/save@v4
-        if: always() && steps.ccache.outcome == 'success' && steps.ccache.outputs.cache-primary-key != steps.ccache.outputs.cache-matched-key
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ${{ steps.ccache.outputs.cache-primary-key }}
-
-  host-sanitizer:
-    name: Linux Host MIR / ASan+UBSan+LSan
-    needs: metadata
-    runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    env:
-      GITHUB_TOKEN: ${{ github.token }}
-      QIGAO_TARGET_TRIPLET: x64-linux
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-      - uses: qigao/vcpkg-cache/.github/actions/setup-vcpkg-cache@d4afc8cd2f5ed3585c1e26469e379a087ce9ecf3
-        with:
-          mode: read
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-      - name: Prepare Linux host
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ccache ninja-build pkg-config nasm
-      - uses: actions/cache/restore@v4
-        id: ccache
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: turboscript-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ env.RID || 'linux-x64' }}-${{ hashFiles('CMakeUserPresets.json', 'vcpkg.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            turboscript-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ env.RID || 'linux-x64' }}-${{ hashFiles('CMakeUserPresets.json', 'vcpkg.json') }}-
-      - name: Reset compiler cache statistics
-        run: ccache --zero-stats
-      - name: Restore latest native SDKs
-        shell: pwsh
-        run: ./cmake/ci/restore-native-sdks.ps1 -Rid linux-x64
-      - name: Configure, build and test
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmake --preset ci-linux-sanitizer-user
-          cmake --build --preset ci-linux-sanitizer-user --parallel 2
-          ctest --preset ci-linux-sanitizer-user --no-tests=error --output-on-failure --timeout 180
-
-      - name: Report compiler cache statistics
-        if: always()
-        shell: bash
-        run: |
-          if command -v ccache >/dev/null; then ccache --show-stats; fi
-      - uses: actions/cache/save@v4
-        if: always() && steps.ccache.outcome == 'success' && steps.ccache.outputs.cache-primary-key != steps.ccache.outputs.cache-matched-key
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ${{ steps.ccache.outputs.cache-primary-key }}
-
-  host-abi:
-    name: Linux installed Host ABI v1
-    needs: metadata
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    env:
-      GITHUB_TOKEN: ${{ github.token }}
-      QIGAO_TARGET_TRIPLET: x64-linux
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-      - uses: qigao/vcpkg-cache/.github/actions/setup-vcpkg-cache@d4afc8cd2f5ed3585c1e26469e379a087ce9ecf3
-        with:
-          mode: read
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-      - name: Prepare Linux host
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ccache ninja-build pkg-config nasm
-      - uses: actions/cache/restore@v4
-        id: ccache
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: turboscript-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ env.RID || 'linux-x64' }}-${{ hashFiles('CMakeUserPresets.json', 'vcpkg.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            turboscript-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ env.RID || 'linux-x64' }}-${{ hashFiles('CMakeUserPresets.json', 'vcpkg.json') }}-
-      - name: Reset compiler cache statistics
-        run: ccache --zero-stats
-      - name: Restore latest native SDKs
-        shell: pwsh
-        run: ./cmake/ci/restore-native-sdks.ps1 -Rid linux-x64
-      - name: Build modules-off Host contracts and install SDK
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmake --preset ci-linux-host-abi-user
-          cmake --build --preset ci-linux-host-abi-user --parallel 2
-          ctest --preset ci-linux-host-abi-user --no-tests=error --output-on-failure
-          cmake --build --preset install-ci-linux-host-abi-user
-      - name: Run installed public-only C11 and C++17 Host tests
-        working-directory: cmake/ci/host-abi
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmake --preset ci-installed-host-abi-user
-          cmake --build --preset ci-installed-host-abi-user --parallel 2
-          ctest --preset ci-installed-host-abi-user --no-tests=error --output-on-failure
-
-      - name: Report compiler cache statistics
-        if: always()
-        shell: bash
-        run: |
-          if command -v ccache >/dev/null; then ccache --show-stats; fi
-      - uses: actions/cache/save@v4
-        if: always() && steps.ccache.outcome == 'success' && steps.ccache.outputs.cache-primary-key != steps.ccache.outputs.cache-matched-key
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ${{ steps.ccache.outputs.cache-primary-key }}
-
   build:
     needs: metadata
-    if: >-
-      github.event_name == 'pull_request' ||
-      github.ref == 'refs/heads/master' ||
-      needs.metadata.outputs.release == 'true'
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {runner: ubuntu-24.04, rid: linux-x64, triplet: x64-linux, platform: linux}
-          - {runner: macos-15, rid: macos-arm64, triplet: arm64-osx, platform: macos}
-          - {runner: ubuntu-24.04, rid: android-arm64-v8a, triplet: arm64-android, platform: android}
+          - {runner: ubuntu-24.04, rid: linux-x64, preset: llvm-native-benchmark-user, triplet: x64-linux, host: linux-x64, package: true}
+          - {runner: macos-15, rid: macos-arm64, preset: llvm-native-release-user, triplet: arm64-osx, host: macos-arm64, package: true}
+          - {runner: ubuntu-24.04, rid: android-arm64-v8a, preset: android-arm64-release-user, triplet: arm64-android, host: linux-x64, package: true}
+          - {runner: ubuntu-24.04, rid: linux-x64, preset: llvm-native-asan-ubsan-user, triplet: x64-linux, host: linux-x64, package: false}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
-      RID: ${{ matrix.rid }}
-      TRIPLET: ${{ matrix.triplet }}
-      QIGAO_TARGET_TRIPLET: ${{ matrix.triplet }}
+      GH_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ github.token }}
+      VCPKG_CACHE_VERSION: ${{ vars.VCPKG_CACHE_VERSION }}
+      SALTS_BASE_VERSION: ${{ vars.SALTS_BASE_VERSION }}
+      CMETA_VERSION: ${{ vars.CMETA_VERSION }}
+      SALTS_UTILS_VERSION: ${{ vars.SALTS_UTILS_VERSION }}
+      SALTS_CORE_VERSION: ${{ vars.SALTS_CORE_VERSION }}
+      TURBODB_VERSION: ${{ vars.TURBODB_VERSION }}
+      CHTTP_VERSION: ${{ vars.CHTTP_VERSION }}
+      VCPKG_CACHE_REPOSITORY_ROOT: ${{ github.workspace }}/build/infrastructure
+      LLVM_NATIVE_TARGET_TRIPLET: ${{ matrix.triplet }}
+      PRESET: ${{ matrix.preset }}
+      RID: ${{ matrix.rid }}
       SDK_VERSION: ${{ needs.metadata.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: qigao/vcpkg-cache/.github/actions/setup-vcpkg-cache@d4afc8cd2f5ed3585c1e26469e379a087ce9ecf3
+      - uses: actions/checkout@v4
         with:
-          mode: read
-      - uses: actions/setup-dotnet@v4
+          repository: qigao/vcpkg-cache
+          ref: v${{ vars.VCPKG_CACHE_VERSION }}
+          path: build/infrastructure
+          persist-credentials: false
+      - uses: actions/setup-python@v5
         with:
-          dotnet-version: '8.0.x'
-      - name: Prepare tools
+          python-version: '3.12'
+      - uses: android-actions/setup-android@v3
+        if: matrix.rid == 'android-arm64-v8a'
+      - name: Prepare native tools and vcpkg
         shell: bash
         run: |
           set -euo pipefail
           if [[ "$RUNNER_OS" == Linux ]]; then
             sudo apt-get update
-            sudo apt-get install -y ccache ninja-build pkg-config nasm
+            sudo apt-get install -y --no-install-recommends clang ccache ninja-build pkg-config nasm
           else
             brew install ccache ninja nasm
           fi
-          if [[ "$RID" == macos-arm64 ]]; then test "$(uname -m)" = arm64; fi
-      - uses: actions/cache/restore@v4
-        id: ccache
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: turboscript-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ env.RID || 'linux-x64' }}-${{ hashFiles('CMakeUserPresets.json', 'vcpkg.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            turboscript-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ env.RID || 'linux-x64' }}-${{ hashFiles('CMakeUserPresets.json', 'vcpkg.json') }}-
-      - name: Reset compiler cache statistics
-        run: ccache --zero-stats
-      - name: Restore latest native SDKs
-        shell: pwsh
-        run: ./cmake/ci/restore-native-sdks.ps1 -Rid '${{ matrix.rid }}'
-      - name: Build native parser generator for Android
-        if: matrix.platform == 'android'
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmake --preset ci-host-tools-user
-          cmake --build --preset ci-host-tools-user --parallel 2
-      - name: Configure, build and install SDK with native modules
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmake --preset 'ci-${{ matrix.platform }}-sdk-user'
-          cmake --build --preset 'ci-${{ matrix.platform }}-sdk-user' --parallel 2
-          cmake --build --preset 'install-ci-${{ matrix.platform }}-sdk-user'
-
-          prefix="$GITHUB_WORKSPACE/stage/$RID"
-          if [[ "$RID" == macos-arm64 ]]; then
-            library="$prefix/lib/libturbo_script.dylib"
-            export_platform=macos
-          else
-            library="$prefix/lib/libturbo_script.so"
-            export_platform=elf
+          if [[ "$RID" == android-arm64-v8a ]]; then
+            sdkmanager 'ndk;29.0.14206865'
+            echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/29.0.14206865" >> "$GITHUB_ENV"
           fi
-          test -f "$library"
-          python3 cmake/ci/verify-shared-exports.py \
-            --library "$library" \
-            --header "$prefix/include/turbo_script.h" \
-            --allowlist turbo_script/exports/public-symbols.txt \
-            --platform "$export_platform"
-
-          cat > "stage/$RID/turboscript-sdk-manifest.txt" <<EOF
+      - uses: ./build/infrastructure/.github/actions/setup-vcpkg-curl-cache
+        with:
+          mode: read
+          triplet: ${{ matrix.triplet }}
+          host-triplet: ${{ matrix.rid == 'android-arm64-v8a' && 'x64-linux' || matrix.triplet }}
+      - name: Restore exact published SDKs
+        shell: pwsh
+        run: ./cmake/ci/restore-native-sdks.ps1 -Rid '${{ matrix.rid }}' -HostRid '${{ matrix.host }}'
+      - name: Configure and build the complete graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --fresh --preset "$PRESET"
+          cmake --build --preset "$PRESET" --parallel 2
+      - name: Run formal CTest suites
+        if: matrix.rid != 'android-arm64-v8a'
+        shell: bash
+        run: ctest --preset "$PRESET" --no-tests=error --output-on-failure --timeout 180
+      - name: Install and stage native SDK
+        if: matrix.package
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build --preset "install-$PRESET"
+          prefix="$GITHUB_WORKSPACE/build/$PRESET/stage"
+          cat > "$prefix/toad-sdk-manifest.txt" <<EOF
           version=$SDK_VERSION
           commit=$(git rev-parse HEAD)
           rid=$RID
-          profile=Release
-          interpreter=MIR
-          jit=MIR
-          modules=ON
-          cli=OFF
-          salts_release=$SALTS_SDK_RELEASE
-          salts_utils_release=$SALTS_UTILS_SDK_RELEASE
-          chttp_release=$CHTTP_SDK_RELEASE
+          salts_base_release=$SALTS_BASE_VERSION
+          cmeta_release=$CMETA_VERSION
+          salts_utils_release=$SALTS_UTILS_VERSION
+          cnet_release=$SALTS_CORE_VERSION
+          chttp_release=$CHTTP_VERSION
+          turbodb_release=$TURBODB_VERSION
+          vcpkg_cache_release=$VCPKG_CACHE_VERSION
           EOF
-          mkdir -p dist
-          tar -chzf "dist/turboscript-$RID.tar.gz" -C stage "$RID"
-      - name: Run existing relocated SDK interpreter/JIT tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          relocated="$RUNNER_TEMP/turboscript-sdk"
-          mkdir -p "$relocated"
-          tar -xzf "dist/turboscript-$RID.tar.gz" -C "$relocated"
-          mv "stage/$RID" "build/unrelocated-$RID"
-          export TURBOSCRIPT_ROOT="$relocated/$RID"
-          cd cmake/ci/sdk-smoke
-          cmake --preset 'ci-installed-sdk-${{ matrix.platform }}-user'
-          cmake --build --preset 'ci-installed-sdk-${{ matrix.platform }}-user' --parallel 2
-          if [[ "$RID" == android-arm64-v8a ]]; then
-            echo 'Android: cross-link completed; device runtime not exercised.' >> "$GITHUB_STEP_SUMMARY"
-          else
-            ctest --preset 'ci-installed-sdk-${{ matrix.platform }}-user' --no-tests=error --output-on-failure
-          fi
+          mkdir -p "stage/$RID" dist
+          cp -a "$prefix/." "stage/$RID/"
+          tar -czf "dist/toad-$RID.tar.gz" -C stage "$RID"
       - uses: actions/upload-artifact@v4
+        if: matrix.package
         with:
-          name: turboscript-sdk-${{ matrix.rid }}
+          name: toad-sdk-${{ matrix.rid }}
           path: dist/*.tar.gz
           if-no-files-found: error
-      - name: Report compiler cache statistics
-        if: always()
-        shell: bash
-        run: |
-          if command -v ccache >/dev/null; then ccache --show-stats; fi
-      - uses: actions/cache/save@v4
-        if: always() && steps.ccache.outcome == 'success' && steps.ccache.outputs.cache-primary-key != steps.ccache.outputs.cache-matched-key
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ${{ steps.ccache.outputs.cache-primary-key }}
 
   pack:
-    needs: [metadata, source-test, host-sanitizer, host-abi, build]
+    needs: [metadata, build]
     if: >-
       always() &&
       (github.event_name == 'pull_request' || needs.metadata.outputs.release == 'true') &&
       needs.metadata.result == 'success' &&
-      needs.source-test.result == 'success' &&
-      needs.host-sanitizer.result == 'success' &&
-      needs.host-abi.result == 'success' &&
       needs.build.result == 'success'
     runs-on: ubuntu-24.04
     steps:
@@ -399,7 +187,7 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
-          pattern: turboscript-sdk-*
+          pattern: toad-sdk-*
           merge-multiple: true
           path: dist
       - uses: actions/setup-dotnet@v4
@@ -414,21 +202,21 @@ jobs:
           set -euo pipefail
           mkdir -p package/sdk
           for rid in linux-x64 macos-arm64 android-arm64-v8a; do
-            tar -xzf "dist/turboscript-$rid.tar.gz" -C package/sdk
-            test -f "package/sdk/$rid/lib/cmake/TurboScript/TurboScriptConfig.cmake"
+            tar -xzf "dist/toad-$rid.tar.gz" -C package/sdk
+            test -f "package/sdk/$rid/lib/cmake/Toad/ToadConfig.cmake"
           done
           dotnet nuget add source https://nuget.pkg.github.com/qigao/index.json --name github \
             --username qigao --password "$GITHUB_TOKEN" --store-password-in-clear-text
-          dotnet pack packaging/nuget/TurboScript.Native.csproj --configuration Release --output dist \
+          dotnet pack packaging/nuget/Toad.Native.csproj --configuration Release --output dist \
             "-p:PackageVersion=$SDK_VERSION" "-p:PackageRoot=$GITHUB_WORKSPACE/package"
-          unzip -Z1 "dist/TurboScript.Native.$SDK_VERSION.nupkg" > "$RUNNER_TEMP/package-files.txt"
+          unzip -Z1 "dist/Toad.Native.$SDK_VERSION.nupkg" > "$RUNNER_TEMP/package-files.txt"
           for rid in linux-x64 macos-arm64 android-arm64-v8a; do
-            grep -Fx "sdk/$rid/include/turbo_script.h" "$RUNNER_TEMP/package-files.txt"
-            grep -Fx "sdk/$rid/lib/cmake/TurboScript/TurboScriptTargets.cmake" "$RUNNER_TEMP/package-files.txt"
+            grep -Fx "sdk/$rid/include/toad/script.h" "$RUNNER_TEMP/package-files.txt"
+            grep -Fx "sdk/$rid/lib/cmake/Toad/ToadTargets.cmake" "$RUNNER_TEMP/package-files.txt"
           done
       - uses: actions/upload-artifact@v4
         with:
-          name: turboscript-native-nuget
+          name: toad-native-nuget
           path: dist/*.nupkg
           if-no-files-found: error
   publish:
@@ -447,7 +235,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: turboscript-native-nuget
+          name: toad-native-nuget
           path: dist
       - uses: actions/setup-dotnet@v4
         with:
@@ -461,7 +249,7 @@ jobs:
           set -euo pipefail
           dotnet nuget add source https://nuget.pkg.github.com/qigao/index.json --name github \
             --username qigao --password "$GITHUB_TOKEN" --store-password-in-clear-text
-          dotnet nuget push "dist/TurboScript.Native.$SDK_VERSION.nupkg" --source github --api-key "$GITHUB_TOKEN" --skip-duplicate
+          dotnet nuget push "dist/Toad.Native.$SDK_VERSION.nupkg" --source github --api-key "$GITHUB_TOKEN" --skip-duplicate
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -470,10 +258,10 @@ jobs:
         run: |
           set -euo pipefail
           tag="v$SDK_VERSION"
-          pkg="dist/TurboScript.Native.$SDK_VERSION.nupkg"
+          pkg="dist/Toad.Native.$SDK_VERSION.nupkg"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$tag" "$pkg" --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$tag" "$pkg" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-              --title "TurboScript $SDK_VERSION" --generate-notes
+              --title "Toad $SDK_VERSION" --generate-notes
           fi

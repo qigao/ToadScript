@@ -1,10 +1,10 @@
-# TurboScript 语法特性分析
+# Toad 语法特性分析
 
-本文从当前 grammar、语言指南和测试覆盖出发，描述 TurboScript 已支持的语法面、语义边界和仍不应宣传为完成的部分。
+本文从当前 grammar、语言指南和测试覆盖出发，描述 Toad 已支持的语法面、语义边界和仍不应宣传为完成的部分。
 
 ## 语言定位
 
-TurboScript 已经从表达式求值器演进为一门动态类型脚本语言。它的语法风格接近 JavaScript/C/Go 的混合体：
+Toad 已经从表达式求值器演进为一门动态类型脚本语言。它的语法风格接近 JavaScript/C/Go 的混合体：
 
 - C/JavaScript 风格块结构：`{ ... }`
 - 动态类型变量：`var` / `let` / 隐式赋值
@@ -246,7 +246,7 @@ var output = mapper.write_yaml(row);
 
 ## MIR 解释器与 JIT 一致性
 
-TurboScript 当前对外执行模型是“全部 MIR”：同一份 AST 经过验证后 lowering 到 MIR，再选择 MIR 解释器或 MIR JIT 执行。语法分析应区分三层：
+Toad 当前对外执行模型是“全部 MIR”：同一份 AST 经过验证后 lowering 到 MIR，再选择 MIR 解释器或 MIR JIT 执行。语法分析应区分三层：
 
 - grammar 能解析
 - MIR lowering 能覆盖
@@ -265,7 +265,7 @@ TurboScript 当前对外执行模型是“全部 MIR”：同一份 AST 经过�
 
 ## 结论
 
-TurboScript 当前语法可以概括为：
+Toad 当前语法可以概括为：
 
 > 动态类型、JS-like、面向数值和数据处理的脚本语言，具备现代表达式语法、函数式管道、结构化控制流、模块系统，以及较完整的 class/interface OOP。
 

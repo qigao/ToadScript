@@ -1,6 +1,6 @@
 # Module Documentation
 
-Domain-specific module guides for TurboScript.
+Domain-specific module guides for Toad.
 
 ---
 
@@ -86,7 +86,7 @@ for CSV filter expressions.
 ### Database Module
 See [db README](../../modules/db/README.md) for TurboDB::Orm-backed database
 connections, CFlow command execution, and typed RowClass queries. Driver ID and
-module path are explicit user configuration; TurboScript does not select or
+module path are explicit user configuration; Toad does not select or
 fallback to a database backend.
 
 ### Technical Analysis
@@ -103,4 +103,4 @@ See [Plugin Development Guide](../plugin-development.md) to learn how to create 
 
 ---
 
-**Module ecosystem for TurboScript**
+**Module ecosystem for Toad**

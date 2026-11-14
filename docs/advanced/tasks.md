@@ -1,8 +1,8 @@
 # 调度型 Task
 
-TurboScript 的 `task.*` 是基于 CoroNet scheduler 的托管任务层。每次 `task.spawn()` 创建一条由 CoroNet object pool 管理的 coroutine；脚本仍以同步方式编写，但 `task.yield()`、`task.sleep()`、`task.join()` 以及 coroutine-aware HTTP I/O 会把执行权交还 event loop，让其他 task 继续运行。
+Toad 的 `task.*` 是基于 CoroNet scheduler 的托管任务层。每次 `task.spawn()` 创建一条由 CoroNet object pool 管理的 coroutine；脚本仍以同步方式编写，但 `task.yield()`、`task.sleep()`、`task.join()` 以及 coroutine-aware HTTP I/O 会把执行权交还 event loop，让其他 task 继续运行。
 
-`task.*` 是 runtime 内建 API，不需要 `import()`。宿主必须先通过 `turbo_script_set_coro_context()` 绑定一个 CoroNet context，并负责驱动该 context。
+`task.*` 是 runtime 内建 API，不需要 `import()`。宿主必须先通过 `toad_script_set_coro_context()` 绑定一个 CoroNet context，并负责驱动该 context。
 
 ## 脚本 API
 
@@ -57,54 +57,54 @@ var report = task.spawn(() => {
 ## 结果、容量与错误
 
 - registry 是 task 状态的唯一事实源，拥有 ID、状态、独立 caller env、结果、错误摘要和 wait-list。
-- 默认容量是 64，宿主可在没有活动 task 时调用 `turbo_script_set_task_capacity()` 调整，合法范围是 `1..65536`。
+- 默认容量是 64，宿主可在没有活动 task 时调用 `toad_script_set_task_capacity()` 调整，合法范围是 `1..65536`。
 - completed/failed 记录不会自动复用。脚本读取结果或错误后应调用 `task.release(id)`，避免长期服务耗尽 registry。
-- 每个已使用槽位会初始化一个 64 KiB ExprTK arena；64 个槽位全部使用时，初始 arena 预算约为 `64 × 64 KiB = 4 MiB`。活动 coroutine 的 stack 由 CoroNet pool 另行管理。
-- 每个 task 使用独立 ExprTK caller env，所以 `flow`、错误、递归/循环计数和返回值不会与其他 task 共享；闭包捕获值及根环境中的 native/module 函数仍按既有语言规则解析。
+- 每个已使用槽位会初始化一个 64 KiB Engine arena；64 个槽位全部使用时，初始 arena 预算约为 `64 × 64 KiB = 4 MiB`。活动 coroutine 的 stack 由 CoroNet pool 另行管理。
+- 每个 task 使用独立 Engine caller env，所以 `flow`、错误、递归/循环计数和返回值不会与其他 task 共享；闭包捕获值及根环境中的 native/module 函数仍按既有语言规则解析。
 - 未捕获异常只把当前 task 标记为 `failed`，不会污染根脚本环境。CLI 在 event loop 排空后发现保留的 failed task 会返回非零退出码。
 
 ## 取消与关闭协议
 
-`task.cancel(id)` 只提交请求，终态由 task 自身在 owner loop 提交。取消 joiner 时会先从目标 wait-list 摘除，避免目标 slot 被永久保留；取消 source 的 pending dispatch 还会持有 context 引用，直到 callback 分派结束，防止关闭期间释放 source。`turbo_script_free()` 与 `task.shutdown()` 都禁止新任务并请求取消活动 task，但不会强制展开或销毁 coroutine 栈。
+`task.cancel(id)` 只提交请求，终态由 task 自身在 owner loop 提交。取消 joiner 时会先从目标 wait-list 摘除，避免目标 slot 被永久保留；取消 source 的 pending dispatch 还会持有 context 引用，直到 callback 分派结束，防止关闭期间释放 source。`toad_script_free()` 与 `task.shutdown()` 都禁止新任务并请求取消活动 task，但不会强制展开或销毁 coroutine 栈。
 
 ## 宿主集成
 
 ```c
 coro_context_t *coro = coro_context_create(NULL);
-turbo_script_ctx_t *script = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+toad_script_ctx_t *script = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 
-turbo_script_set_coro_context(script, coro);
-if (turbo_script_run_file(script, "parallel.tbs") == 0 &&
-    turbo_script_task_active_count(script) > 0) {
+toad_script_set_coro_context(script, coro);
+if (toad_script_run_file(script, "parallel.tbs") == 0 &&
+    toad_script_task_active_count(script) > 0) {
   coro_context_run(coro, TURBO_RUN_DEFAULT);
 }
 
-if (turbo_script_task_failed_count(script) != 0) {
+if (toad_script_task_failed_count(script) != 0) {
   /* Script may query task.error(id) before releasing retained records. */
 }
 
-turbo_script_free(script);
+toad_script_free(script);
 coro_context_destroy(coro);
 ```
 
-借用的 CoroNet context 必须覆盖 TurboScript context 及所有已接受 task 的生命周期。不能在 task 活动期间替换或清除它。命令行 `--eval`、`--file` 和交互式 REPL 都会自动创建并驱动 CoroNet loop；REPL 等待 stdin 时由独立 owner thread 继续推进 timer、task 与 HTTP。
+借用的 CoroNet context 必须覆盖 Toad context 及所有已接受 task 的生命周期。不能在 task 活动期间替换或清除它。命令行 `--eval`、`--file` 和交互式 REPL 都会自动创建并驱动 CoroNet loop；REPL 等待 stdin 时由独立 owner thread 继续推进 timer、task 与 HTTP。
 
 ## 架构决策
 
 ### 背景
 
-`task.*` 是 TurboScript 唯一的脚本级并发模型；它负责调度、任务可见状态与结果归属。
+`task.*` 是 Toad 唯一的脚本级并发模型；它负责调度、任务可见状态与结果归属。
 
 ### 候选方案
 
-1. 用线程池运行脚本 callback：ExprTK/MIR、插件实例及根环境是单 owner lane 的可变状态，需要为大量模块重新定义线程安全，排除。
+1. 用线程池运行脚本 callback：Engine/MIR、插件实例及根环境是单 owner lane 的可变状态，需要为大量模块重新定义线程安全，排除。
 2. 让 timer 的串行 executor 同时执行 task：可保证安全，但一个 task 等待 HTTP 时会阻止其他 task 开始，不能提供调度型并发，排除。
 3. 采用 `task.*` 适配层：每个 task 独立 caller env，调度器管理 ready/I/O 状态，registry 管理脚本可见状态与结果。
 
 ### 影响、迁移与回滚
 
 - 删除未使用的 `coro.*` generator 插件；`task.*` 是唯一的脚本并发接口。
-- `turbo_script_set_coro_context()` 从 timer-only 适配入口扩展为 timer + task 的共同 CoroNet 入口；自定义 timer executor 不能替代 task 所需的 CoroNet scheduler。
+- `toad_script_set_coro_context()` 从 timer-only 适配入口扩展为 timer + task 的共同 CoroNet 入口；自定义 timer executor 不能替代 task 所需的 CoroNet scheduler。
 - timer 保持串行、不重叠语义；需要并发 I/O 的 timer callback 可快速 `task.spawn()` 后返回。
 - `ws.*` 在 managed task 内按 task 隔离连接；多个 task 可并行调用同名的
   `ws.connect/send/consume/close`，不会覆盖彼此的 socket。root 环境中的 `ws.*` 仍保持

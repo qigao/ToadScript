@@ -1,0 +1,616 @@
+#include "cflow_lower.h"
+#include "cmeta_bridge.h"
+#include "../internal.h"
+#include <turboscript/engine.h>
+#include <turboscript/grammar.h>
+
+#include <cflow/function_projection.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static void ts_cflow_destroy_kernel_bindings(
+    ts_cflow_lowered_pipeline_t *out) {
+  if (!out) return;
+  for (size_t i = 0; i < out->kernel_binding_count; ++i)
+    ts_cflow_mir_kernel_binding_destroy(&out->kernel_bindings[i]);
+  free(out->kernel_bindings);
+  out->kernel_bindings = NULL;
+  out->kernel_binding_count = 0u;
+  out->kernel_binding_capacity = 0u;
+}
+
+static void ts_cflow_release_owned_lowering(
+    ts_cflow_lowered_pipeline_t *out) {
+  if (!out) return;
+  /* Graph/Plan-visible callable snapshots borrow MIR kernel owner pointers.
+   * Release the graph before destroying those owners. */
+  cflow_graph_destroy(&out->graph);
+  ts_cflow_destroy_kernel_bindings(out);
+  out->source_expr = NULL;
+  out->reduce_seed_expr = NULL;
+  out->has_reduce_seed = false;
+  out->executable = false;
+}
+
+static bool ts_cflow_fail(ts_cflow_lowered_pipeline_t *out,
+                          const char **error,
+                          const char *message) {
+  if (error) *error = message;
+  ts_cflow_release_owned_lowering(out);
+  return false;
+}
+
+static bool ts_cflow_reserve_kernel_binding(
+    ts_cflow_lowered_pipeline_t *out, const char **error) {
+  size_t capacity;
+  ts_cflow_mir_kernel_binding_t *grown;
+
+  if (!out) return false;
+  if (out->kernel_binding_count < out->kernel_binding_capacity) return true;
+
+  capacity = out->kernel_binding_capacity
+                 ? out->kernel_binding_capacity * 2u
+                 : 4u;
+  grown = (ts_cflow_mir_kernel_binding_t *)realloc(
+      out->kernel_bindings, capacity * sizeof(*grown));
+  if (!grown) {
+    if (error) *error = "out of memory retaining CFlow MIR kernels";
+    return false;
+  }
+  memset(grown + out->kernel_binding_capacity, 0,
+         (capacity - out->kernel_binding_capacity) * sizeof(*grown));
+  out->kernel_bindings = grown;
+  out->kernel_binding_capacity = capacity;
+  return true;
+}
+
+static bool ts_cflow_numeric_literal_value(const tbs_node_t *node,
+                                           double *out) {
+  double value;
+
+  if (!node || !out) return false;
+  if (node->type == TBS_NODE_NUMBER) {
+    *out = node->data.number;
+    return true;
+  }
+  if (node->type == TBS_NODE_INTEGER) {
+    *out = (double)node->data.integer;
+    return true;
+  }
+
+  /* TurboScript represents unary +/- as a BINARY_OP with a NULL left operand.
+   * Keep executable seed admission deliberately narrower than general constant
+   * folding so dynamic seed evaluation remains a language-runtime concern. */
+  if (node->type != TBS_NODE_BINARY_OP ||
+      node->data.binary.left != NULL ||
+      (node->data.binary.op != tbs_TOKEN_PLUS &&
+       node->data.binary.op != tbs_TOKEN_MINUS) ||
+      !ts_cflow_numeric_literal_value(node->data.binary.right, &value))
+    return false;
+
+  *out = node->data.binary.op == tbs_TOKEN_MINUS ? -value : value;
+  return true;
+}
+
+static bool ts_cflow_numeric_source_literal(const tbs_node_t *node) {
+  double value;
+  return ts_cflow_numeric_literal_value(node, &value);
+}
+
+static bool ts_cflow_vector_source(const tbs_node_t *node) {
+  size_t i;
+  if (!node || node->type != TBS_NODE_VECTOR) return false;
+  for (i = 0; i < node->data.vector.count; ++i) {
+    if (!ts_cflow_numeric_source_literal(node->data.vector.elements[i]))
+      return false;
+  }
+  return true;
+}
+
+static bool ts_cflow_runtime_numeric_value(const tbs_value_t *value) {
+  return value &&
+         (value->type == TBS_VAL_NUMBER ||
+          value->type == TBS_VAL_INTEGER);
+}
+
+static bool ts_cflow_runtime_numeric_collection_value(
+    const tbs_value_t *value) {
+  if (!value) return false;
+  if (value->type == TBS_VAL_VECTOR) return true;
+  if (value->type != TBS_VAL_LIST) return false;
+
+  for (size_t i = 0; i < value->data.list.count; ++i) {
+    if (!ts_cflow_runtime_numeric_value(&value->data.list.items[i]))
+      return false;
+  }
+  return true;
+}
+
+static bool ts_cflow_runtime_materialized_stream_source(
+    const tbs_value_t *value, tbs_value_t *source_out) {
+  tbs_value_t kind;
+  tbs_value_t marker;
+  tbs_value_t source;
+  static const char marker_text[] = "TurboScript.Stream.v1";
+
+  if (!value || !source_out || !tbs_value_is_object_like(value) ||
+      !tbs_map_has(value, "__ts_stream_kind") ||
+      !tbs_map_has(value, "__ts_cflow_materialized") ||
+      !tbs_map_has(value, "source"))
+    return false;
+
+  kind = tbs_map_get(value, "__ts_stream_kind");
+  marker = tbs_map_get(value, "__ts_cflow_materialized");
+  if (kind.type != TBS_VAL_STRING ||
+      kind.data.string.len != sizeof(marker_text) - 1u ||
+      memcmp(kind.data.string.data, marker_text, sizeof(marker_text) - 1u) != 0 ||
+      !ts_cflow_runtime_numeric_value(&marker) ||
+      ((marker.type == TBS_VAL_NUMBER && marker.data.number == 0.0) ||
+       (marker.type == TBS_VAL_INTEGER && marker.data.integer == 0)))
+    return false;
+
+  source = tbs_map_get(value, "source");
+  if (!ts_cflow_runtime_numeric_collection_value(&source)) return false;
+  *source_out = source;
+  return true;
+}
+
+static bool ts_cflow_runtime_numeric_collection_source(
+    turbo_script_ctx_t *runtime_ctx, const tbs_node_t *node) {
+  tbs_value_t value;
+  tbs_value_t source;
+
+  if (!runtime_ctx || !node || node->type != TBS_NODE_VARIABLE ||
+      !node->data.variable.name)
+    return false;
+
+  value = tbs_env_get(&runtime_ctx->env, node->data.variable.name);
+  if (ts_cflow_runtime_numeric_collection_value(&value)) return true;
+  return ts_cflow_runtime_materialized_stream_source(&value, &source);
+}
+
+static double ts_cflow_plugin_double_signature(double value) {
+  return value;
+}
+
+typedef struct ts_cflow_plugin_callable_capture_s {
+  cmeta_plugin_function_invoke_fn invoke;
+  void *context;
+} ts_cflow_plugin_callable_capture_t;
+
+_Static_assert(
+    sizeof(ts_cflow_plugin_callable_capture_t) <= CMETA_CAPTURE_INLINE,
+    "plugin callable capture must fit CMeta inline storage");
+
+static bool ts_cflow_plugin_callable_invoke(
+    const cmeta_callable *self, void *out, const void *const *args) {
+  ts_cflow_plugin_callable_capture_t capture;
+  void *params[1];
+
+  if (!self || self->capture_size != sizeof(capture) ||
+      !out || !args || !args[0])
+    return false;
+
+  memcpy(&capture, self->capture.bytes, sizeof(capture));
+  if (!capture.invoke) return false;
+  params[0] = (void *)args[0];
+  return capture.invoke(capture.context, out, params, 1u);
+}
+
+static int ts_cflow_plugin_function_view(
+    turbo_script_ctx_t *runtime_ctx, const char *export_id,
+    ts_plugin_function_view_t *out) {
+  if (out) memset(out, 0, sizeof(*out));
+  if (!runtime_ctx || !export_id || !out) return 0;
+
+  for (size_t i = 0u; i < runtime_ctx->plugin_count; ++i) {
+    if (runtime_ctx->plugins[i] &&
+        ts_plugin_find_bound_function(
+            runtime_ctx->plugins[i], export_id, out))
+      return 1;
+  }
+  return 0;
+}
+
+static const tbs_node_t *ts_cflow_plugin_lambda_body(
+    const tbs_node_t *lambda) {
+  const tbs_node_t *body;
+  if (!lambda || lambda->type != TBS_NODE_FUNCTION_EXPRESSION)
+    return NULL;
+  body = lambda->data.func_def.body;
+  if (body && body->type == TBS_NODE_BLOCK &&
+      body->data.block.count == 1u)
+    body = body->data.block.statements[0];
+  if (body && body->type == TBS_NODE_FLOW &&
+      body->data.flow.type == tbs_TOKEN_RETURN)
+    body = body->data.flow.value;
+  return body;
+}
+
+static bool ts_cflow_try_append_plugin_function(
+    turbo_script_ctx_t *runtime_ctx,
+    ts_cflow_lowered_pipeline_t *out,
+    const tbs_node_t *lambda,
+    ts_cmeta_lambda_role_t role,
+    cflow_op op,
+    bool *matched,
+    const char **error) {
+  const tbs_node_t *body;
+  const tbs_node_t *object;
+  const tbs_node_t *argument;
+  const tbs_node_t *parameter;
+  char export_id[256];
+  int written;
+  ts_plugin_function_view_t view = {0};
+  const cmeta_function_desc *function;
+  const cmeta_function_abi_desc *abi;
+  ts_cflow_plugin_callable_capture_t capture;
+  cmeta_callable adapter = {0};
+  cflow_function_projection projection = {0};
+  cflow_function_projection_status status;
+
+  if (matched) *matched = false;
+  if (!runtime_ctx || !out || !lambda ||
+      role != TS_CMETA_LAMBDA_MAP || op != CFLOW_OP_MAP ||
+      lambda->type != TBS_NODE_FUNCTION_EXPRESSION ||
+      lambda->data.func_def.arg_count != 1u)
+    return false;
+
+  body = ts_cflow_plugin_lambda_body(lambda);
+  if (!body || body->type != TBS_NODE_MEMBER_CALL ||
+      !body->data.member_call.object ||
+      !body->data.member_call.method ||
+      body->data.member_call.arg_count != 1u)
+    return false;
+
+  object = body->data.member_call.object;
+  argument = body->data.member_call.args[0];
+  parameter = lambda->data.func_def.arg_params[0];
+  if (!object || object->type != TBS_NODE_VARIABLE ||
+      !object->data.variable.name ||
+      !argument || argument->type != TBS_NODE_VARIABLE ||
+      !argument->data.variable.name ||
+      !parameter || parameter->type != TBS_NODE_VARIABLE ||
+      !parameter->data.variable.name ||
+      strcmp(argument->data.variable.name,
+             parameter->data.variable.name) != 0)
+    return false;
+
+  written = snprintf(export_id, sizeof(export_id), "%s.%s",
+                     object->data.variable.name,
+                     body->data.member_call.method);
+  if (written < 0 || (size_t)written >= sizeof(export_id))
+    return false;
+
+  if (!ts_cflow_plugin_function_view(runtime_ctx, export_id, &view))
+    return false;
+  if (matched) *matched = true;
+
+  if (!view.entry || view.entry->kind != CMETA_PLUGIN_EXPORT_FUNCTION ||
+      !view.invoke) {
+    if (error) *error = "loaded plugin Function binding is invalid";
+    return false;
+  }
+
+  function = view.entry->value.function.desc;
+  abi = view.entry->value.function.abi;
+  if (!function || !abi ||
+      !cmeta_effects_are_pure(function->effects)) {
+    if (error) *error =
+        "plugin Function effects block CFlow MAP admission";
+    return false;
+  }
+
+  adapter.meta = CMETA_WRAP_TYPED_ANY(ts_cflow_plugin_double_signature);
+  adapter.meta.effects = function->effects;
+  adapter.meta.properties = function->properties;
+  adapter.invoke = ts_cflow_plugin_callable_invoke;
+  adapter.dispatch = CMETA_CALLABLE_DISPATCH_ADAPTER;
+  capture.invoke = view.invoke;
+  capture.context = view.context;
+  adapter.capture_size = sizeof(capture);
+  memcpy(adapter.capture.bytes, &capture, sizeof(capture));
+
+  status = cflow_function_projection_admit(
+      function, abi, adapter, CFLOW_OP_MAP, &projection);
+  if (status != CFLOW_FUNCTION_PROJECTION_OK) {
+    if (error)
+      *error = cflow_function_projection_status_string(status);
+    return false;
+  }
+
+  if (!cflow_graph_add_function_projection(&out->graph, &projection)) {
+    if (error) *error =
+        out->graph.error ? out->graph.error
+                         : "plugin Function CFlow graph admission failed";
+    return false;
+  }
+  return true;
+}
+
+static bool ts_cflow_append_callable(
+    turbo_script_ctx_t *runtime_ctx, bool executable_mode,
+    ts_cflow_lowered_pipeline_t *out, const tbs_node_t *lambda,
+    ts_cmeta_lambda_role_t role, cflow_op op,
+    const tbs_node_t *reduce_seed_expr, const char **error) {
+  ts_cmeta_lambda_contract_t contract;
+  ts_cflow_mir_kernel_binding_t binding = {0};
+  const char *analysis_error = NULL;
+  const char *kernel_error = NULL;
+  cmeta_callable callable;
+  double reduce_seed = 0.0;
+  bool plugin_matched = false;
+
+  if (runtime_ctx && role == TS_CMETA_LAMBDA_MAP) {
+    if (ts_cflow_try_append_plugin_function(
+            runtime_ctx, out, lambda, role, op,
+            &plugin_matched, error))
+      return true;
+    if (plugin_matched) return false;
+  }
+
+  if (!ts_cmeta_analyze_lambda(lambda, role, &contract, &analysis_error)) {
+    if (error) *error = analysis_error ? analysis_error
+                                       : "CMeta lambda analysis failed";
+    return false;
+  }
+
+  if (!cmeta_effects_are_pure(contract.effects)) {
+    if (error) *error =
+        "first CFlow lowering slice requires PURE graph callables";
+    return false;
+  }
+
+  callable = contract.callable;
+  if (executable_mode) {
+    if (role == TS_CMETA_LAMBDA_REDUCE &&
+        !ts_cflow_numeric_literal_value(reduce_seed_expr, &reduce_seed)) {
+      if (error)
+        *error =
+            "executable CFlow reduce requires a numeric literal seed";
+      return false;
+    }
+    if (!runtime_ctx) {
+      if (error) *error = "executable CFlow lowering requires a runtime context";
+      return false;
+    }
+    if (!ts_cflow_reserve_kernel_binding(out, error)) return false;
+    if (!ts_cflow_mir_kernel_bind(runtime_ctx, lambda, role, &binding,
+                                  &kernel_error)) {
+      if (error) *error = kernel_error ? kernel_error
+                                       : "MIR kernel binding failed";
+      return false;
+    }
+    callable = binding.callable;
+  }
+
+  if ((executable_mode && role == TS_CMETA_LAMBDA_REDUCE)
+          ? !cflow_graph_reduce_seeded(&out->graph, callable, &reduce_seed)
+          : !cflow_graph_add(&out->graph, op, callable, NULL)) {
+    if (executable_mode) ts_cflow_mir_kernel_binding_destroy(&binding);
+    if (error) *error = out->graph.error ? out->graph.error
+                                         : "CFlow graph operator admission failed";
+    return false;
+  }
+
+  if (executable_mode)
+    out->kernel_bindings[out->kernel_binding_count++] = binding;
+  return true;
+}
+
+static bool ts_cflow_lower_node(turbo_script_ctx_t *runtime_ctx,
+                                bool executable_mode,
+                                const tbs_node_t *expr,
+                                ts_cflow_lowered_pipeline_t *out,
+                                const char **error) {
+  const char *name;
+
+  if (!expr || !out) {
+    if (error) *error = "pipeline lowering requires non-null AST/output";
+    return false;
+  }
+
+  if (ts_cflow_vector_source(expr) ||
+      ts_cflow_runtime_numeric_collection_source(runtime_ctx, expr)) {
+    cflow_graph_init(&out->graph, &cmeta_type_double);
+    if (out->graph.error) {
+      if (error) *error = out->graph.error;
+      return false;
+    }
+    out->source_expr = expr;
+    return true;
+  }
+
+  if (expr->type == TBS_NODE_MEMBER_CALL &&
+      expr->data.member_call.method) {
+    const tbs_node_t *object = expr->data.member_call.object;
+    name = expr->data.member_call.method;
+
+    /* vector.stream() is a language facade boundary, not a graph node. */
+    if (strcmp(name, "stream") == 0) {
+      if (expr->data.member_call.arg_count != 0u) {
+        if (error) *error = "stream() pipeline source takes no arguments";
+        return false;
+      }
+      return ts_cflow_lower_node(runtime_ctx, executable_mode, object, out, error);
+    }
+
+    /* stream.of(vector) is represented by the parser as a module-style
+     * member call on the 'stream' namespace. */
+    if (strcmp(name, "of") == 0 && object &&
+        object->type == TBS_NODE_VARIABLE &&
+        object->data.variable.name &&
+        strcmp(object->data.variable.name, "stream") == 0) {
+      if (expr->data.member_call.arg_count != 1u) {
+        if (error) *error = "stream.of() requires exactly one source";
+        return false;
+      }
+      return ts_cflow_lower_node(runtime_ctx, executable_mode, expr->data.member_call.args[0], out, error);
+    }
+
+    if (strcmp(name, "filter") == 0) {
+      if (expr->data.member_call.arg_count != 1u) {
+        if (error) *error = "stream filter requires one predicate";
+        return false;
+      }
+      if (!ts_cflow_lower_node(runtime_ctx, executable_mode, object, out, error))
+        return false;
+      return ts_cflow_append_callable(
+          runtime_ctx, executable_mode, out,
+          expr->data.member_call.args[0], TS_CMETA_LAMBDA_FILTER,
+          CFLOW_OP_FILTER, NULL, error);
+    }
+
+    if (strcmp(name, "map") == 0) {
+      if (expr->data.member_call.arg_count != 1u) {
+        if (error) *error = "stream map requires one mapper";
+        return false;
+      }
+      if (!ts_cflow_lower_node(runtime_ctx, executable_mode, object, out, error))
+        return false;
+      return ts_cflow_append_callable(
+          runtime_ctx, executable_mode, out,
+          expr->data.member_call.args[0], TS_CMETA_LAMBDA_MAP,
+          CFLOW_OP_MAP, NULL, error);
+    }
+
+    if (strcmp(name, "reduce") == 0) {
+      if (expr->data.member_call.arg_count != 2u) {
+        if (error) *error = "stream reduce requires seed and reducer";
+        return false;
+      }
+      if (!ts_cflow_lower_node(runtime_ctx, executable_mode, object, out, error))
+        return false;
+      out->reduce_seed_expr = expr->data.member_call.args[0];
+      out->has_reduce_seed = true;
+      return ts_cflow_append_callable(
+          runtime_ctx, executable_mode, out,
+          expr->data.member_call.args[1], TS_CMETA_LAMBDA_REDUCE,
+          CFLOW_OP_REDUCE, expr->data.member_call.args[0], error);
+    }
+
+    if (error) *error =
+        "member call is not part of the first CFlow pipeline slice";
+    return false;
+  }
+
+  if (expr->type != TBS_NODE_FUNCTION_CALL ||
+      !expr->data.function.name) {
+    if (error) *error =
+        "graphable pipeline must start from a numeric in-memory source";
+    return false;
+  }
+
+  name = expr->data.function.name;
+
+  if (strcmp(name, "filter") == 0) {
+    if (expr->data.function.arg_count != 2u) {
+      if (error) *error = "filter pipeline node requires source and predicate";
+      return false;
+    }
+    if (!ts_cflow_lower_node(runtime_ctx, executable_mode, expr->data.function.args[0], out, error))
+      return false;
+    return ts_cflow_append_callable(
+        runtime_ctx, executable_mode, out,
+        expr->data.function.args[1], TS_CMETA_LAMBDA_FILTER,
+        CFLOW_OP_FILTER, NULL, error);
+  }
+
+  if (strcmp(name, "map") == 0) {
+    if (expr->data.function.arg_count != 2u) {
+      if (error) *error = "map pipeline node requires source and mapper";
+      return false;
+    }
+    if (!ts_cflow_lower_node(runtime_ctx, executable_mode, expr->data.function.args[0], out, error))
+      return false;
+    return ts_cflow_append_callable(
+        runtime_ctx, executable_mode, out,
+        expr->data.function.args[1], TS_CMETA_LAMBDA_MAP,
+        CFLOW_OP_MAP, NULL, error);
+  }
+
+  if (strcmp(name, "reduce") == 0) {
+    if (expr->data.function.arg_count != 3u) {
+      if (error) *error =
+          "reduce pipeline node requires source, seed and reducer";
+      return false;
+    }
+    if (!ts_cflow_lower_node(runtime_ctx, executable_mode, expr->data.function.args[0], out, error))
+      return false;
+    out->reduce_seed_expr = expr->data.function.args[1];
+    out->has_reduce_seed = true;
+    return ts_cflow_append_callable(
+        runtime_ctx, executable_mode, out,
+        expr->data.function.args[2], TS_CMETA_LAMBDA_REDUCE,
+        CFLOW_OP_REDUCE, expr->data.function.args[1], error);
+  }
+
+  if (error) *error = "function is not part of the first CFlow pipeline slice";
+  return false;
+}
+
+static bool ts_cflow_lower_pipeline_impl(
+    turbo_script_ctx_t *runtime_ctx, bool executable_mode,
+    const tbs_node_t *expr, ts_cflow_lowered_pipeline_t *out,
+    const char **error) {
+  const char *validation_error = NULL;
+
+  if (error) *error = NULL;
+  if (!out) {
+    if (error) *error = "pipeline lowering requires an output object";
+    return false;
+  }
+
+  memset(out, 0, sizeof(*out));
+  out->graph.root = CMETA_INVALID_ID;
+
+  if (executable_mode && !runtime_ctx) {
+    if (error) *error = "executable CFlow lowering requires a runtime context";
+    return false;
+  }
+
+  if (!ts_cflow_lower_node(runtime_ctx, executable_mode, expr, out, error)) {
+    ts_cflow_release_owned_lowering(out);
+    return false;
+  }
+
+  if (!cflow_graph_validate(&out->graph, &validation_error))
+    return ts_cflow_fail(out, error,
+                         validation_error ? validation_error
+                                          : "lowered CFlow graph is invalid");
+
+  out->executable = executable_mode;
+  return true;
+}
+
+bool ts_cflow_lower_pipeline(const tbs_node_t *expr,
+                             ts_cflow_lowered_pipeline_t *out,
+                             const char **error) {
+  return ts_cflow_lower_pipeline_impl(NULL, false, expr, out, error);
+}
+
+bool ts_cflow_lower_pipeline_runtime_analysis(
+    turbo_script_ctx_t *runtime_ctx, const tbs_node_t *expr,
+    ts_cflow_lowered_pipeline_t *out, const char **error) {
+  if (!runtime_ctx) {
+    if (error) *error = "runtime CFlow analysis requires a context";
+    return false;
+  }
+  return ts_cflow_lower_pipeline_impl(runtime_ctx, false, expr, out, error);
+}
+
+bool ts_cflow_lower_pipeline_executable(turbo_script_ctx_t *runtime_ctx,
+                                        const tbs_node_t *expr,
+                                        ts_cflow_lowered_pipeline_t *out,
+                                        const char **error) {
+  return ts_cflow_lower_pipeline_impl(runtime_ctx, true, expr, out, error);
+}
+
+void ts_cflow_lowered_pipeline_destroy(ts_cflow_lowered_pipeline_t *pipeline) {
+  if (!pipeline) return;
+  ts_cflow_release_owned_lowering(pipeline);
+  memset(pipeline, 0, sizeof(*pipeline));
+  pipeline->graph.root = CMETA_INVALID_ID;
+}

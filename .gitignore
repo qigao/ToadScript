@@ -17,6 +17,7 @@ stage/
 # IDE files
 .vs/
 .idea/
+.openidea/
 .vscode/
 !.vscode/extensions.json
 !.vscode/launch.json
@@ -73,3 +74,6 @@ Thumbs.db
 # User specific settings
 .env
  
+
+# Python syntax-check artifacts
+__pycache__/

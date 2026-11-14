@@ -171,7 +171,8 @@ function(cmake_add_source VAR)
     endforeach()
   endforeach()
 
-  file(${glob_mode} collected ${patterns})
+  file(${glob_mode} collected CONFIGURE_DEPENDS ${patterns})
+  source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${collected})
 
   if(ARG_EXCLUDES)
     list(REMOVE_ITEM collected ${ARG_EXCLUDES})

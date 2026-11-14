@@ -1,10 +1,10 @@
 
-# ExprTk / TurboScript Language Grammar Reference
+# Engine / Toad Language Grammar Reference
 
 A TypeScript/JavaScript-like scripting language built on a custom Lemon/re2c parser.
-Used as the language frontend for **TurboScript** (`turbo_script_ctx_t`), a high-performance embeddable scripting engine that lowers scripts to MIR and supports both MIR interpreter and MIR JIT execution from the same IR.
+Used as the language frontend for **Toad** (`toad_script_ctx_t`), a high-performance embeddable scripting engine that lowers scripts to MIR and supports both MIR interpreter and MIR JIT execution from the same IR.
 
-TurboScript is intentionally smaller than TypeScript/JavaScript. It focuses on host embedding, data binding, text processing, math/matrix computation, time-series analysis, technical indicators, and finance-oriented scripting.
+Toad is intentionally smaller than TypeScript/JavaScript. It focuses on host embedding, data binding, text processing, math/matrix computation, time-series analysis, technical indicators, and finance-oriented scripting.
 
 ---
 
@@ -29,9 +29,9 @@ TurboScript is intentionally smaller than TypeScript/JavaScript. It focuses on h
 
 ## Module Architecture
 
-TurboScript uses a unified registry for function dispatch. Functions can be:
+Toad uses a unified registry for function dispatch. Functions can be:
 1.  **Global Built-ins**: (e.g., `sin`, `cos`, `avg`, `sum`).
-2.  **Environment Registered**: Native C functions registered via `exprtk_env_register_func`.
+2.  **Environment Registered**: Native C functions registered via `toad_env_register_func`.
 3.  **Module-based**: Functions grouped into modules (e.g., `json.query`, `csv.col`).
 4.  **User Functions**: Defined in the script using the `func` keyword.
 
@@ -43,7 +43,7 @@ Lookup priority:
 ## Syntax Overview
 
 - **Semicolons**: Optional at the end of statements.
-- **Comments**: 
+- **Comments**:
   - `// Single line comment`
   - `/* Multi-line comment */`
 - **Case Sensitivity**: Identifiers are case-sensitive.
@@ -168,8 +168,8 @@ datetime("Sat, 04 Mar 2006 13:27:54 GMT").year // → 2006
 
 | Layer | How registered | Examples |
 |---|---|---|
-| **Global registry** | `exprtk_module_t` sorted array — always available | `sin`, `sum`, `read_file`, `now`, `date`, `os_name` |
-| **TurboScript plugins** | `import("name")` 或 `turbo_script_load_plugin(ctx, "name")` 动态加载 | `csv.*`, `json.*`, `mapper.*`, `ta.*`, `ts.*`, `vec.*`, `http.*`, `strategy.*` |
+| **Global registry** | `toad_module_t` sorted array — always available | `sin`, `sum`, `read_file`, `now`, `date`, `os_name` |
+| **Toad plugins** | `import("name")` 或 `toad_script_load_plugin(ctx, "name")` 动态加载 | `csv.*`, `json.*`, `mapper.*`, `ta.*`, `ts.*`, `vec.*`, `http.*`, `strategy.*` |
 ---
 
 ## Variables & Assignment
@@ -278,7 +278,7 @@ func fib(n) {
 
 ### Anonymous Functions and Arrow Functions (Lambdas)
 
-TurboScript supports modern anonymous functions and arrow expressions, which are essentially **Lambda expressions**, ideal for passing logic as variables or callbacks.
+Toad supports modern anonymous functions and arrow expressions, which are essentially **Lambda expressions**, ideal for passing logic as variables or callbacks.
 
 ```js
 // Anonymous function (lambda)
@@ -385,7 +385,7 @@ Methods may be overloaded by arity and by declared class/interface parameter typ
 ## Built-in Modules
 
 ### IO Module — File Operations (global)
-All IO functions are registered globally via `exprtk_module_io()`. No `import` or namespace prefix needed.
+All IO functions are registered globally via `toad_module_io()`. No `import` or namespace prefix needed.
 
 | Script function | Behaviour |
 |---|---|
@@ -568,11 +568,11 @@ not 0     // ≡  !0      → 1
 
 ### Variable Persistence
 
-Variables persist across multiple MIR executions within the same `turbo_script_ctx_t`.
+Variables persist across multiple MIR executions within the same `toad_script_ctx_t`.
 
 ```c
-turbo_script_run(ctx, "x = 100;");
-turbo_script_run(ctx, "y = x + 50;");  // y = 150 ✓
+toad_script_run(ctx, "x = 100;");
+toad_script_run(ctx, "y = x + 50;");  // y = 150 ✓
 ```
 
 ---
@@ -915,7 +915,7 @@ lower("HeLLo")              // → "hello"
 ### Mustache Template Rendering
 
 `template_render(template, data [, partials])` renders Mustache syntax against
-native TurboScript values. Maps provide field lookup and dotted paths; lists and
+native Toad values. Maps provide field lookup and dotted paths; lists and
 vectors drive sections; scalars render as text; functions act as Mustache
 lambdas. `{{name}}` escapes HTML-sensitive characters, while `{{{name}}}` writes
 raw output. Missing fields and missing partials render empty text.
@@ -961,7 +961,7 @@ name.toLower()             // → "hello world"
 name.indexOf("World")      // → 6
 name.contains("World")     // → 1
 name.substr(0, 5)          // → "Hello"
-name.replace("World", "TurboScript")  // → "Hello TurboScript"
+name.replace("World", "Toad")  // → "Hello Toad"
 ```
 
 ---
@@ -999,7 +999,7 @@ v.avg()    // → 3.0 (dot-style)
 sum(v)     // → 15.0
 v.sum()    // → 15.0 (dot-style)
 
-// TurboScript: parse CSV into vector
+// Toad: parse CSV into vector
 prices = split("100,102,104", ",");
 prices[0]  // → 100.0
 ```

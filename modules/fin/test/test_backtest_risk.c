@@ -9,7 +9,7 @@
 #include "provider.h"
 #include "strategy.h"
 #include "strategy_optimizer.h"
-#include "../src/exprtk_mod_strategy.h"
+#include "../src/mod_strategy.h"
 #include "tinytest.h"
 #include <math.h>
 #include <stdlib.h>
@@ -82,7 +82,7 @@ suite("Backtest and Risk") {
       double trades[5];
 
       size_t num_trades =
-          exprtk_bt_backtest(open, close, signal, n, 10000.0, 0.001, equity, trades);
+          toad_bt_backtest(open, close, signal, n, 10000.0, 0.001, equity, trades);
 
       check(num_trades > 0);
       check(equity[0] > 0.0);
@@ -100,7 +100,7 @@ suite("Backtest and Risk") {
       double trades[3];
 
       size_t num_trades =
-          exprtk_bt_backtest(open, close, signal, n, 10000.0, 0.001, equity, trades);
+          toad_bt_backtest(open, close, signal, n, 10000.0, 0.001, equity, trades);
 
       check((num_trades) == (0));
       // Equity should remain constant
@@ -117,7 +117,7 @@ suite("Backtest and Risk") {
       double trades[5];
 
       size_t num_trades =
-          exprtk_bt_backtest(open, close, signal, n, 10000.0, 0.001, equity, trades);
+          toad_bt_backtest(open, close, signal, n, 10000.0, 0.001, equity, trades);
 
       check(num_trades >= 2); // At least 2 trades (long->short, short->flat)
     }
@@ -131,7 +131,7 @@ suite("Backtest and Risk") {
       double trades[3];
 
       size_t num_trades =
-          exprtk_bt_backtest(open, close, signal, n, 10000.0, 0.001, equity, trades);
+          toad_bt_backtest(open, close, signal, n, 10000.0, 0.001, equity, trades);
 
       check(((int)num_trades) == (1));
       check(equity[0] > 0.0);
@@ -147,7 +147,7 @@ suite("Backtest and Risk") {
       double trades[2];
 
       size_t num_trades =
-          exprtk_bt_backtest(open, close, signal, 2, 10000.0, 0.0, equity, trades);
+          toad_bt_backtest(open, close, signal, 2, 10000.0, 0.0, equity, trades);
 
       check(((int)num_trades) == (1));
       check(fabs((double)(equity[0]) - (double)(10950.0)) <= (double)(EPSILON));
@@ -163,7 +163,7 @@ suite("Backtest and Risk") {
       size_t n = 6;
       double stats[10];
 
-      size_t count = exprtk_bt_stats(equity, trades, n, 5, 252.0, stats);
+      size_t count = toad_bt_stats(equity, trades, n, 5, 252.0, stats);
 
       check(count >= 4);
       // Total return should be positive
@@ -182,7 +182,7 @@ suite("Backtest and Risk") {
       size_t n = 5;
       double stats[10];
 
-      size_t count = exprtk_bt_stats(equity, trades, n, 4, 252.0, stats);
+      size_t count = toad_bt_stats(equity, trades, n, 4, 252.0, stats);
 
       check((count) == (10));
       // Win rate should be 0.5 (2 wins, 2 losses)
@@ -197,7 +197,7 @@ suite("Backtest and Risk") {
       size_t n = 3;
       double stats[10];
 
-      size_t count = exprtk_bt_stats(equity, trades, n, 0, 252.0, stats);
+      size_t count = toad_bt_stats(equity, trades, n, 0, 252.0, stats);
 
       check(count >= 4);
       // Total return should be 0
@@ -209,7 +209,7 @@ suite("Backtest and Risk") {
       double trades[] = {0.0, 100.0};
       double stats[10];
 
-      size_t count = exprtk_bt_stats(equity, trades, 2, 1, 1.0, stats);
+      size_t count = toad_bt_stats(equity, trades, 2, 1, 1.0, stats);
 
       check(count >= 4);
       check(fabs((double)(stats[1]) - (double)(1.0)) <= (double)(EPSILON));
@@ -224,16 +224,16 @@ suite("Backtest and Risk") {
       double avg_vol = 10000.0;
       double lambda = 0.1;
 
-      double slippage = exprtk_bt_slippage(price, size, vol, avg_vol, lambda);
+      double slippage = toad_bt_slippage(price, size, vol, avg_vol, lambda);
 
       check(slippage >= 0.0);
       // Larger orders should have more slippage
-      double large_slip = exprtk_bt_slippage(price, size * 2, vol, avg_vol, lambda);
+      double large_slip = toad_bt_slippage(price, size * 2, vol, avg_vol, lambda);
       check(large_slip > slippage);
     }
 
     it("should use the square-root impact model per share") {
-      double slippage = exprtk_bt_slippage(100.0, 1000.0, 10000.0, 10000.0, 0.1);
+      double slippage = toad_bt_slippage(100.0, 1000.0, 10000.0, 10000.0, 0.1);
 
       check(fabs((double)(slippage) - (double)(3.16227766)) <= (double)(EPSILON));
     }
@@ -245,7 +245,7 @@ suite("Backtest and Risk") {
       double tax = 0.001;        // 0.1%
       double slippage = 0.05;    // $0.05 per share
 
-      double cost = exprtk_bt_cost(price, size, commission, tax, slippage);
+      double cost = toad_bt_cost(price, size, commission, tax, slippage);
 
       check(cost > 0.0);
       // Cost should include commission + tax + slippage
@@ -254,8 +254,8 @@ suite("Backtest and Risk") {
     }
 
     it("should apply bt_cost tax symmetrically regardless of trade side") {
-      double buy_cost = exprtk_bt_cost(100.0, 100.0, 0.001, 0.001, 0.05);
-      double sell_cost = exprtk_bt_cost(100.0, -100.0, 0.001, 0.001, 0.05);
+      double buy_cost = toad_bt_cost(100.0, 100.0, 0.001, 0.001, 0.05);
+      double sell_cost = toad_bt_cost(100.0, -100.0, 0.001, 0.001, 0.05);
 
       check(fabs((double)(buy_cost) - (double)(sell_cost)) <= (double)(EPSILON));
     }
@@ -497,29 +497,29 @@ suite("Backtest and Risk") {
     it("should return an explicit placeholder map for script walk_forward") {
       mem_pool_t arena;
       mem_init(&arena, 8192);
-      exprtk_env_t env;
-      exprtk_value_t args[6];
-      exprtk_value_t names[1];
+      toad_env_t env;
+      toad_value_t args[6];
+      toad_value_t names[1];
       double ranges[] = { 5.0, 5.0, 1.0 };
-      exprtk_value_t out;
+      toad_value_t out;
 
-      exprtk_env_init(&env);
+      toad_env_init(&env);
 
-      names[0] = exprtk_val_str((vstr){ .data = "period", .len = 6 });
-      args[0] = exprtk_val_list_ex(names, 1, 0);
-      args[1] = exprtk_val_vec(ranges, 3);
-      args[2] = exprtk_val_num(10.0);
-      args[3] = exprtk_val_num(5.0);
-      args[4] = exprtk_val_num(1.0);
-      args[5] = exprtk_val_num(0.0);
+      names[0] = toad_val_str((vstr){ .data = "period", .len = 6 });
+      args[0] = toad_val_list_ex(names, 1, 0);
+      args[1] = toad_val_vec(ranges, 3);
+      args[2] = toad_val_num(10.0);
+      args[3] = toad_val_num(5.0);
+      args[4] = toad_val_num(1.0);
+      args[5] = toad_val_num(0.0);
 
       out = fn_walk_forward(6, args, &env, &arena);
-      check((out.type) == (EXPRTK_VAL_MAP));
-      check(fabs((double)(exprtk_map_get(&out, "error").data.number) - (double)(-1.0)) <= (double)(EPSILON));
-      check(fabs((double)(exprtk_map_get(&out, "num_windows").data.number) - (double)(0.0)) <= (double)(EPSILON));
+      check((out.type) == (TOAD_VAL_MAP));
+      check(fabs((double)(toad_map_get(&out, "error").data.number) - (double)(-1.0)) <= (double)(EPSILON));
+      check(fabs((double)(toad_map_get(&out, "num_windows").data.number) - (double)(0.0)) <= (double)(EPSILON));
 
-      exprtk_map_free(&out);
-      exprtk_env_free(&env);
+      toad_map_free(&out);
+      toad_env_free(&env);
       mem_destroy(&arena);
     }
   }
@@ -530,7 +530,7 @@ suite("Backtest and Risk") {
       double risk_pct = 0.02;  // Risk 2%
       double stop_dist = 0.05; // 5% stop
 
-      double size = exprtk_fixed_frac(equity, risk_pct, stop_dist);
+      double size = toad_fixed_frac(equity, risk_pct, stop_dist);
 
       check(size > 0.0);
       check(size <= equity);
@@ -543,7 +543,7 @@ suite("Backtest and Risk") {
       double risk_pct = 0.5;   // Risk 50%
       double stop_dist = 0.01; // 1% stop (very tight)
 
-      double size = exprtk_fixed_frac(equity, risk_pct, stop_dist);
+      double size = toad_fixed_frac(equity, risk_pct, stop_dist);
 
       // Should cap at equity
       check(fabs((double)(size) - (double)(equity)) <= (double)(EPSILON));
@@ -554,7 +554,7 @@ suite("Backtest and Risk") {
       double risk_pct = 0.02;
       double stop_dist = 0.0;
 
-      double size = exprtk_fixed_frac(equity, risk_pct, stop_dist);
+      double size = toad_fixed_frac(equity, risk_pct, stop_dist);
 
       check(fabs((double)(size) - (double)(0.0)) <= (double)(EPSILON));
     }
@@ -566,7 +566,7 @@ suite("Backtest and Risk") {
       size_t n = 8;
       double out[2];
 
-      double opt_f = exprtk_optimal_f(trades, n, out);
+      double opt_f = toad_optimal_f(trades, n, out);
 
       check(opt_f > 0.0);
       check(opt_f <= 1.0);
@@ -579,7 +579,7 @@ suite("Backtest and Risk") {
       size_t n = 4;
       double out[2];
 
-      double opt_f = exprtk_optimal_f(trades, n, out);
+      double opt_f = toad_optimal_f(trades, n, out);
 
       // No losses - can't calculate optimal f
       check(fabs((double)(opt_f) - (double)(0.0)) <= (double)(EPSILON));
@@ -590,7 +590,7 @@ suite("Backtest and Risk") {
       size_t n = 5;
       double out[2];
 
-      double opt_f = exprtk_optimal_f(trades, n, out);
+      double opt_f = toad_optimal_f(trades, n, out);
 
       // Should return a value (might be small)
       check(opt_f >= 0.0);
@@ -611,7 +611,7 @@ suite("Backtest and Risk") {
       mem_init(&arena, 4096);
 
       srand(42); // Fixed seed for reproducibility
-      size_t result = exprtk_mc_simulate(s0, mu, sigma, dt, steps, paths, out, &arena);
+      size_t result = toad_mc_simulate(s0, mu, sigma, dt, steps, paths, out, &arena);
 
       check((result) == (paths));
       // All paths should start at s0
@@ -638,7 +638,7 @@ suite("Backtest and Risk") {
       mem_init(&arena, 4096);
 
       srand(123);
-      exprtk_mc_simulate(s0, mu, sigma, dt, steps, paths, out, &arena);
+      toad_mc_simulate(s0, mu, sigma, dt, steps, paths, out, &arena);
 
       // Final prices should be different across paths
       double final1 = out[1 * steps - 1];

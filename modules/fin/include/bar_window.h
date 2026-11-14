@@ -6,7 +6,7 @@
  * single asset.  On each new bar:
  *   1. The oldest bar is evicted (if the buffer is full).
  *   2. The new bar is appended (optionally with price adjustment).
- *   3. The linearized view is updated for binding into TurboScript vectors.
+ *   3. The linearized view is updated for binding into Toad vectors.
  *
  * All memory lives inside a caller-supplied mem_pool_t.
  */
@@ -15,7 +15,7 @@
 
 #include <stddef.h>
 #include <stdbool.h>
-#include "exprtk_types.h"   /* mem_pool_t (via exprtk_types -> turbo_buff) */
+#include <toad/types.h>   /* mem_pool_t (via toad_types -> turbo_buff) */
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,7 +30,7 @@ extern "C" {
  *
  * The ring stores raw bars internally; a parallel set of "linear" arrays
  * holds the same data in chronological order (oldest → newest) ready for
- * binding using ts_bind_vec().  Linearization is done lazily on demand via
+ * binding using toad_script_bind_vec().  Linearization is done lazily on demand via
  * bar_window_linearize().
  */
 typedef struct {
@@ -114,11 +114,11 @@ void bar_window_rescale_prices(bar_window_t *w, double scale);
  * @brief Ensure the linear arrays are up-to-date.
  *
  * After any push, the linear arrays (open, high, low, close, volume, date)
- * are refreshed so they can be passed directly to ts_bind_vec().  This copies
+ * are refreshed so they can be passed directly to toad_script_bind_vec().  This copies
  * the ring into chronological order; O(count).
  *
  * You only need to call this once per bar, just before binding into the
- * TurboScript context.  Subsequent reads from w->open etc. are valid until
+ * Toad context.  Subsequent reads from w->open etc. are valid until
  * the next push.
  */
 void bar_window_linearize(bar_window_t *w);

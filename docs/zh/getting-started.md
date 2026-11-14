@@ -1,8 +1,8 @@
-# TurboScript 快速开始
+# Toad 快速开始
 
-本指南将帮助你在 5 分钟内编写并运行你的第一个 TurboScript 程序。
+本指南将帮助你在 5 分钟内编写并运行你的第一个 Toad 程序。
 
-TurboScript 是一个 TypeScript/JavaScript-like 语法的嵌入式脚本引擎。脚本会 lowering 到 MIR，同一份 IR 可以通过 MIR 解释器执行，也可以通过 MIR JIT 生成原生代码执行；parser/data-bind、数学、矩阵、时间序列、TA 和金融模块用于宿主应用内的轻量数据分析。
+Toad 是一个 TypeScript/JavaScript-like 语法的嵌入式脚本引擎。脚本会 lowering 到 MIR，同一份 IR 可以通过 MIR 解释器执行，也可以通过 MIR JIT 生成原生代码执行；parser/data-bind、数学、矩阵、时间序列、TA 和金融模块用于宿主应用内的轻量数据分析。
 
 ---
 
@@ -17,7 +17,7 @@ print("Hello, " + name + "!");
 
 运行：
 ```bash
-turbo_script_repl --file hello.tbs
+toad --file hello.tbs
 ```
 
 输出：
@@ -183,7 +183,7 @@ var keys = person.keys();            // ["name", "age", "city"]
 
 ## 文件操作
 
-TurboScript 内置文件 I/O（无需 import）：
+Toad 内置文件 I/O（无需 import）：
 
 ```javascript
 // 写入文件
@@ -228,7 +228,7 @@ var text = format_date_utc(utc_ts, "%Y-%m-%d %H:%M:%S");
 
 ## 使用模块
 
-TurboScript 可以通过模块（插件）扩展：
+Toad 可以通过模块（插件）扩展：
 
 ```javascript
 import("ta");

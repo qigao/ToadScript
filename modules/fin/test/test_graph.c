@@ -4,7 +4,7 @@
  */
 
 #include "fin.h"
-#include "exprtk_module.h"
+#include <toad/module.h>
 #include "tinytest.h"
 #include <math.h>
 #include <float.h>
@@ -13,7 +13,7 @@
 #define EPSILON 0.001
 
 /* Helper to find function by name in module */
-static exprtk_builtin_fn find_function(const exprtk_module_t *mod, const char *name) {
+static toad_builtin_fn find_function(const toad_module_t *mod, const char *name) {
   for (size_t i = 0; i < mod->count; i++) {
     if (strcmp(mod->entries[i].name, name) == 0) {
       return mod->entries[i].fn;
@@ -42,18 +42,18 @@ suite("Graph Algorithms") {
       double dist[3];
       double prev[3];
 
-      // Call via exprtk wrapper
-      exprtk_value_t args[6];
-      args[0] = exprtk_val_vec(edges, 12);
-      args[1] = exprtk_val_num(n_vertices);
-      args[2] = exprtk_val_num(n_edges);
-      args[3] = exprtk_val_num(source);
-      args[4] = exprtk_val_vec(dist, 3);
-      args[5] = exprtk_val_vec(prev, 3);
+      // Call via engine wrapper
+      toad_value_t args[6];
+      args[0] = toad_val_vec(edges, 12);
+      args[1] = toad_val_num(n_vertices);
+      args[2] = toad_val_num(n_edges);
+      args[3] = toad_val_num(source);
+      args[4] = toad_val_vec(dist, 3);
+      args[5] = toad_val_vec(prev, 3);
 
-      const exprtk_module_t *mod = exprtk_module_strategy();
-      exprtk_builtin_fn fn = find_function(mod, "bellman_ford");
-      exprtk_value_t result = fn(6, args, NULL, &arena);
+      const toad_module_t *mod = toad_module_strategy();
+      toad_builtin_fn fn = find_function(mod, "bellman_ford");
+      toad_value_t result = fn(6, args, NULL, &arena);
 
       // Should succeed (no negative cycle)
       check(fabs((double)(result.data.number) - (double)(0.0)) <= (double)(EPSILON));
@@ -83,17 +83,17 @@ suite("Graph Algorithms") {
       double dist[3];
       double prev[3];
 
-      exprtk_value_t args[6];
-      args[0] = exprtk_val_vec(edges, 9);
-      args[1] = exprtk_val_num(n_vertices);
-      args[2] = exprtk_val_num(n_edges);
-      args[3] = exprtk_val_num(source);
-      args[4] = exprtk_val_vec(dist, 3);
-      args[5] = exprtk_val_vec(prev, 3);
+      toad_value_t args[6];
+      args[0] = toad_val_vec(edges, 9);
+      args[1] = toad_val_num(n_vertices);
+      args[2] = toad_val_num(n_edges);
+      args[3] = toad_val_num(source);
+      args[4] = toad_val_vec(dist, 3);
+      args[5] = toad_val_vec(prev, 3);
 
-      const exprtk_module_t *mod = exprtk_module_strategy();
-      exprtk_builtin_fn fn = find_function(mod, "bellman_ford");
-      exprtk_value_t result = fn(6, args, NULL, &arena);
+      const toad_module_t *mod = toad_module_strategy();
+      toad_builtin_fn fn = find_function(mod, "bellman_ford");
+      toad_value_t result = fn(6, args, NULL, &arena);
 
       // Should detect negative cycle
       check(fabs((double)(result.data.number) - (double)(-1.0)) <= (double)(EPSILON));
@@ -116,17 +116,17 @@ suite("Graph Algorithms") {
       double dist[3];
       double prev[3];
 
-      exprtk_value_t args[6];
-      args[0] = exprtk_val_vec(edges, 3);
-      args[1] = exprtk_val_num(n_vertices);
-      args[2] = exprtk_val_num(n_edges);
-      args[3] = exprtk_val_num(source);
-      args[4] = exprtk_val_vec(dist, 3);
-      args[5] = exprtk_val_vec(prev, 3);
+      toad_value_t args[6];
+      args[0] = toad_val_vec(edges, 3);
+      args[1] = toad_val_num(n_vertices);
+      args[2] = toad_val_num(n_edges);
+      args[3] = toad_val_num(source);
+      args[4] = toad_val_vec(dist, 3);
+      args[5] = toad_val_vec(prev, 3);
 
-      const exprtk_module_t *mod = exprtk_module_strategy();
-      exprtk_builtin_fn fn = find_function(mod, "bellman_ford");
-      exprtk_value_t result = fn(6, args, NULL, &arena);
+      const toad_module_t *mod = toad_module_strategy();
+      toad_builtin_fn fn = find_function(mod, "bellman_ford");
+      toad_value_t result = fn(6, args, NULL, &arena);
 
       check(fabs((double)(result.data.number) - (double)(0.0)) <= (double)(EPSILON));
       check(fabs((double)(dist[0]) - (double)(0.0)) <= (double)(EPSILON));
@@ -148,14 +148,14 @@ suite("Graph Algorithms") {
         2, 0, -5
       };
 
-      exprtk_value_t args[3];
-      args[0] = exprtk_val_vec(edges, 9);
-      args[1] = exprtk_val_num(3);  // n_vertices
-      args[2] = exprtk_val_num(3);  // n_edges
+      toad_value_t args[3];
+      args[0] = toad_val_vec(edges, 9);
+      args[1] = toad_val_num(3);  // n_vertices
+      args[2] = toad_val_num(3);  // n_edges
 
-      const exprtk_module_t *mod = exprtk_module_strategy();
-      exprtk_builtin_fn fn = find_function(mod, "has_negative_cycle");
-      exprtk_value_t result = fn(3, args, NULL, &arena);
+      const toad_module_t *mod = toad_module_strategy();
+      toad_builtin_fn fn = find_function(mod, "has_negative_cycle");
+      toad_value_t result = fn(3, args, NULL, &arena);
 
       check(fabs((double)(result.data.number) - (double)(1.0)) <= (double)(EPSILON));  // Has cycle
 
@@ -172,14 +172,14 @@ suite("Graph Algorithms") {
         2, 0, 3
       };
 
-      exprtk_value_t args[3];
-      args[0] = exprtk_val_vec(edges, 9);
-      args[1] = exprtk_val_num(3);
-      args[2] = exprtk_val_num(3);
+      toad_value_t args[3];
+      args[0] = toad_val_vec(edges, 9);
+      args[1] = toad_val_num(3);
+      args[2] = toad_val_num(3);
 
-      const exprtk_module_t *mod = exprtk_module_strategy();
-      exprtk_builtin_fn fn = find_function(mod, "has_negative_cycle");
-      exprtk_value_t result = fn(3, args, NULL, &arena);
+      const toad_module_t *mod = toad_module_strategy();
+      toad_builtin_fn fn = find_function(mod, "has_negative_cycle");
+      toad_value_t result = fn(3, args, NULL, &arena);
 
       check(fabs((double)(result.data.number) - (double)(0.0)) <= (double)(EPSILON));  // No negative cycle
 
@@ -197,15 +197,15 @@ suite("Graph Algorithms") {
       double prev[] = {-1, 0, 1, 2};
       double path[10];
 
-      exprtk_value_t args[4];
-      args[0] = exprtk_val_vec(prev, 4);
-      args[1] = exprtk_val_num(0);  // source
-      args[2] = exprtk_val_num(3);  // target
-      args[3] = exprtk_val_vec(path, 10);
+      toad_value_t args[4];
+      args[0] = toad_val_vec(prev, 4);
+      args[1] = toad_val_num(0);  // source
+      args[2] = toad_val_num(3);  // target
+      args[3] = toad_val_vec(path, 10);
 
-      const exprtk_module_t *mod = exprtk_module_strategy();
-      exprtk_builtin_fn fn = find_function(mod, "extract_path");
-      exprtk_value_t result = fn(4, args, NULL, &arena);
+      const toad_module_t *mod = toad_module_strategy();
+      toad_builtin_fn fn = find_function(mod, "extract_path");
+      toad_value_t result = fn(4, args, NULL, &arena);
 
       // Path length should be 4
       check(fabs((double)(result.data.number) - (double)(4.0)) <= (double)(EPSILON));
@@ -226,15 +226,15 @@ suite("Graph Algorithms") {
       double prev[] = {-1, 0, -1};  // Vertex 2 unreachable
       double path[10];
 
-      exprtk_value_t args[4];
-      args[0] = exprtk_val_vec(prev, 3);
-      args[1] = exprtk_val_num(0);
-      args[2] = exprtk_val_num(2);
-      args[3] = exprtk_val_vec(path, 10);
+      toad_value_t args[4];
+      args[0] = toad_val_vec(prev, 3);
+      args[1] = toad_val_num(0);
+      args[2] = toad_val_num(2);
+      args[3] = toad_val_vec(path, 10);
 
-      const exprtk_module_t *mod = exprtk_module_strategy();
-      exprtk_builtin_fn fn = find_function(mod, "extract_path");
-      exprtk_value_t result = fn(4, args, NULL, &arena);
+      const toad_module_t *mod = toad_module_strategy();
+      toad_builtin_fn fn = find_function(mod, "extract_path");
+      toad_value_t result = fn(4, args, NULL, &arena);
 
       check(fabs((double)(result.data.number) - (double)(-1.0)) <= (double)(EPSILON));
 
@@ -256,13 +256,13 @@ suite("Graph Algorithms") {
         1.0, 0.0, 1.0   // GBP -> USD, EUR
       };
 
-      exprtk_value_t args[2];
-      args[0] = exprtk_val_vec(rates, 9);
-      args[1] = exprtk_val_num(3);
+      toad_value_t args[2];
+      args[0] = toad_val_vec(rates, 9);
+      args[1] = toad_val_num(3);
 
-      const exprtk_module_t *mod = exprtk_module_strategy();
-      exprtk_builtin_fn fn = find_function(mod, "detect_arbitrage");
-      exprtk_value_t result = fn(2, args, NULL, &arena);
+      const toad_module_t *mod = toad_module_strategy();
+      toad_builtin_fn fn = find_function(mod, "detect_arbitrage");
+      toad_value_t result = fn(2, args, NULL, &arena);
 
       check(fabs((double)(result.data.number) - (double)(1.0)) <= (double)(EPSILON));  // Arbitrage exists
 
@@ -281,13 +281,13 @@ suite("Graph Algorithms") {
         1.0/3.0, 2.0/3.0, 1.0   // GBP -> USD (1/3x), EUR (2/3x)
       };
 
-      exprtk_value_t args[2];
-      args[0] = exprtk_val_vec(rates, 9);
-      args[1] = exprtk_val_num(3);
+      toad_value_t args[2];
+      args[0] = toad_val_vec(rates, 9);
+      args[1] = toad_val_num(3);
 
-      const exprtk_module_t *mod = exprtk_module_strategy();
-      exprtk_builtin_fn fn = find_function(mod, "detect_arbitrage");
-      exprtk_value_t result = fn(2, args, NULL, &arena);
+      const toad_module_t *mod = toad_module_strategy();
+      toad_builtin_fn fn = find_function(mod, "detect_arbitrage");
+      toad_value_t result = fn(2, args, NULL, &arena);
 
       check(fabs((double)(result.data.number) - (double)(0.0)) <= (double)(EPSILON));  // No arbitrage
 

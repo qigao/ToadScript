@@ -1,11 +1,11 @@
-# TurboScript Engine Design
+# Toad Engine Design
 
 ## Overview
 
-TurboScript is a high-performance embeddable scripting engine with TypeScript-like syntax.
+Toad is a high-performance embeddable scripting engine with TypeScript-like syntax.
 Its public execution model is a pure MIR backend: source is parsed into an AST, validated, lowered to MIR, and then executed by either MIR's interpreter or MIR-generated native code.
 
-TurboScript is meant for host-driven scripting, data transformation, lightweight analysis, quantitative helpers, and extension through C/C++ modules. It is not a full TypeScript, JavaScript, Python, or Lua runtime.
+Toad is meant for host-driven scripting, data transformation, lightweight analysis, quantitative helpers, and extension through C/C++ modules. It is not a full TypeScript, JavaScript, Python, or Lua runtime.
 
 ## Execution Pipeline
 
@@ -25,26 +25,26 @@ TurboScript is meant for host-driven scripting, data transformation, lightweight
                     [ MIR Interpreter ]  [ MIR JIT ]
 ```
 
-`turbo_script_run()` and `turbo_script_run_jit()` share parsing, validation, lowering, runtime helpers, and error behavior. They differ only at the final MIR execution stage.
+`toad_script_run()` and `toad_script_run_jit()` share parsing, validation, lowering, runtime helpers, and error behavior. They differ only at the final MIR execution stage.
 
 Unsupported lowering forms must return explicit errors. The host may explicitly choose MIR interpreter mode, but the engine does not hide unsupported JIT forms by switching execution backends.
 
 ## Core Components
 
-- `exprtk/parser/exprtk_lexer.re`: lexer source.
-- `exprtk/parser/exprtk_grammar.y`: grammar and AST construction.
-- `exprtk/include/exprtk_types.h`: AST and runtime value definitions.
-- `exprtk/src/exprtk_validate.c`: semantic validation.
-- `turbo_script/src/turbo_script.c`: host API, context lifetime, imports, plugins, bindings.
-- `turbo_script/src/turbo_script_mir.c`: AST-to-MIR backend and MIR execution APIs.
-- `exprtk/src/mod_*.c`: core built-in modules.
+- `engine/parser/lexer.re`: lexer source.
+- `engine/parser/grammar.y`: grammar and AST construction.
+- `engine/include/toad/types.h`: AST and runtime value definitions.
+- `engine/src/validate.c`: semantic validation.
+- `script/src/script.c`: host API, context lifetime, imports, plugins, bindings.
+- `script/src/mir.c`: AST-to-MIR backend and MIR execution APIs.
+- `engine/src/mod_*.c`: core built-in modules.
 - `modules/*`: optional plugins and domain modules.
 
 ## Runtime State
 
-`turbo_script_ctx_t` is the top-level state owner:
+`toad_script_ctx_t` is the top-level state owner:
 
-- `exprtk_env_t env` stores variables, constants, functions, classes, loaded modules, and runtime error state.
+- `toad_env_t env` stores variables, constants, functions, classes, loaded modules, and runtime error state.
 - `mir_interp_ctx` stores MIR interpreter modules.
 - `mir_ctx` stores MIR JIT modules and generated code.
 - JIT cache maps script hashes to compiled native function pointers.
@@ -82,7 +82,7 @@ Runtime helpers are part of the MIR backend contract. They provide operations th
 - parser/data binding
 - file, datetime, math, matrix, time-series, TA, and finance helpers
 
-Helpers must report errors through `exprtk_env_t` and `turbo_script_ctx_t` so both MIR interpreter and MIR JIT observe the same behavior.
+Helpers must report errors through `toad_env_t` and `toad_script_ctx_t` so both MIR interpreter and MIR JIT observe the same behavior.
 
 ## Module Resolution
 
@@ -102,7 +102,7 @@ Plugin namespaces must resolve by registered module name. They must not fall thr
 - `mapper.read_json`, `mapper.read_yaml`, `mapper.read_xml`
 - `mapper.write_json`, `mapper.write_yaml`, `mapper.write_xml`
 
-TurboScript class field declarations are the type source. The mapper uses
+Toad class field declarations are the type source. The mapper uses
 Salts DataBind parser APIs for document syntax and never loads a separate
 schema or codec.
 
@@ -110,13 +110,13 @@ schema or codec.
 
 ## Error Policy
 
-TurboScript uses explicit errors:
+Toad uses explicit errors:
 
-- parse failure: `TURBO_SCRIPT_ERROR_PARSE`
-- validation failure: `TURBO_SCRIPT_ERROR_VALIDATE`
-- MIR lowering/JIT failure: `TURBO_SCRIPT_ERROR_JIT`
-- runtime helper failure: `TURBO_SCRIPT_ERROR_RUNTIME`
-- plugin loading failure: `TURBO_SCRIPT_ERROR_PLUGIN`
+- parse failure: `TOAD_SCRIPT_ERROR_PARSE`
+- validation failure: `TOAD_SCRIPT_ERROR_VALIDATE`
+- MIR lowering/JIT failure: `TOAD_SCRIPT_ERROR_JIT`
+- runtime helper failure: `TOAD_SCRIPT_ERROR_RUNTIME`
+- plugin loading failure: `TOAD_SCRIPT_ERROR_PLUGIN`
 
 Returning a default numeric value to hide an unsupported form is not acceptable. Unsupported features should be covered by tests that assert an error.
 
@@ -125,7 +125,7 @@ Returning a default numeric value to hide an unsupported form is not acceptable.
 Preferred validation order:
 
 1. Closest unit test for the changed lowering/helper path.
-2. `test_turbo_script_mir` for MIR interpreter and MIR JIT parity.
-3. `test_turbo_script` for host API regression.
+2. `test_script_mir` for MIR interpreter and MIR JIT parity.
+3. `test_script` for host API regression.
 4. Module-specific tests when parser, data binding, math, string, file, datetime, `ts`, `ta`, or `fin` behavior changes.
-5. `bench_turbo_script_mir` for performance-sensitive changes.
+5. `bench_script_mir` for performance-sensitive changes.

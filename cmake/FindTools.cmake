@@ -16,12 +16,15 @@ endif()
 
 # Cross builds execute an explicitly supplied host generator.
 if(CMAKE_CROSSCOMPILING)
-    if(NOT TURBOSCRIPT_HOST_LEMON_EXECUTABLE OR
-       NOT EXISTS "${TURBOSCRIPT_HOST_LEMON_EXECUTABLE}")
-        message(FATAL_ERROR "Cross builds require TURBOSCRIPT_HOST_LEMON_EXECUTABLE built for the host")
+    find_program(LEMON_EXECUTABLE lemon PATHS "$ENV{LEMON_ROOT}/bin"
+                 NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH REQUIRED)
+    file(REAL_PATH "$ENV{LEMON_ROOT}" _lemon_root)
+    file(REAL_PATH "${LEMON_EXECUTABLE}" _lemon_executable)
+    cmake_path(IS_PREFIX _lemon_root "${_lemon_executable}" NORMALIZE _lemon_in_root)
+    if(NOT _lemon_in_root)
+        message(FATAL_ERROR "lemon executable is outside LEMON_ROOT: ${LEMON_EXECUTABLE}")
     endif()
-    set(LEMON_EXECUTABLE "${TURBOSCRIPT_HOST_LEMON_EXECUTABLE}")
-    set(LEMON_DEPENDS "${TURBOSCRIPT_HOST_LEMON_EXECUTABLE}")
+    set(LEMON_DEPENDS "${LEMON_EXECUTABLE}")
 elseif(TARGET lemon)
     set(LEMON_EXECUTABLE $<TARGET_FILE:lemon>)
     set(LEMON_DEPENDS lemon)

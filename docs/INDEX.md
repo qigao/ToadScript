@@ -1,4 +1,4 @@
-# TurboScript 文档索引
+# Toad 文档索引
 
 ## 核心文档
 
@@ -11,10 +11,10 @@
 
 ## 结构化文档映射
 
-TurboScript 使用 `mapper` 进行 class-first JSON/YAML/XML 映射。class 字段
+Toad 使用 `mapper` 进行 class-first JSON/YAML/XML 映射。class 字段
 声明是唯一类型来源：
 
-```turboscript
+```toad
 import("mapper");
 
 class User {
@@ -27,7 +27,7 @@ var json = mapper.write_json(user);
 ```
 
 详见 [Mapper 模块](../modules/mapper/README.md)。文档解析由 Salts
-Salts DataBind parser APIs 提供；TurboScript 不再提供独立 schema、codec 或二进制
+Salts DataBind parser APIs 提供；Toad 不再提供独立 schema、codec 或二进制
 DataBind 公共接口。
 
 ## 其他模块

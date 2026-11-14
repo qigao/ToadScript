@@ -4,9 +4,9 @@
  */
 
 #include "strategy.h"
-#include "fin.h"               /* exprtk_module_strategy, exprtk_module_ta, etc. */
-#include "exprtk_types.h"
-#include "exprtk.h"
+#include "fin.h"               /* toad_module_strategy, toad_module_ta, etc. */
+#include <toad/types.h>
+#include <toad/engine.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -15,22 +15,22 @@
  * Internal bind helpers
  * ========================================================================= */
 
-/** Bind a named scalar variable into the TurboScript environment. */
-static void ts_bind_num(exprtk_env_t *env, const char *name, double val) {
-    exprtk_value_t v = { .type = EXPRTK_VAL_NUMBER, .data = { .number = val } };
-    exprtk_env_set(env, name, v);
+/** Bind a named scalar variable into the Toad environment. */
+static void toad_script_bind_num(toad_env_t *env, const char *name, double val) {
+    toad_value_t v = { .type = TOAD_VAL_NUMBER, .data = { .number = val } };
+    toad_env_set(env, name, v);
 }
 
-/** Bind a named vector (double array) into the TurboScript environment. */
-static void ts_bind_vec(exprtk_env_t *env, const char *name,
+/** Bind a named vector (double array) into the Toad environment. */
+static void toad_script_bind_vec(toad_env_t *env, const char *name,
                      const double *data, size_t len) {
-    exprtk_env_set(env, name, exprtk_val_vec((double *)data, len));
+    toad_env_set(env, name, toad_val_vec((double *)data, len));
 }
 
 /** Read a scalar output variable written by the strategy script. */
-static double read_num(exprtk_env_t *env, const char *name, double def) {
-    exprtk_value_t v = exprtk_env_get(env, name);
-    if (v.type == EXPRTK_VAL_NUMBER) return v.data.number;
+static double read_num(toad_env_t *env, const char *name, double def) {
+    toad_value_t v = toad_env_get(env, name);
+    if (v.type == TOAD_VAL_NUMBER) return v.data.number;
     return def;
 }
 
@@ -75,37 +75,37 @@ strategy_ctx_t *strategy_create(universe_t *universe,
     ctx->order_mgr->slippage_pct = ctx->config.slippage_pct;
     ctx->order_mgr->spread       = ctx->config.spread;
 
-    /* Create TurboScript environment */
-    ctx->env = (exprtk_env_t *)mem_alloc(arena, sizeof(exprtk_env_t));
+    /* Create Toad environment */
+    ctx->env = (toad_env_t *)mem_alloc(arena, sizeof(toad_env_t));
     if (!ctx->env) goto fail;
-    exprtk_env_init(ctx->env);
+    toad_env_init(ctx->env);
 
     /* Mount strategy scripting module (buy/sell/flat/rank/...) */
-    exprtk_env_add_module(ctx->env, exprtk_module_strategy());
+    toad_env_add_module(ctx->env, toad_module_strategy());
 
     /* Pre-declare output variables so the script can assign them */
-    ts_bind_num(ctx->env, "signal",      0.0);
-    ts_bind_num(ctx->env, "size",        0.1);
-    ts_bind_num(ctx->env, "stop_loss",   0.0);
-    ts_bind_num(ctx->env, "take_profit", 0.0);
+    toad_script_bind_num(ctx->env, "signal",      0.0);
+    toad_script_bind_num(ctx->env, "size",        0.1);
+    toad_script_bind_num(ctx->env, "stop_loss",   0.0);
+    toad_script_bind_num(ctx->env, "take_profit", 0.0);
 
     /* Trade-log state (updated per-bar for adaptive strategies) */
-    ts_bind_num(ctx->env, "num_trades", 0.0);
-    ts_bind_num(ctx->env, "num_wins",   0.0);
-    ts_bind_num(ctx->env, "cum_pnl",    0.0);
-    ts_bind_num(ctx->env, "entry_price", 0.0);
+    toad_script_bind_num(ctx->env, "num_trades", 0.0);
+    toad_script_bind_num(ctx->env, "num_wins",   0.0);
+    toad_script_bind_num(ctx->env, "cum_pnl",    0.0);
+    toad_script_bind_num(ctx->env, "entry_price", 0.0);
 
     return ctx;
 
 fail:
-    if (ctx->env) exprtk_env_free(ctx->env);
+    if (ctx->env) toad_env_free(ctx->env);
     if (ctx->order_mgr) order_manager_free(ctx->order_mgr);
     return NULL;
 }
 
 void strategy_free(strategy_ctx_t *ctx) {
     if (!ctx) return;
-    if (ctx->env) exprtk_env_free(ctx->env);
+    if (ctx->env) toad_env_free(ctx->env);
     if (ctx->order_mgr) order_manager_free(ctx->order_mgr);
     /* windows and ctx itself are arena-owned */
 }
@@ -122,7 +122,7 @@ void strategy_init_hooks(strategy_ctx_t *ctx) {
     ctx->hook_on_fill = NULL;
     ctx->hook_on_stop = NULL;
 
-    for (exprtk_func_t *f = ctx->env->funcs; f; f = f->next) {
+    for (toad_func_t *f = ctx->env->funcs; f; f = f->next) {
         if (!f->name || !f->is_script) continue;
         if      (strcmp(f->name, "on_init") == 0) ctx->hook_on_init = f;
         else if (strcmp(f->name, "on_bar")  == 0) ctx->hook_on_bar  = f;
@@ -134,34 +134,34 @@ void strategy_init_hooks(strategy_ctx_t *ctx) {
 }
 
 /** Invoke a script-defined hook function (0 args). */
-static void call_hook(strategy_ctx_t *ctx, exprtk_func_t *hook) {
+static void call_hook(strategy_ctx_t *ctx, toad_func_t *hook) {
     if (!hook || !hook->data.script.body) return;
-    exprtk_env_t *env = ctx->env;
-    env->flow = exprtk_FLOW_NORMAL;
-    exprtk_eval(hook->data.script.body, env);
-    env->flow = exprtk_FLOW_NORMAL;
+    toad_env_t *env = ctx->env;
+    env->flow = toad_FLOW_NORMAL;
+    toad_eval(hook->data.script.body, env);
+    env->flow = toad_FLOW_NORMAL;
 }
 
 /** Invoke on_fill hook with a fill map argument. */
 static void call_hook_on_fill(strategy_ctx_t *ctx, const trade_record_t *tr) {
     if (!ctx->hook_on_fill || !tr) return;
-    exprtk_env_t *env = ctx->env;
+    toad_env_t *env = ctx->env;
 
     /* Build fill map and bind as "fill" variable */
-    exprtk_value_t m = exprtk_val_map();
-    exprtk_map_set(&m, "asset_id",  exprtk_val_num((double)tr->asset_id));
-    exprtk_map_set(&m, "direction", exprtk_val_num((double)tr->direction));
-    exprtk_map_set(&m, "price",     exprtk_val_num(tr->exit_price));
-    exprtk_map_set(&m, "quantity",  exprtk_val_num(tr->quantity));
-    exprtk_map_set(&m, "pnl",       exprtk_val_num(tr->pnl));
-    exprtk_env_set(env, "fill", m);
+    toad_value_t m = toad_val_map();
+    toad_map_set(&m, "asset_id",  toad_val_num((double)tr->asset_id));
+    toad_map_set(&m, "direction", toad_val_num((double)tr->direction));
+    toad_map_set(&m, "price",     toad_val_num(tr->exit_price));
+    toad_map_set(&m, "quantity",  toad_val_num(tr->quantity));
+    toad_map_set(&m, "pnl",       toad_val_num(tr->pnl));
+    toad_env_set(env, "fill", m);
 
-    env->flow = exprtk_FLOW_NORMAL;
-    exprtk_eval(ctx->hook_on_fill->data.script.body, env);
-    env->flow = exprtk_FLOW_NORMAL;
+    env->flow = toad_FLOW_NORMAL;
+    toad_eval(ctx->hook_on_fill->data.script.body, env);
+    env->flow = toad_FLOW_NORMAL;
 
     /* Free the map we allocated */
-    exprtk_map_free(&m);
+    toad_map_free(&m);
 }
 
 /* =========================================================================
@@ -204,28 +204,28 @@ void strategy_reset(strategy_ctx_t *ctx) {
 
 int strategy_compile(strategy_ctx_t *ctx, const char *code) {
     if (!ctx || !ctx->env || !code) return -1;
-    exprtk_parse_ctx_t parse = {0};
+    toad_parse_ctx_t parse = {0};
     mem_pool_t scratch;
     mem_init(&scratch, 1024 * 256);
     parse.arena = &scratch;
 
-    ctx->parsed = (struct exprtk_parse_ctx_s *)mem_alloc(
-        ctx->arena, sizeof(exprtk_parse_ctx_t));
+    ctx->parsed = (struct toad_parse_ctx_s *)mem_alloc(
+        ctx->arena, sizeof(toad_parse_ctx_t));
     if (!ctx->parsed) { mem_destroy(&scratch); return -1; }
 
     /* Parse the script */
-    exprtk_parse_ctx_t *pc = (exprtk_parse_ctx_t *)ctx->parsed;
+    toad_parse_ctx_t *pc = (toad_parse_ctx_t *)ctx->parsed;
     *pc = parse;
 
     int err = 0;
-    pc->root = exprtk_parse_ext(code, strlen(code), ctx->arena, &err,
+    pc->root = toad_parse_ext(code, strlen(code), ctx->arena, &err,
                                  pc->error_msg, sizeof(pc->error_msg));
     pc->error = err;
 
     /* Execute top-level code to register script-defined functions */
     if (!err && pc->root) {
-        exprtk_eval(pc->root, ctx->env);
-        ctx->env->flow = exprtk_FLOW_NORMAL;
+        toad_eval(pc->root, ctx->env);
+        ctx->env->flow = toad_FLOW_NORMAL;
     }
 
     /* Detect on_init/on_bar/on_fill/on_stop hooks */
@@ -242,19 +242,19 @@ int strategy_compile(strategy_ctx_t *ctx, const char *code) {
 /** Bind bar data and context variables to script environment. */
 static void bind_bar_context(strategy_ctx_t *ctx, bar_window_t *w,
                                uint32_t asset_id, double prev_close) {
-    ts_bind_vec(ctx->env, "O", w->open,   w->count);
-    ts_bind_vec(ctx->env, "H", w->high,   w->count);
-    ts_bind_vec(ctx->env, "L", w->low,    w->count);
-    ts_bind_vec(ctx->env, "C", w->close,  w->count);
-    ts_bind_vec(ctx->env, "V", w->volume, w->count);
-    ts_bind_num(ctx->env, "n",          (double)w->count);
-    ts_bind_num(ctx->env, "asset_id",   (double)asset_id);
-    ts_bind_num(ctx->env, "bar_index",  (double)ctx->total_bars);
-    ts_bind_num(ctx->env, "position",   order_manager_position(ctx->order_mgr, asset_id));
-    ts_bind_num(ctx->env, "entry_price",order_manager_entry_price(ctx->order_mgr, asset_id));
-    ts_bind_num(ctx->env, "cash",       ctx->order_mgr->cash);
-    ts_bind_num(ctx->env, "equity",     ctx->order_mgr->equity);
-    ts_bind_num(ctx->env, "prev_close", prev_close);
+    toad_script_bind_vec(ctx->env, "O", w->open,   w->count);
+    toad_script_bind_vec(ctx->env, "H", w->high,   w->count);
+    toad_script_bind_vec(ctx->env, "L", w->low,    w->count);
+    toad_script_bind_vec(ctx->env, "C", w->close,  w->count);
+    toad_script_bind_vec(ctx->env, "V", w->volume, w->count);
+    toad_script_bind_num(ctx->env, "n",          (double)w->count);
+    toad_script_bind_num(ctx->env, "asset_id",   (double)asset_id);
+    toad_script_bind_num(ctx->env, "bar_index",  (double)ctx->total_bars);
+    toad_script_bind_num(ctx->env, "position",   order_manager_position(ctx->order_mgr, asset_id));
+    toad_script_bind_num(ctx->env, "entry_price",order_manager_entry_price(ctx->order_mgr, asset_id));
+    toad_script_bind_num(ctx->env, "cash",       ctx->order_mgr->cash);
+    toad_script_bind_num(ctx->env, "equity",     ctx->order_mgr->equity);
+    toad_script_bind_num(ctx->env, "prev_close", prev_close);
 }
 
 /** Update trade statistics in script environment. */
@@ -265,31 +265,31 @@ static void bind_trade_stats(strategy_ctx_t *ctx) {
         cpnl += ctx->order_mgr->trades[ti].pnl;
         if (ctx->order_mgr->trades[ti].pnl > 0.0) nw += 1.0;
     }
-    ts_bind_num(ctx->env, "num_trades", (double)nt);
-    ts_bind_num(ctx->env, "num_wins",   nw);
-    ts_bind_num(ctx->env, "cum_pnl",    cpnl);
+    toad_script_bind_num(ctx->env, "num_trades", (double)nt);
+    toad_script_bind_num(ctx->env, "num_wins",   nw);
+    toad_script_bind_num(ctx->env, "cum_pnl",    cpnl);
 }
 
 /** Reset output variables before strategy execution. */
 static void reset_output_vars(strategy_ctx_t *ctx) {
-    ts_bind_num(ctx->env, "signal",      0.0);
-    ts_bind_num(ctx->env, "size",        0.1);
-    ts_bind_num(ctx->env, "signal_type", 0.0); /* 0: MKT, 1: LIMIT, 2: STOP */
-    ts_bind_num(ctx->env, "signal_price",0.0);
-    ts_bind_num(ctx->env, "bars_valid",  1.0); /* 1: DAY, -1: GTC */
-    ts_bind_num(ctx->env, "stop_loss",   0.0);
-    ts_bind_num(ctx->env, "take_profit", 0.0);
-    ts_bind_num(ctx->env, "trailing_dist", 0.0);
-    ts_bind_num(ctx->env, "trailing_pct",  0.0);
+    toad_script_bind_num(ctx->env, "signal",      0.0);
+    toad_script_bind_num(ctx->env, "size",        0.1);
+    toad_script_bind_num(ctx->env, "signal_type", 0.0); /* 0: MKT, 1: LIMIT, 2: STOP */
+    toad_script_bind_num(ctx->env, "signal_price",0.0);
+    toad_script_bind_num(ctx->env, "bars_valid",  1.0); /* 1: DAY, -1: GTC */
+    toad_script_bind_num(ctx->env, "stop_loss",   0.0);
+    toad_script_bind_num(ctx->env, "take_profit", 0.0);
+    toad_script_bind_num(ctx->env, "trailing_dist", 0.0);
+    toad_script_bind_num(ctx->env, "trailing_pct",  0.0);
 }
 
 /** Execute the compiled strategy script. */
 static void execute_strategy_script(strategy_ctx_t *ctx) {
-    exprtk_parse_ctx_t *pc = (exprtk_parse_ctx_t *)ctx->parsed;
+    toad_parse_ctx_t *pc = (toad_parse_ctx_t *)ctx->parsed;
     if (ctx->has_hooks && ctx->hook_on_bar) {
         call_hook(ctx, ctx->hook_on_bar);
     } else if (pc->root) {
-        exprtk_eval(pc->root, ctx->env);
+        toad_eval(pc->root, ctx->env);
     }
 }
 

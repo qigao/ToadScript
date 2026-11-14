@@ -1,0 +1,540 @@
+#include "cflow_text_kernel.h"
+
+#include "../mir/internal.h"
+#include <turboscript/grammar.h>
+
+#include <cflow/function_projection.h>
+#include <cmeta/function.h>
+
+#include <limits.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct ts_cflow_text_kernel_s {
+  MIR_context_t mir_ctx;
+  MIR_module_t module;
+  MIR_item_t function;
+  void *address;
+  int gen_initialized;
+};
+
+_Static_assert(sizeof(ts_cflow_text_kernel_t *) <= CMETA_CAPTURE_INLINE,
+               "text MIR kernel pointer must fit CMeta inline capture");
+
+static const tbs_node_t *ts_cflow_text_lambda_value(
+    const tbs_node_t *lambda) {
+  const tbs_node_t *body;
+
+  if (!lambda || lambda->type != TBS_NODE_FUNCTION_EXPRESSION ||
+      lambda->data.func_def.arg_count != 1u ||
+      !lambda->data.func_def.arg_params ||
+      !lambda->data.func_def.arg_params[0] ||
+      lambda->data.func_def.arg_params[0]->type != TBS_NODE_VARIABLE ||
+      !lambda->data.func_def.arg_params[0]->data.variable.name)
+    return NULL;
+
+  body = lambda->data.func_def.body;
+  if (!body) return NULL;
+
+  if (body->type == TBS_NODE_BLOCK) {
+    if (body->data.block.count != 1u || !body->data.block.statements)
+      return NULL;
+    body = body->data.block.statements[0];
+  }
+
+  if (body && body->type == TBS_NODE_FLOW &&
+      body->data.flow.type == tbs_TOKEN_RETURN)
+    body = body->data.flow.value;
+
+  return body;
+}
+
+static bool ts_cflow_text_lambda_is_length_map(
+    const tbs_node_t *lambda) {
+  const tbs_node_t *body = ts_cflow_text_lambda_value(lambda);
+  const tbs_node_t *param;
+  const tbs_node_t *object;
+
+  if (!body || body->type != TBS_NODE_MEMBER_CALL ||
+      !body->data.member_call.method ||
+      strcmp(body->data.member_call.method, "length") != 0 ||
+      body->data.member_call.arg_count != 0u)
+    return false;
+
+  param = lambda->data.func_def.arg_params[0];
+  object = body->data.member_call.object;
+  return object && object->type == TBS_NODE_VARIABLE &&
+         object->data.variable.name &&
+         strcmp(object->data.variable.name,
+                param->data.variable.name) == 0;
+}
+
+static bool ts_cflow_text_node_is_param_length(
+    const tbs_node_t *node,
+    const char *param_name) {
+  const tbs_node_t *object;
+  if (!node || !param_name ||
+      node->type != TBS_NODE_MEMBER_CALL ||
+      !node->data.member_call.method ||
+      strcmp(node->data.member_call.method, "length") != 0 ||
+      node->data.member_call.arg_count != 0u)
+    return false;
+  object = node->data.member_call.object;
+  return object && object->type == TBS_NODE_VARIABLE &&
+         object->data.variable.name &&
+         strcmp(object->data.variable.name, param_name) == 0;
+}
+
+static bool ts_cflow_text_node_is_zero(const tbs_node_t *node) {
+  return node &&
+         ((node->type == TBS_NODE_INTEGER &&
+           node->data.integer == 0) ||
+          (node->type == TBS_NODE_NUMBER &&
+           node->data.number == 0.0));
+}
+
+static bool ts_cflow_text_lambda_is_nonempty_filter(
+    const tbs_node_t *lambda) {
+  const tbs_node_t *body = ts_cflow_text_lambda_value(lambda);
+  const tbs_node_t *param;
+
+  if (!body || body->type != TBS_NODE_BINARY_OP ||
+      body->data.binary.op != tbs_TOKEN_GT ||
+      !body->data.binary.left || !body->data.binary.right)
+    return false;
+
+  param = lambda->data.func_def.arg_params[0];
+  return ts_cflow_text_node_is_param_length(
+             body->data.binary.left,
+             param->data.variable.name) &&
+         ts_cflow_text_node_is_zero(body->data.binary.right);
+}
+
+static bool ts_cflow_text_length_invoke(
+    const cmeta_callable *self,
+    void *out,
+    const void *const *args) {
+  ts_cflow_text_kernel_t *kernel = NULL;
+  ts_cflow_line_slice_t slice;
+  double result;
+
+  if (!self || !out || !args || !args[0] ||
+      self->capture_size != sizeof(kernel))
+    return false;
+
+  memcpy(&kernel, self->capture.bytes, sizeof(kernel));
+  if (!kernel || !kernel->address) return false;
+
+  memcpy(&slice, args[0], sizeof(slice));
+  if (slice.len > (size_t)INT64_MAX) return false;
+
+  result =
+      ((double (*)(const char *, int64_t))kernel->address)(
+          slice.data, (int64_t)slice.len);
+  memcpy(out, &result, sizeof(result));
+  return true;
+}
+
+static bool ts_cflow_text_nonempty_invoke(
+    const cmeta_callable *self,
+    void *out,
+    const void *const *args) {
+  ts_cflow_text_kernel_t *kernel = NULL;
+  ts_cflow_line_slice_t slice;
+  int64_t raw;
+  _Bool result;
+
+  if (!self || !out || !args || !args[0] ||
+      self->capture_size != sizeof(kernel))
+    return false;
+
+  memcpy(&kernel, self->capture.bytes, sizeof(kernel));
+  if (!kernel || !kernel->address) return false;
+
+  memcpy(&slice, args[0], sizeof(slice));
+  if (slice.len > (size_t)INT64_MAX) return false;
+
+  raw =
+      ((int64_t (*)(const char *, int64_t))kernel->address)(
+          slice.data, (int64_t)slice.len);
+  result = raw != 0;
+  memcpy(out, &result, sizeof(result));
+  return true;
+}
+
+static void ts_cflow_text_kernel_destroy(ts_cflow_text_kernel_t *kernel) {
+  if (!kernel) return;
+  if (kernel->mir_ctx) {
+    if (kernel->gen_initialized) MIR_gen_finish(kernel->mir_ctx);
+    MIR_finish(kernel->mir_ctx);
+  }
+  free(kernel);
+}
+
+static bool ts_cflow_text_length_kernel_compile(
+    ts_cflow_text_kernel_t *kernel,
+    const char **error) {
+  MIR_type_t result_type = MIR_T_D;
+  MIR_var_t args[2];
+  MIR_reg_t len_reg;
+  MIR_reg_t result_reg;
+
+  if (!kernel) return false;
+
+  kernel->mir_ctx = MIR_init();
+  if (!kernel->mir_ctx) {
+    if (error) *error = "failed to create MIR context for text kernel";
+    return false;
+  }
+
+  kernel->module =
+      MIR_new_module(kernel->mir_ctx, "ts_cflow_text_kernel");
+  if (!kernel->module) {
+    if (error) *error = "failed to create MIR module for text kernel";
+    return false;
+  }
+
+  args[0].type = MIR_T_P;
+  args[0].name = "data";
+  args[0].size = 0u;
+  args[1].type = MIR_T_I64;
+  args[1].name = "len";
+  args[1].size = 0u;
+
+  kernel->function = MIR_new_func_arr(
+      kernel->mir_ctx, "ts_cflow_line_length",
+      1u, &result_type, 2u, args);
+  if (!kernel->function) {
+    if (error) *error = "failed to create MIR text kernel function";
+    return false;
+  }
+
+  len_reg = MIR_reg(
+      kernel->mir_ctx, "len", kernel->function->u.func);
+  result_reg = MIR_new_func_reg(
+      kernel->mir_ctx, kernel->function->u.func,
+      MIR_T_D, "result");
+
+  MIR_append_insn(
+      kernel->mir_ctx, kernel->function,
+      MIR_new_insn(
+          kernel->mir_ctx, MIR_I2D,
+          MIR_new_reg_op(kernel->mir_ctx, result_reg),
+          MIR_new_reg_op(kernel->mir_ctx, len_reg)));
+  MIR_append_insn(
+      kernel->mir_ctx, kernel->function,
+      MIR_new_ret_insn(
+          kernel->mir_ctx, 1u,
+          MIR_new_reg_op(kernel->mir_ctx, result_reg)));
+
+  MIR_finish_func(kernel->mir_ctx);
+  MIR_finish_module(kernel->mir_ctx);
+  MIR_load_module(kernel->mir_ctx, kernel->module);
+
+  MIR_gen_init(kernel->mir_ctx);
+  kernel->gen_initialized = 1;
+  MIR_link(kernel->mir_ctx, MIR_set_gen_interface, NULL);
+  kernel->address =
+      MIR_gen(kernel->mir_ctx, kernel->function);
+  if (!kernel->address) {
+    if (error) *error = "MIR failed to generate text length kernel";
+    return false;
+  }
+
+  return true;
+}
+
+static bool ts_cflow_text_nonempty_kernel_compile(
+    ts_cflow_text_kernel_t *kernel,
+    const char **error) {
+  MIR_type_t result_type = MIR_T_I64;
+  MIR_var_t args[2];
+  MIR_reg_t len_reg;
+
+  if (!kernel) return false;
+
+  kernel->mir_ctx = MIR_init();
+  if (!kernel->mir_ctx) {
+    if (error) *error = "failed to create MIR context for text predicate";
+    return false;
+  }
+
+  kernel->module =
+      MIR_new_module(kernel->mir_ctx, "ts_cflow_text_predicate");
+  if (!kernel->module) {
+    if (error) *error = "failed to create MIR module for text predicate";
+    return false;
+  }
+
+  args[0].type = MIR_T_P;
+  args[0].name = "data";
+  args[0].size = 0u;
+  args[1].type = MIR_T_I64;
+  args[1].name = "len";
+  args[1].size = 0u;
+
+  kernel->function = MIR_new_func_arr(
+      kernel->mir_ctx, "ts_cflow_line_nonempty",
+      1u, &result_type, 2u, args);
+  if (!kernel->function) {
+    if (error) *error = "failed to create MIR text predicate function";
+    return false;
+  }
+
+  len_reg = MIR_reg(
+      kernel->mir_ctx, "len", kernel->function->u.func);
+  MIR_append_insn(
+      kernel->mir_ctx, kernel->function,
+      MIR_new_ret_insn(
+          kernel->mir_ctx, 1u,
+          MIR_new_reg_op(kernel->mir_ctx, len_reg)));
+
+  MIR_finish_func(kernel->mir_ctx);
+  MIR_finish_module(kernel->mir_ctx);
+  MIR_load_module(kernel->mir_ctx, kernel->module);
+
+  MIR_gen_init(kernel->mir_ctx);
+  kernel->gen_initialized = 1;
+  MIR_link(kernel->mir_ctx, MIR_set_gen_interface, NULL);
+  kernel->address =
+      MIR_gen(kernel->mir_ctx, kernel->function);
+  if (!kernel->address) {
+    if (error) *error = "MIR failed to generate text predicate kernel";
+    return false;
+  }
+
+  return true;
+}
+
+bool ts_cflow_text_length_map_bind(
+    const tbs_node_t *lambda,
+    ts_cflow_text_kernel_binding_t *out,
+    const char **error) {
+  ts_cflow_text_kernel_t *kernel = NULL;
+
+  if (error) *error = NULL;
+  if (out) memset(out, 0, sizeof(*out));
+  if (!lambda || !out) {
+    if (error) *error = "text length MAP binding requires lambda and output";
+    return false;
+  }
+
+  if (!ts_cflow_text_lambda_is_length_map(lambda)) {
+    if (error)
+      *error =
+          "typed text MAP first slice supports only line => line.length()";
+    return false;
+  }
+
+  kernel = (ts_cflow_text_kernel_t *)calloc(1u, sizeof(*kernel));
+  if (!kernel) {
+    if (error) *error = "out of memory creating typed text MIR kernel";
+    return false;
+  }
+
+  if (!ts_cflow_text_length_kernel_compile(kernel, error)) {
+    ts_cflow_text_kernel_destroy(kernel);
+    return false;
+  }
+
+  out->callable.meta.effects = CMETA_EFFECT_PURE;
+  out->callable.meta.properties =
+      CMETA_PROP_DETERMINISTIC |
+      CMETA_PROP_TOTAL |
+      CMETA_PROP_NO_ALIAS;
+  out->callable.invoke = ts_cflow_text_length_invoke;
+  out->callable.dispatch = CMETA_CALLABLE_DISPATCH_ADAPTER;
+  out->callable.capture_size = sizeof(kernel);
+  memcpy(out->callable.capture.bytes, &kernel, sizeof(kernel));
+  out->owner = kernel;
+  return true;
+}
+
+static bool ts_cflow_text_function_reflection_init(
+    const ts_cflow_text_kernel_binding_t *binding,
+    const char *name,
+    const cmeta_type_desc *return_type,
+    ts_cflow_text_function_reflection_t *out) {
+  if (!binding || !binding->owner || !name || !return_type || !out)
+    return false;
+
+  memset(out, 0, sizeof(*out));
+
+  out->input_ptr_type.name = "TurboScript.LineSlice.v1 *";
+  out->input_ptr_type.size = sizeof(ts_cflow_line_slice_t *);
+  out->input_ptr_type.align = _Alignof(ts_cflow_line_slice_t *);
+  out->input_ptr_type.kind = CMETA_T_POINTER;
+  out->input_ptr_type.pointee = ts_cflow_line_slice_type();
+
+  out->param.size = sizeof(out->param);
+  out->param.name = "line";
+  out->param.type = &out->input_ptr_type;
+  out->param.flags = CMETA_PARAM_IN | CMETA_PARAM_BORROWED;
+
+  out->function.size = sizeof(out->function);
+  out->function.name = name;
+  out->function.return_type = return_type;
+  out->function.params = &out->param;
+  out->function.param_count = 1u;
+  out->function.effects = binding->callable.meta.effects;
+  out->function.properties = binding->callable.meta.properties;
+  out->function.result_flags = CMETA_RESULT_VALUE;
+
+  out->param_abi[0] = CMETA_ABI_OBJECT_POINTER;
+  out->abi.size = sizeof(out->abi);
+  out->abi.function = &out->function;
+  out->abi.return_carrier = CMETA_ABI_SCALAR;
+  out->abi.param_carriers = out->param_abi;
+  out->abi.param_count = 1u;
+
+  return cmeta_function_desc_valid(&out->function) &&
+         cmeta_function_abi_desc_valid(&out->abi);
+}
+
+bool ts_cflow_text_length_map_reflect(
+    const ts_cflow_text_kernel_binding_t *binding,
+    ts_cflow_text_function_reflection_t *out) {
+  return ts_cflow_text_function_reflection_init(
+      binding, "TurboScript.LineSlice.length",
+      &cmeta_type_double, out);
+}
+
+bool ts_cflow_text_length_map_graph_add(
+    cflow_graph *graph,
+    const ts_cflow_text_kernel_binding_t *binding,
+    const char **error) {
+  ts_cflow_text_function_reflection_t reflection;
+  cflow_function_typed_adapter_projection projection;
+  cflow_function_projection_status status;
+
+  if (error) *error = NULL;
+  if (!graph || !binding || !binding->owner) {
+    if (error) *error = "typed text MAP graph admission requires binding";
+    return false;
+  }
+
+  if (!ts_cflow_text_length_map_reflect(binding, &reflection)) {
+    if (error) *error = "typed text MAP reflection is invalid";
+    return false;
+  }
+
+  memset(&projection, 0, sizeof(projection));
+  status = cflow_function_typed_adapter_projection_admit(
+      &reflection.function, &reflection.abi, binding->callable,
+      ts_cflow_line_slice_type(), &cmeta_type_double,
+      &projection);
+  if (status != CFLOW_FUNCTION_PROJECTION_OK) {
+    if (error)
+      *error = cflow_function_projection_status_string(status);
+    return false;
+  }
+
+  if (!cflow_graph_add_function_typed_adapter_projection(
+          graph, &projection)) {
+    if (error)
+      *error = graph->error ? graph->error
+                            : "typed text MAP graph admission failed";
+    return false;
+  }
+  return true;
+}
+
+bool ts_cflow_text_nonempty_filter_bind(
+    const tbs_node_t *lambda,
+    ts_cflow_text_kernel_binding_t *out,
+    const char **error) {
+  ts_cflow_text_kernel_t *kernel = NULL;
+
+  if (error) *error = NULL;
+  if (out) memset(out, 0, sizeof(*out));
+  if (!lambda || !out) {
+    if (error) *error = "text FILTER binding requires lambda and output";
+    return false;
+  }
+
+  if (!ts_cflow_text_lambda_is_nonempty_filter(lambda)) {
+    if (error)
+      *error =
+          "typed text FILTER first slice supports only "
+          "line => line.length() > 0";
+    return false;
+  }
+
+  kernel = (ts_cflow_text_kernel_t *)calloc(1u, sizeof(*kernel));
+  if (!kernel) {
+    if (error) *error = "out of memory creating typed text predicate";
+    return false;
+  }
+
+  if (!ts_cflow_text_nonempty_kernel_compile(kernel, error)) {
+    ts_cflow_text_kernel_destroy(kernel);
+    return false;
+  }
+
+  out->callable.meta.effects = CMETA_EFFECT_PURE;
+  out->callable.meta.properties =
+      CMETA_PROP_DETERMINISTIC |
+      CMETA_PROP_TOTAL |
+      CMETA_PROP_NO_ALIAS;
+  out->callable.invoke = ts_cflow_text_nonempty_invoke;
+  out->callable.dispatch = CMETA_CALLABLE_DISPATCH_ADAPTER;
+  out->callable.capture_size = sizeof(kernel);
+  memcpy(out->callable.capture.bytes, &kernel, sizeof(kernel));
+  out->owner = kernel;
+  return true;
+}
+
+bool ts_cflow_text_nonempty_filter_reflect(
+    const ts_cflow_text_kernel_binding_t *binding,
+    ts_cflow_text_function_reflection_t *out) {
+  return ts_cflow_text_function_reflection_init(
+      binding, "TurboScript.LineSlice.nonempty",
+      &cmeta_type_bool, out);
+}
+
+bool ts_cflow_text_nonempty_filter_graph_add(
+    cflow_graph *graph,
+    const ts_cflow_text_kernel_binding_t *binding,
+    const char **error) {
+  ts_cflow_text_function_reflection_t reflection;
+  cflow_function_typed_adapter_projection projection;
+  cflow_function_projection_status status;
+
+  if (error) *error = NULL;
+  if (!graph || !binding || !binding->owner) {
+    if (error) *error = "typed text FILTER graph admission requires binding";
+    return false;
+  }
+
+  if (!ts_cflow_text_nonempty_filter_reflect(binding, &reflection)) {
+    if (error) *error = "typed text FILTER reflection is invalid";
+    return false;
+  }
+
+  memset(&projection, 0, sizeof(projection));
+  status = cflow_function_typed_filter_projection_admit(
+      &reflection.function, &reflection.abi, binding->callable,
+      ts_cflow_line_slice_type(), &projection);
+  if (status != CFLOW_FUNCTION_PROJECTION_OK) {
+    if (error)
+      *error = cflow_function_projection_status_string(status);
+    return false;
+  }
+
+  if (!cflow_graph_add_function_typed_filter_projection(
+          graph, &projection)) {
+    if (error)
+      *error = graph->error ? graph->error
+                            : "typed text FILTER graph admission failed";
+    return false;
+  }
+  return true;
+}
+
+void ts_cflow_text_kernel_binding_destroy(
+    ts_cflow_text_kernel_binding_t *binding) {
+  if (!binding) return;
+  ts_cflow_text_kernel_destroy(binding->owner);
+  memset(binding, 0, sizeof(*binding));
+}

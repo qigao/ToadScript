@@ -1,10 +1,10 @@
-# TurboScript 闭包性能指南
+# Toad 闭包性能指南
 
 > **状态**：Draft - 待 Phase 2.1 完善
 
 ## 概述
 
-TurboScript 支持闭包（Closure），但不同闭包模式的性能差异可达 **10-100 倍**。本指南帮助你理解：
+Toad 支持闭包（Closure），但不同闭包模式的性能差异可达 **10-100 倍**。本指南帮助你理解：
 - 哪些闭包可以 JIT 编译为原生代码
 - 哪些闭包会回退到运行时解释执行
 - 如何优化闭包性能
@@ -120,7 +120,7 @@ function makeComplex() {
   let v1 = 0, v2 = 0, v3 = 0, v4 = 0, v5 = 0;
   let v6 = 0, v7 = 0, v8 = 0, v9 = 0, v10 = 0;
   let v11 = 0;  // ❌ 第 11 个捕获变量
-  
+
   return function() {
     return v1 + v2 + ... + v11;  // ❌ 回退到 runtime
   };
@@ -165,7 +165,7 @@ function makeProcessor() {
 class Processor {
   count: number = 0;
   sum: number = 0;
-  
+
   process(x: number, y: number): number {
     this.count += 1;
     this.sum += x + y;
@@ -265,9 +265,9 @@ function makeNumProcessor(config) {
 export TS_JIT_STATS=1
 
 // C API
-turbo_script_enable_jit_stats(ctx, 1);
+toad_script_enable_jit_stats(ctx, 1);
 // ... 执行脚本 ...
-turbo_script_print_jit_stats(ctx, stderr);
+toad_script_print_jit_stats(ctx, stderr);
 ```
 
 **输出示例**：
@@ -339,21 +339,21 @@ function outer(x) {
 #### 执行流程
 ```c
 // Runtime hook：eval_closure_function
-exprtk_value_t eval_closure_function(exprtk_func_t *func, 
-                                     exprtk_value_t *args,
-                                     exprtk_env_t *closure_env) {
+toad_value_t eval_closure_function(toad_func_t *func,
+                                     toad_value_t *args,
+                                     toad_env_t *closure_env) {
   // 1. 动态查找捕获变量
-  double x = exprtk_env_get(closure_env, "x").data.number;
-  double y = exprtk_env_get(closure_env, "y").data.number;
+  double x = toad_env_get(closure_env, "x").data.number;
+  double y = toad_env_get(closure_env, "y").data.number;
   double z = args[0].data.number;
-  
+
   // 2. 解释执行函数体
-  return exprtk_eval_node(func->body, closure_env);
+  return toad_eval_node(func->body, closure_env);
 }
 ```
 
 **性能开销**：
-- 每次调用触发 `exprtk_env_get()`（哈希表查找）
+- 每次调用触发 `toad_env_get()`（哈希表查找）
 - AST 解释执行（无 JIT）
 - 相比预编译：**100x 慢**
 
@@ -424,9 +424,9 @@ class Counter {
 
 ## 参考资料
 
-- [TurboScript Architecture](./ARCHITECTURE.md)
+- [Toad Architecture](./ARCHITECTURE.md)
 - [JIT Compilation Guide](./jit-guide.md)
-- [闭包捕获分析实现](../turbo_script/src/turbo_script_closure_analysis.h)
+- [闭包捕获分析实现](../script/src/closure_analysis.h)
 - [Lambda Lifting（学术）](https://en.wikipedia.org/wiki/Lambda_lifting)
 
 ---
@@ -434,10 +434,10 @@ class Counter {
 ## 贡献
 
 欢迎提交性能测试案例或改进建议到：
-- Issue: `https://github.com/your-repo/TurboScript/issues`
+- Issue: `https://github.com/qigao/TurboScript/issues`
 - PR: 性能优化、诊断工具增强
 
 ---
 
-**最后更新**：2026-01-04  
+**最后更新**：2026-01-04
 **状态**：Draft（Phase 2.1 待完善）

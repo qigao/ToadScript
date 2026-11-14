@@ -1,8 +1,8 @@
-# TurboScript
+# Toad
 
 **A high-performance embeddable scripting engine with TypeScript-like syntax, a unified MIR execution backend, MIR interpreter/JIT modes, and an extensible plugin system.**
 
-TurboScript is designed for host applications that need fast, flexible scripting without embedding a full JavaScript, Python, or Lua runtime. It provides a TypeScript/JavaScript-like syntax, one MIR lowering pipeline shared by `turbo_script_run()` and `turbo_script_run_jit()`, and built-in modules for data binding, text processing, math, matrix/linear algebra, time series, technical analysis, and finance.
+Toad is designed for host applications that need fast, flexible scripting without embedding a full JavaScript, Python, or Lua runtime. It provides a TypeScript/JavaScript-like syntax, one MIR lowering pipeline shared by `toad_script_run()` and `toad_script_run_jit()`, and built-in modules for data binding, text processing, math, matrix/linear algebra, time series, technical analysis, and finance.
 
 It is not a full TypeScript implementation and does not try to replace Pandas/NumPy. The intended scope is embedded automation, data transformation, lightweight data analysis, quantitative indicators, and host-driven extension.
 
@@ -16,7 +16,7 @@ It is not a full TypeScript implementation and does not try to replace Pandas/Nu
 - **[API Reference](api/api-reference.md)** - Built-in functions and standard library
 
 ### For Developers
-- **[Plugin Development](PLUGIN_SYSTEM.md)** - Extend TurboScript with C/C++ plugins
+- **[Plugin Development](PLUGIN_SYSTEM.md)** - Extend Toad with C/C++ plugins
 - **[Module Documentation](modules/)** - Domain-specific module guides
 - **[Architecture](advanced/architecture.md)** - Internal design and implementation
 - **[DSL Charter](DSL_CHARTER.md)** - Language scope, semantic contracts, and roadmap
@@ -58,7 +58,7 @@ It is not a full TypeScript implementation and does not try to replace Pandas/Nu
 ### Extensible Architecture
 - **Plugin system**: Load C/C++ DLLs dynamically via `import("plugin_name")`
 - **Module-based**: Clean namespace separation (`mapper.*`, `ta.*`, `strategy.*`)
-- **Unified MIR backend**: `turbo_script_run()` executes generated MIR with MIR's interpreter; `turbo_script_run_jit()` uses the same IR and asks MIR to generate native code
+- **Unified MIR backend**: `toad_script_run()` executes generated MIR with MIR's interpreter; `toad_script_run_jit()` uses the same IR and asks MIR to generate native code
 - **Pure MIR execution contract**: unsupported lowering forms report errors from the MIR pipeline
 - **Optimized hot paths**: direct math calls, pre-bound vector access, map numeric pointers, monomorphic OOP method lowering, `super.method(...)` inline, and public numeric instance field slot access
 - **Typed host API**: Bind scalars, strings and vectors and register native callbacks
@@ -104,7 +104,7 @@ print("Signal: " + signal);
 
 ## 📚 Module Ecosystem
 
-TurboScript comes with a rich set of optional modules:
+Toad comes with a rich set of optional modules:
 
 | Module | Description | Documentation |
 |--------|-------------|---------------|
@@ -126,8 +126,8 @@ TurboScript comes with a rich set of optional modules:
 ### Project Structure
 ```
 tScript/
-├── exprtk/          # Core parser, interpreter, built-in modules
-├── turbo_script/    # Host API, MIR JIT, script runtime
+├── engine/          # Core parser, interpreter, built-in modules
+├── script/    # Host API, MIR JIT, script runtime
 ├── modules/         # Built-in and plugin modules
 ├── docs/            # Documentation (you are here)
 └── tests/           # Test suite

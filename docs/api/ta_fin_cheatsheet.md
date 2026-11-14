@@ -1,9 +1,9 @@
-# TurboScript TA & Finance (fin) Cheat Sheet
+# Toad TA & Finance (fin) Cheat Sheet
 
 面向量化金融、策略编写和技术分析的速查表。
-TurboScript 提供专为高性能回测和交易设计的双引擎模块：`ta` (技术分析与定价) 和 `fin` (`strategy.*` 交易上下文与统计分析)。
+Toad 提供专为高性能回测和交易设计的双引擎模块：`ta` (技术分析与定价) 和 `fin` (`strategy.*` 交易上下文与统计分析)。
 
-> **提示:** 这些模块属于外部插件。在脚本运行前请确保通过 `import("ta")` 和 `import("fin")` 加载，或在宿主程序中 `turbo_script_load_plugin(ctx, "ta")` / `turbo_script_load_plugin(ctx, "fin")`。
+> **提示:** 这些模块属于外部插件。在脚本运行前请确保通过 `import("ta")` 和 `import("fin")` 加载，或在宿主程序中 `toad_script_load_plugin(ctx, "ta")` / `toad_script_load_plugin(ctx, "fin")`。
 
 ## 技术指标 (TA)
 
@@ -99,7 +99,7 @@ if (ta.crossover(sma_fast, sma_slow)) {
     // 金叉做多
     if (!is_long) {
         strategy.flat();
-        strategy.buy(100); 
+        strategy.buy(100);
     }
 } else if (ta.crossunder(sma_fast, sma_slow)) {
     // 死叉做空或平仓

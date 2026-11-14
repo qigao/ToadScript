@@ -1,4 +1,4 @@
-# TurboScript API 参考
+# Toad API 参考
 
 所有内置函数和标准库的完整参考。
 
@@ -673,4 +673,4 @@ print("进程 " + process_id + " 已运行 " + uptime + "ms");
 
 ---
 
-**TurboScript 完整 API 文档**
+**Toad 完整 API 文档**

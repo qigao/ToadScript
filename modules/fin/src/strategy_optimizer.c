@@ -12,8 +12,8 @@
 #include "strategy_optimizer.h"
 #include "strategy.h"
 #include "fin.h"
-#include "exprtk.h"
-#include "exprtk_module.h"
+#include <toad/engine.h>
+#include <toad/module.h>
 #include <string.h>
 #include <math.h>
 
@@ -55,11 +55,11 @@ static void param_grid_get(const double *ranges, size_t num_params,
 }
 
 /** Inject parameter values into the script environment. */
-static void inject_params(exprtk_env_t *env, const char **names,
+static void inject_params(toad_env_t *env, const char **names,
                           const double *values, size_t n) {
     for (size_t i = 0; i < n; i++) {
-        exprtk_value_t v = { .type = EXPRTK_VAL_NUMBER, .data = { .number = values[i] } };
-        exprtk_env_set(env, names[i], v);
+        toad_value_t v = { .type = TOAD_VAL_NUMBER, .data = { .number = values[i] } };
+        toad_env_set(env, names[i], v);
     }
 }
 
@@ -91,13 +91,13 @@ static double eval_metric(const strategy_ctx_t *ctx, wfo_metric_t metric) {
     double score;
     switch (metric) {
         case WFO_METRIC_SHARPE:
-            score = exprtk_sharpe(returns, nr, 0.0, 252.0);
+            score = toad_sharpe(returns, nr, 0.0, 252.0);
             break;
         case WFO_METRIC_SORTINO:
-            score = exprtk_sortino(returns, nr, 0.0, 252.0);
+            score = toad_sortino(returns, nr, 0.0, 252.0);
             break;
         case WFO_METRIC_CALMAR:
-            score = exprtk_calmar(eq, eq_len, 252.0);
+            score = toad_calmar(eq, eq_len, 252.0);
             break;
         case WFO_METRIC_PROFIT_FACTOR: {
             double gross_profit = 0.0;

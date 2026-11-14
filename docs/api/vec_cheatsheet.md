@@ -1,9 +1,9 @@
-# TurboScript Vector (vec) Cheat Sheet
+# Toad Vector (vec) Cheat Sheet
 
-面向日常开发的向量操作速查表。`vec` 是 TurboScript 提供的高效 SIMD 加速向量处理库。
+面向日常开发的向量操作速查表。`vec` 是 Toad 提供的高效 SIMD 加速向量处理库。
 许多函数同时支持标准调用 `vec.func(v)` 和点号调用 `v.func()`。
 
-> **提示:** `vec` 模块中的函数如果不在顶层调用，请确保先 `import("vec")` 或在 C++ 侧通过 `turbo_script_load_plugin(ctx, "vec")` 加载。
+> **提示:** `vec` 模块中的函数如果不在顶层调用，请确保先 `import("vec")` 或在 C++ 侧通过 `toad_script_load_plugin(ctx, "vec")` 加载。
 
 ## 聚合与统计
 
@@ -64,4 +64,4 @@ var progress = steps.cumsum();       // [1, 3, 6, 10, 15]
 ## 性能提示
 
 - `vec` 模块的底层实现在计算 `sum`, `min`, `max` 及 `diff` 时针对大数组（8个阈值以上）提供了原生 **AVX2 / SIMD (Single Instruction Multiple Data)** 加速。
-- 对于涉及密集数学聚合的操作，优先使用 `vec.xxx()` 而不是在 TurboScript 层进行显式的 `for` 循环遍历。
+- 对于涉及密集数学聚合的操作，优先使用 `vec.xxx()` 而不是在 Toad 层进行显式的 `for` 循环遍历。

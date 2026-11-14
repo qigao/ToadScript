@@ -18,7 +18,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "market_rules.h"   /* universe_market_rules_t, order_error_t */
-#include "exprtk_types.h"   /* mem_pool_t */
+#include <toad/types.h>   /* mem_pool_t */
 
 #ifdef __cplusplus
 extern "C" {
@@ -150,16 +150,16 @@ struct order_executor_s {
     const char *name;
     void *user_data;
 
-    /** 
-     * Submit an order to a real exchange. 
+    /**
+     * Submit an order to a real exchange.
      * For limit/stop orders, internal tracking still occurs if submission is OK.
      */
     order_error_t (*submit)(order_executor_t *self, order_t *order);
-    
+
     /** Cancel an order on the exchange. */
     void (*cancel)(order_executor_t *self, uint64_t order_id);
 
-    /** 
+    /**
      * Sync state from exchange.  Should update mgr->cash and mgr->positions.
      * Can be called periodically or after specific events.
      */

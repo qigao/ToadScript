@@ -1,8 +1,8 @@
-# Getting Started with TurboScript
+# Getting Started with Toad
 
-This guide will help you write and run your first TurboScript program in 5 minutes.
+This guide will help you write and run your first Toad program in 5 minutes.
 
-TurboScript is a TypeScript/JavaScript-like embeddable scripting engine. It lowers scripts to MIR and can execute the same IR through MIR's interpreter or MIR-generated native code. Use parser/data-bind plus math, matrix, time-series, TA, and finance modules for lightweight data analysis inside host applications.
+Toad is a TypeScript/JavaScript-like embeddable scripting engine. It lowers scripts to MIR and can execute the same IR through MIR's interpreter or MIR-generated native code. Use parser/data-bind plus math, matrix, time-series, TA, and finance modules for lightweight data analysis inside host applications.
 
 ---
 
@@ -17,7 +17,7 @@ print("Hello, " + name + "!");
 
 Run it:
 ```bash
-turbo_script_repl --file hello.tbs
+toad --file hello.tbs
 ```
 
 Output:
@@ -183,7 +183,7 @@ var keys = person.keys();            // ["name", "age", "city"]
 
 ## File Operations
 
-TurboScript has built-in file I/O (no import needed):
+Toad has built-in file I/O (no import needed):
 
 ```javascript
 // Write to file
@@ -226,7 +226,7 @@ var text = format_date_utc(utc_ts, "%Y-%m-%d %H:%M:%S");
 
 ## Using Modules
 
-TurboScript can be extended with modules (plugins):
+Toad can be extended with modules (plugins):
 
 ```javascript
 import("ta");

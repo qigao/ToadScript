@@ -2,13 +2,13 @@
 
 ## 背景
 
-TurboScript 的 timer、managed task 与网络模块都运行在同一个 CoroNet context 上。
+Toad 的 timer、managed task 与网络模块都运行在同一个 CoroNet context 上。
 脚本调用采用同步书写方式，网络和定时等待则通过 stackful coroutine 挂起。现有
 `coro_task_cancel()` 只能取消未启动的 lazy task，不能安全销毁已经运行的协程栈。
 
 本决策覆盖以下边界：
 
-- TurboScript task 的状态、结果、join 与关闭；
+- Toad task 的状态、结果、join 与关闭；
 - CoroNet 等待操作的协作式中断；
 - Salts 请求的取消传播；
 - timer callback 与交互式 REPL 的事件循环驱动。
@@ -20,14 +20,14 @@ TurboScript 的 timer、managed task 与网络模块都运行在同一个 CoroNe
 拒绝。强制销毁会跳过脚本环境、HTTP transport、连接池和 native callback 的正常
 清理路径，无法提供可验证的资源所有权语义。
 
-### TurboScript 私有取消标志
+### Toad 私有取消标志
 
 拒绝作为完整方案。私有标志可覆盖 `task.yield()`，但无法唤醒 CoroNet 内部的
-DNS、connect、send、recv 或 TLS 等等待，也会迫使 Salts 依赖 TurboScript。
+DNS、connect、send、recv 或 TLS 等等待，也会迫使 Salts 依赖 Toad。
 
 ### CoroNet cancellation source/token
 
-采用。取消能力由实际拥有 event loop 和 I/O wait 的 CoroNet 提供，TurboScript
+采用。取消能力由实际拥有 event loop 和 I/O wait 的 CoroNet 提供，Toad
 拥有 source，Salts 只借用 token。现有无 token API 保持原行为。
 
 ## 状态与事实源
@@ -35,7 +35,7 @@ DNS、connect、send、recv 或 TLS 等等待，也会迫使 Salts 依赖 TurboS
 Task registry 是脚本 task 状态的唯一事实源。每个 task slot 拥有：
 
 - task ID、生命周期状态与 active 计数；
-- 独立 ExprTK caller environment；
+- 独立 Engine caller environment；
 - callback、result、error；
 - join waiter 链；
 - 一个 CoroNet cancellation source。
@@ -55,7 +55,7 @@ waiter、活动 cancellation registration 的 slot。
 
 | 对象 | 创建者/owner | 借用者 | 失效点 |
 |---|---|---|---|
-| task slot | TurboScript task registry | status/join/result 调用 | 成功 `task.release()` |
+| task slot | Toad task registry | status/join/result 调用 | 成功 `task.release()` |
 | cancel source | task slot | 无 | slot reset；此前必须无 registration |
 | cancel token | cancel source | sleep/join/Salts request | source 销毁 |
 | cancellation registration | 当前等待操作 | cancel source 的 owner-loop 列表 | unregister 完成 |
@@ -70,7 +70,7 @@ Token 是 borrowed handle，不延长 task slot 生命周期。注册成功后�
 - task 状态迁移、registration 增删和取消 callback 都在 CoroNet owner loop 执行；
 - 跨线程取消只原子设置 requested，并通过 `coro_post()` 投递一次分派；
 - 不在 task registry mutex 或 cancellation list 操作中执行脚本、I/O 或用户 callback；
-- HTTP、ExprTK 和 timer callback 只在 owner loop 线程执行；
+- HTTP、Engine 和 timer callback 只在 owner loop 线程执行；
 - REPL stdin 可在调用线程阻塞，但脚本命令必须投递到 runtime owner loop。
 
 取消 source 的 registration 数量受 task capacity 和每个 task 单一活动等待约束。REPL
@@ -81,7 +81,7 @@ Token 是 borrowed handle，不延长 task slot 生命周期。注册成功后�
 
 - CoroNet 等待返回 `SALTS_ECANCELED`；
 - Salts 映射为追加的 `HTTP_ERROR_CANCELLED`，不得进入 retry；
-- TurboScript 映射为追加的 `TURBO_SCRIPT_ERROR_CANCELLED`；
+- Toad 映射为追加的 `TOAD_SCRIPT_ERROR_CANCELLED`；
 - `task.join()` 目标取消时传播取消错误；
 - 重复 cancel 返回 already-terminal/already-requested 结果，不重复唤醒；
 - shutdown deadline 到期返回超时，不能销毁仍有活动 registration 的对象。
@@ -92,20 +92,20 @@ Timer 仍拥有触发计划；callback execution 交给 managed task。周期 ti
 终态后再重排，保持当前 fixed-delay 行为。为保持现有串行语义，timer invocation 使用
 串行 lane；普通 `task.spawn()` 不进入该 lane。
 
-交互式 REPL 使用 runtime driver：owner thread 创建 TurboScript/CoroNet context 并持续
+交互式 REPL 使用 runtime driver：owner thread 创建 Toad/CoroNet context 并持续
 运行 event loop，stdin 线程通过 `coro_post()` 提交命令。关闭顺序为停止接收命令、请求
 取消、drain、停止 loop、join owner thread、释放 context。
 
 ## 兼容性与迁移
 
 - 现有 `http_request()` 委托给无 token 的 `http_request_ex()`；
-- 现有 `turbo_script_set_coro_context()` 和 executor API 保留；
+- 现有 `toad_script_set_coro_context()` 和 executor API 保留；
 - 新错误枚举只追加，不重排已有值；
 - 新 task API 是增加项；原有脚本继续运行；
 - timer 的 fixed-delay、串行 callback 与错误查询行为保持不变。
 
 迁移顺序：先统一 MIR/解释器调用语义，再实现 CoroNet token，随后接入 Salts、
-TurboScript task/timer，最后启用 REPL runtime driver。每一阶段都可独立回滚到上一层的
+Toad task/timer，最后启用 REPL runtime driver。每一阶段都可独立回滚到上一层的
 无 token 调用，不能保留只在部分 I/O 阶段生效的公开取消 API。
 
 ## 验证范围

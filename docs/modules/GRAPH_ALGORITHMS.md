@@ -1,6 +1,6 @@
 # Graph Algorithms Module
 
-> **📊 Network analysis and shortest path algorithms for TurboScript**
+> **📊 Network analysis and shortest path algorithms for Toad**
 
 ---
 

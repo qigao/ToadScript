@@ -7,9 +7,9 @@
  *   - provider_t         (where does bar data come from?)
  *   - bar_window_t[]     (rolling OHLCV for each asset)
  *   - order_manager_t    (positions, fills, SL/TP, equity curve)
- *   - turbo_script_ctx_t (compiled strategy expression, re-executed each bar)
+ *   - toad_script_ctx_t (compiled strategy expression, re-executed each bar)
  *
- * The compiled TurboScript expression IS the on_bar handler.  On each bar,
+ * The compiled Toad expression IS the on_bar handler.  On each bar,
  * the engine:
  *   1. Adjusts and pushes OHLCV into the per-asset bar_window.
  *   2. Linearizes the window and binds O[], H[], L[], C[], V[] vectors.
@@ -32,7 +32,7 @@
 #include "provider.h"
 #include "bar_window.h"
 #include "order_manager.h"
-#include "exprtk_types.h"   /* mem_pool_t, exprtk_env_t */
+#include <toad/types.h>   /* mem_pool_t, toad_env_t */
 
 #ifdef __cplusplus
 extern "C" {
@@ -75,8 +75,8 @@ typedef struct {
     provider_t          *provider;
 
     /* ── Script engine ──────────────────────────────────────────────────── */
-    exprtk_env_t        *env;       /**< TurboScript environment             */
-    struct exprtk_parse_ctx_s *parsed; /**< Compiled expression tree         */
+    toad_env_t        *env;       /**< Toad environment             */
+    struct toad_parse_ctx_s *parsed; /**< Compiled expression tree         */
 
     /* ── Per-asset state ────────────────────────────────────────────────── */
     bar_window_t       **windows;   /**< [num_assets] rolling OHLCV buffers  */
@@ -93,10 +93,10 @@ typedef struct {
 
     /* ── Event hooks (detected at compile time) ────────────────────────── */
     bool                 has_hooks;       /**< true if any on_* found      */
-    exprtk_func_t       *hook_on_init;
-    exprtk_func_t       *hook_on_bar;
-    exprtk_func_t       *hook_on_fill;
-    exprtk_func_t       *hook_on_stop;
+    toad_func_t       *hook_on_init;
+    toad_func_t       *hook_on_bar;
+    toad_func_t       *hook_on_fill;
+    toad_func_t       *hook_on_stop;
 
     /* ── Simulation stats ───────────────────────────────────────────────── */
     size_t               total_bars;
@@ -152,7 +152,7 @@ void strategy_init_hooks(strategy_ctx_t *ctx);
  * ========================================================================= */
 
 /**
- * @brief Compile a TurboScript strategy string.
+ * @brief Compile a Toad strategy string.
  *
  * The script may reference the following bound variables:
  *
@@ -173,7 +173,7 @@ void strategy_init_hooks(strategy_ctx_t *ctx);
  *     take_profit                — TP price level (0 = use prev TP)
  *
  * @param ctx   Strategy context.
- * @param code  TurboScript source code string.
+ * @param code  Toad source code string.
  * @return 0 on success, -1 on parse error.
  */
 int strategy_compile(strategy_ctx_t *ctx, const char *code);

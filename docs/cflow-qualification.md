@@ -1,15 +1,15 @@
 # CFlow Qualification Gate
 
-This document is the release gate for TurboScript issue #19 and the final
+This document is the release gate for Toad issue #19 and the final
 cleanup gate for #18.
 
 ## What is being qualified
 
-TurboScript keeps the `stream.*` language facade, but graphable regions are
+Toad keeps the `stream.*` language facade, but graphable regions are
 executed by:
 
 ```text
-TurboScript AST
+Toad AST
   -> CMeta callable/type admission
   -> CFlow Surface Graph
   -> normalize / optimize
@@ -23,8 +23,8 @@ but are not hard-coded into CI because hosted runner noise is not a stable API.
 
 ## Deterministic semantic and structural gate
 
-`test_turbo_script_cflow_qualification` records a representative real
-TurboScript pipeline:
+`test_script_cflow_qualification` records a representative real
+Toad pipeline:
 
 ```javascript
 stream.of(values)
@@ -51,7 +51,7 @@ Optimized Graph:
 
 The test then proves:
 
-- the legacy ExprTk terminal returns the same result count;
+- the legacy Engine terminal returns the same result count;
 - normalized direct execution and optimized compiled Plan return identical
   values;
 - the optimized Plan records both MAP callbacks;
@@ -65,9 +65,9 @@ legacy stream evaluator.
 
 The existing Linux Host sanitizer job runs:
 
-- `test_turbo_script_cflow_lower`;
-- `test_turbo_script_cflow_mir_kernel`;
-- `test_turbo_script_cflow_qualification`.
+- `test_script_cflow_lower`;
+- `test_script_cflow_mir_kernel`;
+- `test_script_cflow_qualification`.
 
 ASan, UBSan and leak detection therefore cover:
 
@@ -76,19 +76,19 @@ ASan, UBSan and leak detection therefore cover:
 - Graph -> optimized Graph cloning;
 - compiled Plan lifetime;
 - repeated Plan results;
-- teardown ordering between Plan, Graph, kernel binding and TurboScript context.
+- teardown ordering between Plan, Graph, kernel binding and Toad context.
 
 ## Performance telemetry
 
-`bench_turbo_script_cflow` is executed explicitly by the existing
+`bench_script_cflow` is executed explicitly by the existing
 `Linux source / full CTest` CI job so successful benchmark output remains
 visible in the job log.
 
 For the same already-parsed `filter -> map -> count` AST it records three
 paths:
 
-1. `legacy_eager` — direct ExprTk stream evaluator;
-2. `current_runtime` — current TurboScript CFlow cutover, including
+1. `legacy_eager` — direct Engine stream evaluator;
+2. `current_runtime` — current Toad CFlow cutover, including
    admission/lowering/MIR binding/Plan compilation on each call;
 3. `cached_plan` — lower/bind/compile once, then repeatedly execute the
    pre-decoded CFlow Plan.
@@ -97,7 +97,7 @@ The benchmark covers:
 
 - 16 elements — fixed lowering/compilation overhead dominates;
 - 4,096 elements — medium in-memory pipeline;
-- 8,192 elements — large in-memory pipeline within the default ExprTk 100,000-node execution budget;
+- 8,192 elements — large in-memory pipeline within the default Engine 100,000-node execution budget;
 - 4,096-element MAP + seeded REDUCE.
 
 Each run emits machine-readable lines:
@@ -157,7 +157,7 @@ before CFlow admission:
     unsupported shape/effect/type -> legacy facade may own execution
 
 after CFlow admission:
-    lowering/kernel/Plan/runtime failure -> explicit TurboScript error
+    lowering/kernel/Plan/runtime failure -> explicit Toad error
     never retry through legacy evaluator
 ```
 
@@ -169,7 +169,7 @@ Rollback is therefore a control-plane change:
 
 - narrow or disable the relevant admission rule;
 - keep the unsupported shape on the legacy path before source evaluation;
-- do not catch a CFlow execution failure and retry it in ExprTk.
+- do not catch a CFlow execution failure and retry it in Engine.
 
 Legacy execution code is removed only after:
 

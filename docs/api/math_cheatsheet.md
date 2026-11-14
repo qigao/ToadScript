@@ -1,4 +1,4 @@
-# TurboScript Math Cheat Sheet
+# Toad Math Cheat Sheet
 
 面向日常开发的数学函数速查表。默认返回 `number`，布尔语义用 `1.0/0.0` 表示。
 

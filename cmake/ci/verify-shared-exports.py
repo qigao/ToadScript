@@ -25,12 +25,12 @@ def read_allowlist(path: pathlib.Path) -> set[str]:
 def read_public_declarations(path: pathlib.Path) -> set[str]:
     text = path.read_text(encoding="utf-8")
     pattern = re.compile(
-        r"TURBO_SCRIPT_C_API\s+[^;{]+?\b([A-Za-z_]\w*)\s*\(",
+        r"TOAD_SCRIPT_C_API\s+[^;{]+?\b([A-Za-z_]\w*)\s*\(",
         re.DOTALL,
     )
     symbols = set(pattern.findall(text))
     if not symbols:
-        fail(f"no TURBO_SCRIPT_C_API declarations found in {path}")
+        fail(f"no TOAD_SCRIPT_C_API declarations found in {path}")
     return symbols
 
 
@@ -107,7 +107,7 @@ def main() -> int:
         )
 
     print(
-        f"TurboScript shared export contract passed: {len(actual)} public symbols"
+        f"Toad shared export contract passed: {len(actual)} public symbols"
     )
     return 0
 

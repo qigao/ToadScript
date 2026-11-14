@@ -1,6 +1,6 @@
 # Timer 与 Cron 调度
 
-TurboScript 原生提供一次性定时、固定延迟 interval 和 5 字段 cron 调度。调度器只决定“何时触发”；脚本回调统一投递到宿主提供的串行 executor，绝不在 Salts 原生 timer 线程中直接进入 ExprTk。
+Toad 原生提供一次性定时、固定延迟 interval 和 5 字段 cron 调度。调度器只决定“何时触发”；脚本回调统一投递到宿主提供的串行 executor，绝不在 Salts 原生 timer 线程中直接进入 Engine。
 
 ## 脚本 API
 
@@ -13,7 +13,7 @@ TurboScript 原生提供一次性定时、固定延迟 interval 和 5 字段 cro
 | `timer.status(job_id)` | 状态字符串 | ID 类型非法时终止当前脚本；未知 ID 返回 `"invalid"` |
 | `timer.error(job_id)` | 错误字符串 | ID 类型非法时终止当前脚本；没有错误或未知 ID 返回空字符串 |
 
-状态值为 `scheduled`、`pending`、`running`、`completed`、`cancelled`、`failed` 或 `invalid`。终态记录保留到该容量槽被后续 job 复用；调度器的默认容量是 64，可由宿主在没有活动 job 时通过 `turbo_script_set_timer_capacity()` 调整。
+状态值为 `scheduled`、`pending`、`running`、`completed`、`cancelled`、`failed` 或 `invalid`。终态记录保留到该容量槽被后续 job 复用；调度器的默认容量是 64，可由宿主在没有活动 job 时通过 `toad_script_set_timer_capacity()` 调整。
 
 ```javascript
 import("timer");
@@ -62,27 +62,27 @@ timer callback 彼此仍严格串行。若一次触发需要同时等待多个�
 
 ```c
 coro_context_t *coro = coro_context_create(NULL);
-turbo_script_ctx_t *script = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+toad_script_ctx_t *script = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 
-turbo_script_set_coro_context(script, coro);
-if (turbo_script_run_file(script, "watch.tbs") == 0 &&
-    turbo_script_timer_active_count(script) > 0) {
+toad_script_set_coro_context(script, coro);
+if (toad_script_run_file(script, "watch.tbs") == 0 &&
+    toad_script_timer_active_count(script) > 0) {
   coro_context_run(coro, TURBO_RUN_DEFAULT);
 }
 
-turbo_script_free(script);
+toad_script_free(script);
 coro_context_destroy(coro);
 ```
 
-其他宿主可注入 `turbo_script_executor_t`。executor 必须串行执行同一 context 的任务；`post()` 返回成功后必须恰好执行一次任务。executor 与其 data 为借用关系，而且在已接受任务全部运行前必须保持有效。自定义 executor 若要在 callback 内使用 Salts，还必须让任务运行于可驱动该 HTTP client 的 coroutine/event-loop 上下文。
+其他宿主可注入 `toad_script_executor_t`。executor 必须串行执行同一 context 的任务；`post()` 返回成功后必须恰好执行一次任务。executor 与其 data 为借用关系，而且在已接受任务全部运行前必须保持有效。自定义 executor 若要在 callback 内使用 Salts，还必须让任务运行于可驱动该 HTTP client 的 coroutine/event-loop 上下文。
 
-宿主可用 `turbo_script_timer_active_count()` 判断是否需要继续驱动事件循环，并用 `turbo_script_timer_failed_count()` 判断是否存在仍保留在 job 表中的失败记录。命令行模式检测到 timer callback 失败时会返回非零退出码。
+宿主可用 `toad_script_timer_active_count()` 判断是否需要继续驱动事件循环，并用 `toad_script_timer_failed_count()` 判断是否存在仍保留在 job 表中的失败记录。命令行模式检测到 timer callback 失败时会返回非零退出码。
 
 ## 架构决策
 
 ### 背景与状态归属
 
-Salts `turbo_timer_t` 的回调运行在 OS 线程池或专用线程，而 `turbo_script_ctx_t` 的 ExprTk/MIR 状态是单线程可变状态。直接从 timer 线程调用脚本会让环境、AST、插件和错误状态发生数据竞争。
+Salts `turbo_timer_t` 的回调运行在 OS 线程池或专用线程，而 `toad_script_ctx_t` 的 Engine/MIR 状态是单线程可变状态。直接从 timer 线程调用脚本会让环境、AST、插件和错误状态发生数据竞争。
 
 调度器是 job 生命周期的唯一事实源，拥有 job 状态、原生 timer、cron 表达式、回调引用和错误摘要。executor 只拥有任务队列与执行线程，不复制 job 状态。
 
@@ -96,9 +96,9 @@ Salts `turbo_timer_t` 的回调运行在 OS 线程池或专用线程，而 `turb
 ### 权衡、迁移与回滚
 
 - 性能：每次触发增加一次跨线程 post 和一次 managed-task 调度；内置适配器复用 CoroNet context，不建立 per-job 线程。换取统一取消传播、单线程脚本状态与确定的非重叠语义。
-- 依赖：`turbo_script` 新增 `Salts::Cron` 与 `Salts::Coroutine` 私有链接依赖。
-- 兼容性：既有同步脚本行为不变；只有使用 timer 的宿主必须提供 executor。原来只有声明而无实现的 `turbo_script_set_coro_context()` 现在成为兼容适配入口。
-- 关闭顺序：先标记 context closing，再停止/销毁原生 timers；已接受的 executor task 持有 context 引用，执行或跳过后才允许最终释放 ExprTk/MIR 状态。
-- 回滚：移除 timer 函数注册与 CLI loop 驱动即可恢复旧行为；调度代码独立在 `turbo_script_timer.c`，不需要迁移脚本数据格式。
+- 依赖：`toad_script` 新增 `Salts::Cron` 与 `Salts::Coroutine` 私有链接依赖。
+- 兼容性：既有同步脚本行为不变；只有使用 timer 的宿主必须提供 executor。原来只有声明而无实现的 `toad_script_set_coro_context()` 现在成为兼容适配入口。
+- 关闭顺序：先标记 context closing，再停止/销毁原生 timers；已接受的 executor task 持有 context 引用，执行或跳过后才允许最终释放 Engine/MIR 状态。
+- 回滚：移除 timer 函数注册与 CLI loop 驱动即可恢复旧行为；调度代码独立在 `timer.c`，不需要迁移脚本数据格式。
 
-验证范围至少包括原生触发到 CoroNet 投递、取消竞态、回调错误、cron 校验、容量耗尽、context 关闭，以及既有 TurboScript basics/MIR 测试。
+验证范围至少包括原生触发到 CoroNet 投递、取消竞态、回调错误、cron 校验、容量耗尽、context 关闭，以及既有 Toad basics/MIR 测试。

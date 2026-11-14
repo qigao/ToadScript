@@ -1,13 +1,5 @@
 add_subdirectory(net)
-add_subdirectory(ta)
-add_subdirectory(fin)
-add_subdirectory(ts)
-if(TURBOSCRIPT_HAS_TURBODB)
-  add_subdirectory(db)
-endif()
-add_subdirectory(mapper)
-add_subdirectory(img)
-add_subdirectory(crypto)
-add_subdirectory(hash)
+
+add_subdirectory(fin) 
 add_subdirectory(fuzzy)
-add_subdirectory(os)
+

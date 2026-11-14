@@ -1,6 +1,6 @@
-# TurboScript 语言指南
+# Toad 语言指南
 
-TurboScript 语法和语言特性完整参考。
+Toad 语法和语言特性完整参考。
 
 ---
 
@@ -22,7 +22,7 @@ TurboScript 语法和语言特性完整参考。
 
 ## 数据类型
 
-TurboScript 支持这些核心数据类型：
+Toad 支持这些核心数据类型：
 
 ### 数字（Number）
 
@@ -104,7 +104,7 @@ var nested = map{
 
 ### Plain Object
 
-Plain object 是由宿主或 parser 模块产出的动态 record 值。需要强类型文档映射时，先声明 TurboScript class，再使用 `mapper`：
+Plain object 是由宿主或 parser 模块产出的动态 record 值。需要强类型文档映射时，先声明 Toad class，再使用 `mapper`：
 
 ```javascript
 class User { name: string; age: int64; }
@@ -677,7 +677,7 @@ s.substr(0, 5)         // "Hello"
 s[0..5]                // "Hello"（切片）
 
 // 替换
-s.replace("World", "TurboScript")  // "Hello TurboScript"
+s.replace("World", "Toad")  // "Hello Toad"
 
 // 长度
 s.length()             // 11
@@ -732,7 +732,7 @@ lst.length()           // 3
 
 ## 面向对象编程
 
-TurboScript 支持基于类的 OOP。`class` 和 `interface` 是语句级声明，不使用 `var` / `let` 前缀。
+Toad 支持基于类的 OOP。`class` 和 `interface` 是语句级声明，不使用 `var` / `let` 前缀。
 
 ```javascript
 class Counter {
@@ -889,7 +889,7 @@ os_name(), pid(), uptime_ms(), monotonic_ms()
 
 ### 导入脚本
 
-加载其他 TurboScript 文件：
+加载其他 Toad 文件：
 
 ```javascript
 // utils.tbs
@@ -988,7 +988,7 @@ divide(10, 0);  // 中止并显示消息："除数不能为零"
 
 ## 安全限制
 
-TurboScript 强制执行资源限制以防止失控脚本：
+Toad 强制执行资源限制以防止失控脚本：
 
 ### 递归限制
 
@@ -1012,7 +1012,7 @@ while (true) {
 ### 配置限制（C API）
 
 ```c
-turbo_script_ctx_t *ctx = turbo_script_init();
+toad_script_ctx_t *ctx = toad_script_init();
 ctx->env->max_recursion = 500;
 ctx->env->max_loop_iterations = 100000;
 ```
@@ -1096,9 +1096,9 @@ var result = sum(map(filter(data, x > 0), x => x * 2));
 
 ### 3.1 Java Stream 风格链式调用
 
-`stream.*` 是 TurboScript 的语言 facade。可图化的数值型内存 pipeline
+`stream.*` 是 Toad 的语言 facade。可图化的数值型内存 pipeline
 通过 **CMeta + CFlow + MIR kernels** 执行；尚未进入 CFlow admission 的 source
-形态或操作仍走现有 TurboScript / ExprTk eager adapter。
+形态或操作仍走现有 Toad / Engine eager adapter。
 
 ```javascript
 var total = stream.of([1, -2, 3])
@@ -1130,7 +1130,7 @@ var line_count = stream.text(io.read_file("data.txt"))
 - `stream.text(...).lines().count/collect/toList` 与
   `stream.text(...).split(sep).count/collect/toList` 现在都通过 typed
   synchronous CFlow Plan 执行，并保留 eager 文本求值语义。`collect/toList`
-  会在 source 清理前把 borrowed CFlow slice 深拷贝成 TurboScript 自有字符串。
+  会在 source 清理前把 borrowed CFlow slice 深拷贝成 Toad 自有字符串。
   `split` 保留空 separator 按 byte 切分以及首尾/连续空 token 的行为，source
   与 separator 表达式各只求值一次。
 - 精确的 capture-free MAP `line => line.length()` 已通过显式 typed
@@ -1171,7 +1171,7 @@ var data = read_file("data.txt");  // 可能静默失败
 ## 下一步
 
 - **[API 参考](api-reference.md)** - 完整函数参考
-- **[插件开发](plugin-development.md)** - 使用 C/C++ 扩展 TurboScript
+- **[插件开发](plugin-development.md)** - 使用 C/C++ 扩展 Toad
 - **[模块文档](../modules/)** - 领域特定指南
 
 ---

@@ -1,4 +1,4 @@
 #include "fuzzy.h"
-#include "ts_plugin.h"
+#include <toad/plugin.h>
 
-TS_PLUGIN_MODULE(fuzzy, exprtk_module_fuzzy)
+TOAD_PLUGIN_MODULE(fuzzy, toad_module_fuzzy)

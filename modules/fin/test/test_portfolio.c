@@ -23,7 +23,7 @@ suite("Portfolio Optimization") {
       mem_pool_t arena;
       mem_init(&arena, 4096);
 
-      exprtk_pf_cov_matrix(returns, 3, 5, cov, &arena);
+      toad_pf_cov_matrix(returns, 3, 5, cov, &arena);
 
       // Diagonal elements (variances) should be positive
       check(cov[0] > 0.0); // Var(Asset 1)
@@ -44,7 +44,7 @@ suite("Portfolio Optimization") {
       mem_pool_t arena;
       mem_init(&arena, 1024);
 
-      exprtk_pf_cov_matrix(returns, 1, 4, cov, &arena);
+      toad_pf_cov_matrix(returns, 1, 4, cov, &arena);
 
       check(cov[0] > 0.0); // Variance should be positive
 
@@ -60,7 +60,7 @@ suite("Portfolio Optimization") {
       mem_pool_t arena;
       mem_init(&arena, 1024);
 
-      exprtk_pf_cov_matrix(returns, 2, 2, cov, &arena);
+      toad_pf_cov_matrix(returns, 2, 2, cov, &arena);
 
       check(fabs((double)(cov[0]) - (double)(1.0)) <= (double)(EPSILON));
       check(fabs((double)(cov[1]) - (double)(1.0)) <= (double)(EPSILON));
@@ -82,7 +82,7 @@ suite("Portfolio Optimization") {
       mem_pool_t arena;
       mem_init(&arena, 4096);
 
-      double variance = exprtk_pf_min_variance(cov, 2, weights, &arena);
+      double variance = toad_pf_min_variance(cov, 2, weights, &arena);
 
       // Weights should sum to 1
       double sum = weights[0] + weights[1];
@@ -107,7 +107,7 @@ suite("Portfolio Optimization") {
       mem_pool_t arena;
       mem_init(&arena, 4096);
 
-      exprtk_pf_min_variance(cov, 2, weights, &arena);
+      toad_pf_min_variance(cov, 2, weights, &arena);
 
       // With equal variance and zero correlation, should be ~50/50
       check(fabs((double)(weights[0]) - (double)(0.5)) <= (double)(0.1));
@@ -126,7 +126,7 @@ suite("Portfolio Optimization") {
       mem_pool_t arena;
       mem_init(&arena, 4096);
 
-      double variance = exprtk_pf_min_variance(cov, 3, weights, &arena);
+      double variance = toad_pf_min_variance(cov, 3, weights, &arena);
 
       // Weights should sum to 1
       double sum = weights[0] + weights[1] + weights[2];
@@ -151,7 +151,7 @@ suite("Portfolio Optimization") {
       mem_pool_t arena;
       mem_init(&arena, 4096);
 
-      double sharpe = exprtk_pf_max_sharpe(mu, cov, 2, rf, weights, &arena);
+      double sharpe = toad_pf_max_sharpe(mu, cov, 2, rf, weights, &arena);
 
       // Weights should sum to 1
       double sum = weights[0] + weights[1];
@@ -174,7 +174,7 @@ suite("Portfolio Optimization") {
       mem_pool_t arena;
       mem_init(&arena, 4096);
 
-      double sharpe = exprtk_pf_max_sharpe(mu, cov, 3, 0.0, weights, &arena);
+      double sharpe = toad_pf_max_sharpe(mu, cov, 3, 0.0, weights, &arena);
 
       // Weights should sum to 1
       double sum = weights[0] + weights[1] + weights[2];
@@ -196,7 +196,7 @@ suite("Portfolio Optimization") {
       mem_pool_t arena;
       mem_init(&arena, 4096);
 
-      exprtk_pf_max_sharpe(mu, cov, 2, 0.02, weights, &arena);
+      toad_pf_max_sharpe(mu, cov, 2, 0.02, weights, &arena);
 
       check(fabs((double)(weights[0] + weights[1]) - (double)(1.0)) <= (double)(EPSILON));
       check(weights[0] > 1.0);
@@ -215,7 +215,7 @@ suite("Portfolio Optimization") {
       mem_pool_t arena;
       mem_init(&arena, 4096);
 
-      exprtk_pf_max_sharpe(mu, cov, 2, 0.0, weights, &arena);
+      toad_pf_max_sharpe(mu, cov, 2, 0.0, weights, &arena);
 
       check(fabs((double)(weights[0]) - (double)(0.0)) <= (double)(EPSILON));
       check(fabs((double)(weights[1]) - (double)(1.0)) <= (double)(EPSILON));
@@ -236,7 +236,7 @@ suite("Portfolio Optimization") {
       mem_pool_t arena;
       mem_init(&arena, 4096);
 
-      double variance = exprtk_pf_markowitz(mu, cov, 2, target, weights, &arena);
+      double variance = toad_pf_markowitz(mu, cov, 2, target, weights, &arena);
 
       // Weights should sum to 1
       double sum = weights[0] + weights[1];
@@ -262,7 +262,7 @@ suite("Portfolio Optimization") {
       mem_pool_t arena;
       mem_init(&arena, 4096);
 
-      exprtk_pf_markowitz(mu, cov, 2, 0.10, weights, &arena);
+      toad_pf_markowitz(mu, cov, 2, 0.10, weights, &arena);
 
       check(fabs((double)(weights[0]) - (double)(0.5)) <= (double)(EPSILON));
       check(fabs((double)(weights[1]) - (double)(0.5)) <= (double)(EPSILON));
@@ -283,12 +283,12 @@ suite("Portfolio Optimization") {
       mem_init(&arena, 4096);
 
       // Target at minimum
-      exprtk_pf_markowitz(mu, cov, 3, 0.05, weights, &arena);
+      toad_pf_markowitz(mu, cov, 3, 0.05, weights, &arena);
       double sum = weights[0] + weights[1] + weights[2];
       check(fabs((double)(sum) - (double)(1.0)) <= (double)(EPSILON));
 
       // Target at maximum
-      exprtk_pf_markowitz(mu, cov, 3, 0.15, weights, &arena);
+      toad_pf_markowitz(mu, cov, 3, 0.15, weights, &arena);
       sum = weights[0] + weights[1] + weights[2];
       check(fabs((double)(sum) - (double)(1.0)) <= (double)(EPSILON));
 
@@ -305,7 +305,7 @@ suite("Portfolio Optimization") {
       mem_pool_t arena;
       mem_init(&arena, 4096);
 
-      exprtk_pf_markowitz(mu, cov, 2, 0.15, weights, &arena);
+      toad_pf_markowitz(mu, cov, 2, 0.15, weights, &arena);
 
       check(fabs((double)(weights[0]) - (double)(0.0)) <= (double)(EPSILON));
       check(fabs((double)(weights[1]) - (double)(1.0)) <= (double)(EPSILON));
@@ -324,15 +324,15 @@ suite("Portfolio Optimization") {
       mem_init(&arena, 1024);
 
       // Min variance
-      exprtk_pf_min_variance(cov, 1, weights, &arena);
+      toad_pf_min_variance(cov, 1, weights, &arena);
       check(fabs((double)(weights[0]) - (double)(1.0)) <= (double)(EPSILON));
 
       // Max Sharpe
-      exprtk_pf_max_sharpe(mu, cov, 1, 0.02, weights, &arena);
+      toad_pf_max_sharpe(mu, cov, 1, 0.02, weights, &arena);
       check(fabs((double)(weights[0]) - (double)(1.0)) <= (double)(EPSILON));
 
       // Markowitz
-      exprtk_pf_markowitz(mu, cov, 1, 0.10, weights, &arena);
+      toad_pf_markowitz(mu, cov, 1, 0.10, weights, &arena);
       check(fabs((double)(weights[0]) - (double)(1.0)) <= (double)(EPSILON));
 
       mem_destroy(&arena);
@@ -347,7 +347,7 @@ suite("Portfolio Optimization") {
       mem_pool_t arena;
       mem_init(&arena, 4096);
 
-      exprtk_pf_min_variance(cov, 2, weights, &arena);
+      toad_pf_min_variance(cov, 2, weights, &arena);
 
       // Should still return valid weights
       double sum = weights[0] + weights[1];
@@ -357,4 +357,3 @@ suite("Portfolio Optimization") {
     }
   }
 }
- 

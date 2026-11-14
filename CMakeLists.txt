@@ -1,9 +1,10 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.25)
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+include(CMakeOptions.cmake)
 
-# TurboScript Project - A Simple DSL with MIR JIT Backend
+# Toad Project - A Simple DSL with MIR JIT Backend
 project(
-  TurboScript
+  Toad
   VERSION 3.0.10
   LANGUAGES C CXX)
 
@@ -35,129 +36,88 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "cmake")
 
 # Enable testing
-include(CTest)
-enable_testing()
-
-include(CMakeOptions.cmake)
+if(BUILD_TESTS OR BUILD_BENCHMARK)
+  enable_testing()
+endif()
 include(Sanitizers)
 include(GNUInstallDirs)
 include(CmakeUtils)
 
-if(TURBOSCRIPT_BUILD_HOST_TOOLS_ONLY)
-  if(CMAKE_CROSSCOMPILING)
-    message(FATAL_ERROR "Parser generators must be built for the host")
-  endif()
-  add_subdirectory(tools)
-  return()
-endif()
-
 find_package(Threads REQUIRED)
-set(_turboscript_sdk_roots SALTS_ROOT SALTS_UTILS_ROOT)
-if(TURBOSCRIPT_BUILD_MODULES)
-  list(APPEND _turboscript_sdk_roots CHTTP_ROOT)
-endif()
-foreach(_root IN LISTS _turboscript_sdk_roots)
-  if(NOT DEFINED ENV{${_root}} OR NOT IS_DIRECTORY "$ENV{${_root}}")
-    message(FATAL_ERROR "${_root} must name the matching installed SDK; run cmake/ci/restore-native-sdks.ps1 first")
-  endif()
-  file(TO_CMAKE_PATH "$ENV{${_root}}" _turboscript_${_root})
-endforeach()
-# A previous configure must not select a different SDK than the active roots.
-foreach(_package IN ITEMS Salts SaltsUtils Chttp TurboDB)
-  unset(${_package}_DIR CACHE)
-  unset(${_package}_DIR)
-endforeach()
-find_package(Salts CONFIG REQUIRED PATHS "${_turboscript_SALTS_ROOT}"
+
+find_package(SaltsBase    CONFIG REQUIRED PATHS "$ENV{SALTS_BASE_ROOT}"
              NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
-find_package(SaltsUtils CONFIG REQUIRED PATHS "${_turboscript_SALTS_UTILS_ROOT}"
+find_package(CMeta    CONFIG REQUIRED PATHS "$ENV{CMETA_ROOT}"
              NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
-set(TURBOSCRIPT_HAS_TURBODB OFF)
-if(TURBOSCRIPT_BUILD_MODULES)
-  find_package(Chttp CONFIG REQUIRED PATHS "${_turboscript_CHTTP_ROOT}"
-               NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
-  if(EXISTS "$ENV{TURBODB_ROOT}/lib/cmake/TurboDB/TurboDBConfig.cmake")
-    file(TO_CMAKE_PATH "$ENV{TURBODB_ROOT}" _turboscript_TURBODB_ROOT)
-    find_package(TurboDB CONFIG REQUIRED PATHS "${_turboscript_TURBODB_ROOT}"
-                 NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
-    set(TURBOSCRIPT_HAS_TURBODB ON)
-  endif()
-endif()
+find_package(SaltsUtils     CONFIG REQUIRED PATHS "$ENV{SALTS_UTILS_ROOT}"
+             NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
+find_package(SaltsCore     CONFIG REQUIRED PATHS "$ENV{SALTSCORE_ROOT}"
+             NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
+find_package(Chttp CONFIG REQUIRED PATHS "$ENV{CHTTP_ROOT}"
+             NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
+find_package(TurboDB CONFIG REQUIRED PATHS "$ENV{TURBODB_ROOT}"
+             NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
 find_package(MIR CONFIG REQUIRED)
 find_package(xxHash CONFIG REQUIRED)
 find_package(unofficial-tre 0.9.0 CONFIG REQUIRED)
 find_package(PkgConfig REQUIRED)
-find_path(SIMDE_INCLUDE_DIRS "simde/arm/neon.h")
+find_path(SIMDE_INCLUDE_DIRS "simde/arm/neon.h" REQUIRED)
 
-# Additional components
-add_subdirectory(tools)
 include(FindTools)
-add_subdirectory(vendor)
 add_subdirectory(miniblas)
 
-add_subdirectory(exprtk)
-add_subdirectory(turbo_script)
-if(TURBOSCRIPT_BUILD_MODULES)
-  add_subdirectory(modules)
-endif()
+add_subdirectory(engine)
+add_subdirectory(script)
+add_subdirectory(modules)
 
 # Package Configuration
 include(CMakePackageConfigHelpers)
 
 # Project-owned installation policy
 install(FILES "${unofficial-tre_DIR}/../tre/copyright"
-        DESTINATION "${CMAKE_INSTALL_DATADIR}/TurboScript"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/Toad"
         RENAME tre-copyright)
 install(
-  TARGETS turbo_script exprtk exprtk_syntax miniblas_linalg
-  EXPORT TurboScriptTargets
+  TARGETS toad_script toad_engine toad_syntax miniblas_linalg
+  EXPORT ToadTargets
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-if(TURBOSCRIPT_BUILD_MODULES)
-set(_turboscript_module_targets
-    net_tbs
-    ta_tbs
-    fin_tbs
-    ts_tbs
-    mapper_tbs
-    img_tbs
-    crypto_tbs
-    hash_tbs
-    fuzzy_tbs
-    os_tbs)
-if(TARGET db_tbs)
-  list(APPEND _turboscript_module_targets db_tbs)
-endif()
+set(_toad_module_targets
+    toad_net_plugin
+    toad_fin_plugin
+    toad_img_plugin
+    toad_fuzzy_plugin
+ )
 install(
-  TARGETS ${_turboscript_module_targets}
+  TARGETS ${_toad_module_targets}
   LIBRARY DESTINATION ${CMAKE_INSTALL_BINDIR}/plugins
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}/plugins)
-unset(_turboscript_module_targets)
-endif()
+unset(_toad_module_targets)
 
 install(
-  EXPORT TurboScriptTargets
-  FILE TurboScriptTargets.cmake
-  NAMESPACE TurboScript::
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/TurboScript)
+  EXPORT ToadTargets
+  FILE ToadTargets.cmake
+  NAMESPACE Toad::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Toad)
 
 # Generate project config
 configure_package_config_file(
-  cmake/TurboScriptConfig.cmake.in
-  ${CMAKE_CURRENT_BINARY_DIR}/TurboScriptConfig.cmake
-  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/TurboScript
+  cmake/ToadConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/ToadConfig.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Toad
   PATH_VARS CMAKE_INSTALL_BINDIR CMAKE_INSTALL_INCLUDEDIR CMAKE_INSTALL_LIBDIR)
 
 write_basic_config_version_file(
-  ${CMAKE_CURRENT_BINARY_DIR}/TurboScriptConfigVersion.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/ToadConfigVersion.cmake
   VERSION ${PROJECT_VERSION}
   COMPATIBILITY AnyNewerVersion)
 
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/TurboScriptConfig.cmake
-              ${CMAKE_CURRENT_BINARY_DIR}/TurboScriptConfigVersion.cmake
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/TurboScript)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/ToadConfig.cmake
+              ${CMAKE_CURRENT_BINARY_DIR}/ToadConfigVersion.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Toad)
 
 install(FILES LICENSE NOTICE THIRD_PARTY_NOTICES.md
-        DESTINATION ${CMAKE_INSTALL_DATADIR}/TurboScript)
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/Toad)

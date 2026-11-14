@@ -1,9 +1,9 @@
-# TurboScript 原生插件开发
+# Toad 原生插件开发
 
-TurboScript 原生插件统一使用 **当前 Salts Plugin ABI**。
+Toad 原生插件统一使用 **当前 Salts Plugin ABI**。
 
-TurboScript 不再拥有第二套通用原生插件 ABI。插件的 DSO 加载、生命周期、
-lease 与 capability 发布由 Salts::Plugin 管理；原生函数和接口语义由 CMeta
+Toad 不再拥有第二套通用原生插件 ABI。插件的 DSO 加载、生命周期、
+lease 与 capability 发布由 CMeta::Plugin 管理；原生函数和接口语义由 CMeta
 描述。
 
 ## 架构
@@ -12,10 +12,10 @@ lease 与 capability 发布由 Salts::Plugin 管理；原生函数和接口语�
 import("fin")
    |
    v
-TurboScript import / 命名空间
+Toad import / 命名空间
    |
    v
-Salts::Plugin registry
+CMeta::Plugin registry
   load -> start -> acquire lease
    |
    v
@@ -31,7 +31,7 @@ cmeta_plugin_manifest
           { self, vtable }
    |
    v
-TurboScript 已绑定 dispatch cache
+Toad 已绑定 dispatch cache
    |
    +--> interpreter / JIT
    +--> 满足条件时进入 CFlow
@@ -39,12 +39,12 @@ TurboScript 已绑定 dispatch cache
 
 职责边界：
 
-- **Salts::Plugin**：DSO、唯一 Plugin ABI、生命周期、lease。
+- **CMeta::Plugin**：DSO、唯一 Plugin ABI、生命周期、lease。
 - **CMeta**：函数/接口类型、ABI、effects、properties、参数方向和所有权。
-- **TurboScript**：`import()`、脚本命名空间、脚本值转换、诊断、解释器/JIT。
+- **Toad**：`import()`、脚本命名空间、脚本值转换、诊断、解释器/JIT。
 - **CFlow**：对满足 CMeta contract 的预绑定 Function 做图执行。
 
-TurboScript 的 Host Module ABI 是宿主执行 TurboScript 程序的 ABI，与原生
+Toad 的 Host Module ABI 是宿主执行 Toad 程序的 ABI，与原生
 Plugin publication ABI 是两回事。
 
 ## 加载与发现
@@ -53,7 +53,7 @@ Plugin publication ABI 是两回事。
 import("fin");
 ```
 
-TurboScript 根据平台解析插件文件，然后通过
+Toad 根据平台解析插件文件，然后通过
 `cmeta_plugin_registry_*` 加载。DSO 必须发布当前 ABI 的
 `cmeta_plugin_query`，并返回合法 manifest。
 
@@ -78,12 +78,12 @@ macOS    fin.dylib
 FunctionDesc + FunctionAbi + exact invoke adapter
 ```
 
-TurboScript 中的 dispatch row 只是缓存，不是第二份签名/effect 描述。
+Toad 中的 dispatch row 只是缓存，不是第二份签名/effect 描述。
 
 示例：
 
 ```c
-#include <salts/plugin.h>
+#include <cmeta/plugin.h>
 #include <salts/thread.h>
 
 FunctionDeclResult(value, double, CMETA_RESULT_VALUE, my_double,
@@ -152,7 +152,7 @@ value = math.double(3.5);
 
 ### 当前 scalar binding 范围
 
-TurboScript 当前直接支持 CMeta finite scalar universe：
+Toad 当前直接支持 CMeta finite scalar universe：
 
 - `bool`
 - `int`
@@ -165,7 +165,7 @@ TurboScript 当前直接支持 CMeta finite scalar universe：
 pointer/object/aggregate/opaque 以及 OUT/INOUT 不能靠动态猜测调用；需要明确的
 后续 language binding。
 
-对 canonical integer binding，TurboScript 保留原始 ExprTk value 类型，
+对 canonical integer binding，Toad 保留原始 Engine value 类型，
 不会先做旧的 integer→double 归一化，因此 `long` ABI 不会在进入 adapter
 之前丢失 int64 精度。
 
@@ -186,7 +186,7 @@ Plugin Function
   -> Graph / Plan
 ```
 
-STATEFUL、IO、ASYNC、UNKNOWN 等 effect 会形成保守 barrier。TurboScript
+STATEFUL、IO、ASYNC、UNKNOWN 等 effect 会形成保守 barrier。Toad
 不会维护单独的插件 purity/effect 表。
 
 只要 Graph/Plan/run 仍能访问插件代码、descriptor、trait、context 或
@@ -206,18 +206,18 @@ CMeta InterfaceDesc + { self, vtable }
 - 网络/session provider
 - device/runtime provider
 
-Interface 是领域原生 contract。TurboScript adapter 负责脚本值转换，不应把
-ExprTk 类型泄漏进领域 Interface。
+Interface 是领域原生 contract。Toad adapter 负责脚本值转换，不应把
+Engine 类型泄漏进领域 Interface。
 
-数据库能力统一通过 TurboDB::Orm + 用户显式 driver/module 配置；#84 跟踪该集成，不在 TurboScript 中再定义 SQLite provider。
+数据库能力统一通过 TurboDB::Orm + 用户显式 driver/module 配置；#84 跟踪该集成，不在 Toad 中再定义 SQLite provider。
 
 ## 仓库中的迁移 helper
 
 当前仓库仍保留：
 
-- `TS_PLUGIN_MODULE`
-- `TS_PLUGIN_MODULE_WITH_UNLOAD`
-- `TS_PLUGIN_STATEFUL`
+- `TOAD_PLUGIN_MODULE`
+- `TOAD_PLUGIN_MODULE_WITH_UNLOAD`
+- `TOAD_PLUGIN_STATEFUL`
 
 它们已经通过当前 Salts Plugin manifest 发布 capability，只用于逐步迁移旧
 模块；**不是**另一套 loader 或 ABI。
@@ -227,7 +227,7 @@ ExprTk 类型泄漏进领域 Interface。
 1. 普通操作发布 canonical FUNCTION；
 2. 有状态 provider 发布 canonical INTERFACE；
 3. 已有逻辑 Service/Component contract 时复用 DataBind/CMeta 生成结果；
-4. TurboScript 只保留脚本命名空间和转换层。
+4. Toad 只保留脚本命名空间和转换层。
 
 ## Hot path
 
@@ -244,7 +244,7 @@ Plugin discovery/reflection 属于 control plane。
 
 ## 生命周期
 
-TurboScript context 在插件 callback、descriptor、Interface 或 CFlow callable
+Toad context 在插件 callback、descriptor、Interface 或 CFlow callable
 仍可达期间持有 Salts Plugin lease。
 
 销毁 context 时，先销毁脚本侧引用，再 release lease，最后停止/卸载 DSO。
@@ -264,7 +264,7 @@ DataBind Service 的输出由 BindingPlan 的 begin/write/commit/abort 事务管
 插件应直接使用安装好的/current Salts Plugin 与 CMeta headers，不复制 ABI
 struct。
 
-本仓库 CMake 使用 `Salts::Plugin` / `Salts::PluginABI` 等正常依赖图。
+本仓库 CMake 使用 `CMeta::Plugin` / `CMeta::PluginABI` 等正常依赖图。
 
 ## 故障排除
 
@@ -276,7 +276,7 @@ struct。
 
 确认 DSO 发布 `cmeta_plugin_query`，并使用当前 Salts Plugin ABI 重新构建。
 
-不存在旧 TurboScript 私有 Plugin ABI fallback。
+不存在旧 Toad 私有 Plugin ABI fallback。
 
 ### Function 初始化失败
 
@@ -284,12 +284,12 @@ struct。
 
 - FunctionDesc / FunctionAbi 是否合法；
 - exact adapter 是否存在；
-- 参数 direction/carrier 是否属于当前 TurboScript binding 范围；
+- 参数 direction/carrier 是否属于当前 Toad binding 范围；
 - `export_id` 是否与已有 env function 冲突。
 
 ## 相关内容
 
-- `exprtk/include/ts_plugin.h`：基于 Salts Plugin Interface 的迁移 helper。
-- `turbo_script/include/ts_plugin_loader.h`：TurboScript binding adapter。
+- `engine/include/toad/plugin.h`：基于 Salts Plugin Interface 的迁移 helper。
+- `script/include/toad/plugin_loader.h`：Toad binding adapter。
 - #22：Plugin ABI/CMeta 总体收敛。
 - #84：TurboDB::Orm 数据库集成与显式用户 driver 配置。

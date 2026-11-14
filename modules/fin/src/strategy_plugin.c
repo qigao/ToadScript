@@ -1,17 +1,17 @@
-#include "ts_plugin.h"
+#include <toad/plugin.h>
 #include "fin_plugin_functions.h"
 
-#include <salts/thread.h>
+#include <threads/threads.h>
 
-const exprtk_module_t *exprtk_module_strategy(void);
+const toad_module_t *toad_module_strategy(void);
 
 static void *fin_module_load(void *self, void *env, void *scratch) {
-  const exprtk_module_t *module;
+  const toad_module_t *module;
   (void)self;
   (void)scratch;
-  module = exprtk_module_strategy();
+  module = toad_module_strategy();
   if (!env || !module) return NULL;
-  exprtk_env_add_module((exprtk_env_t *)env, module);
+  toad_env_add_module((toad_env_t *)env, module);
   return env;
 }
 
@@ -22,14 +22,14 @@ static void fin_module_unload(void *self, void *instance) {
 
 static char fin_module_token;
 
-static const ts_plugin_module_vtable fin_module_vtable = {
+static const toad_plugin_module_vtable fin_module_vtable = {
     .implementation = "fin",
     .capabilities = 0u,
     .load = fin_module_load,
     .unload = fin_module_unload,
 };
 
-static ts_plugin_module fin_module = {
+static toad_plugin_module fin_module = {
     .self = &fin_module_token,
     .vtable = &fin_module_vtable,
 };
@@ -55,24 +55,24 @@ static bool CMETA_PLUGIN_CALL fin_kelly_invoke(
 
 /*
  * Migration state under one Salts Plugin ABI:
- * - turboscript.module keeps the remaining legacy language facade mounted;
+ * - toad.module keeps the remaining legacy language facade mounted;
  * - strategy.kelly is already a canonical Function export.
  * Both are protected by the same manifest lease; this is not a dual loader or
  * a parallel Plugin ABI.
  */
 static cmeta_plugin_export fin_exports[2];
-static cmeta_once_t fin_exports_once = SALTS_ONCE_INIT;
+static sync_once_t fin_exports_once = SALTS_ONCE_INIT;
 
 static void fin_exports_init(void) {
   fin_exports[0] = (cmeta_plugin_export){
       .struct_size = CMETA_PLUGIN_EXPORT_SIZE,
       .kind = CMETA_PLUGIN_EXPORT_INTERFACE,
-      .contract_version = TS_PLUGIN_MODULE_CONTRACT_VERSION,
+      .contract_version = TOAD_PLUGIN_MODULE_CONTRACT_VERSION,
       .capabilities = 0u,
-      .export_id = TS_PLUGIN_MODULE_EXPORT_ID,
-      .contract_id = TS_PLUGIN_MODULE_CONTRACT_ID,
+      .export_id = TOAD_PLUGIN_MODULE_EXPORT_ID,
+      .contract_id = TOAD_PLUGIN_MODULE_CONTRACT_ID,
       .value.interface = {
-          .desc = &ts_plugin_module_interface_meta,
+          .desc = &toad_plugin_module_interface_meta,
           .value = &fin_module,
       },
   };
@@ -83,7 +83,7 @@ static void fin_exports_init(void) {
       .contract_version = 1u,
       .capabilities = 0u,
       .export_id = "strategy.kelly",
-      .contract_id = "turboscript.fin.strategy.kelly",
+      .contract_id = "toad.fin.strategy.kelly",
       .value.function = {
           .desc = FunctionMeta(ts_fin_kelly),
           .abi = FunctionAbi(ts_fin_kelly),
@@ -110,6 +110,6 @@ static const cmeta_plugin_manifest fin_manifest = {
 CMETA_PLUGIN_QUERY_EXPORT const cmeta_plugin_manifest *CMETA_PLUGIN_CALL
 cmeta_plugin_query(uint32_t host_abi) {
   if (host_abi != CMETA_PLUGIN_ABI_VERSION) return NULL;
-  cmeta_once(&fin_exports_once, fin_exports_init);
+  sync_once(&fin_exports_once, fin_exports_init);
   return &fin_manifest;
 }

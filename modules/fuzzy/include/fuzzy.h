@@ -1,13 +1,13 @@
 #ifndef FUZZY_H
 #define FUZZY_H
 
-#include "exprtk_module.h"
+#include <toad/module.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-const exprtk_module_t *exprtk_module_fuzzy(void);
+const toad_module_t *toad_module_fuzzy(void);
 
 #ifdef __cplusplus
 }

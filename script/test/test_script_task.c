@@ -1,0 +1,23 @@
+#include "tinytest.h"
+#include <turboscript/script.h>
+#include <threads/threads.h>
+
+static void wait_for_tasks(turbo_script_ctx_t *ctx) {
+  for (int i = 0; i < 200 && turbo_script_task_active_count(ctx); ++i)
+    sleep_ms(5);
+}
+
+suite("TurboScript Executor tasks") {
+  it("runs without a host coroutine context") {
+    turbo_script_ctx_t *ctx = turbo_script_init(TURBO_SCRIPT_INIT_BARE);
+    check_not_null(ctx);
+    if (!ctx) return;
+    check_equal(
+        turbo_script_run(ctx,
+                         "id = task.spawn(() => { task.sleep(10); return 7; });"),
+        0);
+    wait_for_tasks(ctx);
+    check_equal(turbo_script_task_active_count(ctx), (size_t)0);
+    turbo_script_free(ctx);
+  }
+}

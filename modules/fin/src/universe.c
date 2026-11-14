@@ -19,7 +19,7 @@
 #include <string.h>
 #include <math.h>
 #include <float.h>
-#include "simd_helpers.h"
+#include <toad/simd.h>
 
 /* =========================================================================
  * Internal helpers

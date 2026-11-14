@@ -1,4 +1,4 @@
-# TurboScript API Reference
+# Toad API Reference
 
 Complete reference for all built-in functions and standard library.
 
@@ -769,7 +769,7 @@ var formatted = format_date_utc(parsed, "%Y-%m-%d %H:%M:%S"); // "2024-01-01 12:
 
 ## Failure Contract
 
-TurboScript's built-in IO functions currently follow three failure shapes:
+Toad's built-in IO functions currently follow three failure shapes:
 
 - Predicates return `1` or `0`.
   Examples: `file_exists(path)`, `is_file(path)`, `is_dir(path)`, `path_is_absolute(path)`.
@@ -930,4 +930,4 @@ For functions provided by optional modules:
 
 ---
 
-**Complete API documentation for TurboScript**
+**Complete API documentation for Toad**

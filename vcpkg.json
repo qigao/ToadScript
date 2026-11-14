@@ -1,5 +1,5 @@
 {
-  "name": "turboscript",
+  "name": "toad",
   "version-semver": "3.0.10",
   "dependencies": [
     {
@@ -13,19 +13,9 @@
     {
       "name": "stb"
     },
-    {
-      "name": "pkgconf"
-    },
-    {
-      "name": "zstd"
-    },
-    {
-      "name": "simde"
-    },
-    {
-      "name": "tre",
-      "version>=": "0.9.0"
-    }
+    "simde",
+    "pcre2", 
+    "zstd" 
   ],
   "builtin-baseline": "b1b19307e2d2ec1eefbdb7ea069de7d4bcd31f01"
 }

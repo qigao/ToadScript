@@ -1,13 +1,13 @@
-# TurboScript DSL Charter
+# Toad DSL Charter
 
-This document defines what TurboScript is, what it is not, and how the language should evolve.
+This document defines what Toad is, what it is not, and how the language should evolve.
 Its job is to keep the engine useful for embedded scripting without turning it into a general-purpose feature pile.
 
 ---
 
 ## 1. Purpose
 
-TurboScript is a high-performance embeddable scripting engine with TypeScript-like syntax.
+Toad is a high-performance embeddable scripting engine with TypeScript-like syntax.
 It is built for:
 
 - host application scripting and automation
@@ -17,13 +17,13 @@ It is built for:
 - quantitative finance
 - vector and time-series analysis
 
-TurboScript is not trying to be a full TypeScript, JavaScript, Python, or Lua replacement. It should feel familiar to users of TypeScript/JavaScript syntax, but it does not implement the TypeScript type system or the browser/server JavaScript ecosystem.
+Toad is not trying to be a full TypeScript, JavaScript, Python, or Lua replacement. It should feel familiar to users of TypeScript/JavaScript syntax, but it does not implement the TypeScript type system or the browser/server JavaScript ecosystem.
 
 ---
 
 ## 2. Core Identity
 
-TurboScript should optimize for four things:
+Toad should optimize for four things:
 
 1. Clear dataflow
 2. Strong vector, matrix, and time-series ergonomics
@@ -114,7 +114,7 @@ Interpreter and MIR JIT must agree on user-visible semantics:
 
 ## 5. Non-Goals
 
-TurboScript should not chase these by default:
+Toad should not chase these by default:
 
 - large object-oriented frameworks
 - syntax added only to look modern
@@ -165,7 +165,7 @@ If the answer to `1` is no, the feature should probably not exist.
 
 ## 8. The Default Direction
 
-TurboScript should become a small, sharp embedded scripting engine for structured numeric and data-oriented scripting.
+Toad should become a small, sharp embedded scripting engine for structured numeric and data-oriented scripting.
 
 That means:
 

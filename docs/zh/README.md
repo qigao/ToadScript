@@ -1,8 +1,8 @@
-# TurboScript
+# Toad
 
 **一个 TypeScript-like 语法的高性能嵌入式脚本引擎，基于统一 MIR 后端，同时支持 MIR 解释执行、MIR JIT 和可扩展插件系统。**
 
-TurboScript 面向需要内嵌脚本能力的宿主应用，而不是完整替代 JavaScript、Python 或 Lua 运行时。它提供接近 TypeScript/JavaScript 的语法，`turbo_script_run()` 与 `turbo_script_run_jit()` 共享同一套 MIR lowering，并提供数据绑定、文本处理、数学、矩阵/线性代数、时间序列、技术分析和金融计算模块。
+Toad 面向需要内嵌脚本能力的宿主应用，而不是完整替代 JavaScript、Python 或 Lua 运行时。它提供接近 TypeScript/JavaScript 的语法，`toad_script_run()` 与 `toad_script_run_jit()` 共享同一套 MIR lowering，并提供数据绑定、文本处理、数学、矩阵/线性代数、时间序列、技术分析和金融计算模块。
 
 它不是完整 TypeScript 实现，也不是 Pandas/NumPy 的完整替代品。当前定位是嵌入式自动化、数据转换、轻量数据分析、量化指标计算和宿主应用扩展。
 
@@ -17,7 +17,7 @@ TurboScript 面向需要内嵌脚本能力的宿主应用，而不是完整替�
 - **[API 参考](api-reference.md)** - 内置函数和标准库
 
 ### 开发者文档
-- **[插件开发](plugin-development.md)** - 使用 C/C++ 扩展 TurboScript
+- **[插件开发](plugin-development.md)** - 使用 C/C++ 扩展 Toad
 - **[模块文档](../modules/)** - 领域特定模块指南
 - **[架构设计](../advanced/architecture.md)** - 内部设计和实现
 
@@ -58,7 +58,7 @@ TurboScript 面向需要内嵌脚本能力的宿主应用，而不是完整替�
 ### 可扩展架构
 - **插件系统**：通过 `import("plugin_name")` 动态加载 C/C++ DLL
 - **模块化**：清晰的命名空间分离（`csv.*`、`json.*`、`ta.*`、`strategy.*`）
-- **统一 MIR 后端**：`turbo_script_run()` 执行生成后的 MIR 解释模式，`turbo_script_run_jit()` 使用同一份 IR 生成原生代码
+- **统一 MIR 后端**：`toad_script_run()` 执行生成后的 MIR 解释模式，`toad_script_run_jit()` 使用同一份 IR 生成原生代码
 - **纯 MIR 执行契约**：未覆盖的 lowering 形式由 MIR pipeline 显式报错
 - **热路径优化**：直接数学调用、预绑定向量访问、map 数值指针、单态 OOP 方法 lowering、`super.method(...)` inline、public numeric instance field slot 访问
 - **零拷贝 FFI**：与宿主应用程序高效数据交换
@@ -113,7 +113,7 @@ print("信号: " + signal);
 
 ## 📚 模块生态系统
 
-TurboScript 提供了丰富的可选模块：
+Toad 提供了丰富的可选模块：
 
 | 模块 | 说明 | 文档 |
 |--------|-------------|---------------|
@@ -132,8 +132,8 @@ TurboScript 提供了丰富的可选模块：
 ### 项目结构
 ```
 tScript/
-├── exprtk/          # 核心解析器、解释器、内置模块
-├── turbo_script/    # 宿主 API、MIR JIT、脚本运行时
+├── engine/          # 核心解析器、解释器、内置模块
+├── script/    # 宿主 API、MIR JIT、脚本运行时
 ├── modules/         # 内置和插件模块
 ├── docs/            # 文档（你在这里）
 └── tests/           # 测试套件

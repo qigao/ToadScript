@@ -1,12 +1,12 @@
-# TurboScript 标准库状态
+# Toad 标准库状态
 
-本文档记录当前 TurboScript 公共模块的实现边界。结论以源码、CMake
+本文档记录当前 Toad 公共模块的实现边界。结论以源码、CMake
 目标和测试注册为准。
 
 ## 核心能力
 
 - `core`：表达式、字符串、集合、函数和运行时类型。
-- `mapper`：基于 TurboScript class 的 JSON/YAML/XML 映射。
+- `mapper`：基于 Toad class 的 JSON/YAML/XML 映射。
 - `os`：进程、服务、日志、电源和 Cron 能力。
 - `io`、`net`、`db`、`ta`、`fin`、`strategy`、`vec`：按各模块文档提供能力。`db` 仅通过 TurboDB::Orm 工作，数据库 driver/module 由用户显式配置。
 
@@ -23,7 +23,7 @@ Salts DataBind parser APIs 解析和生成文档：
 和嵌套 class。JSON/YAML 未声明字段、类型不匹配值会快速失败，缺失字段
 保留 class 默认值。
 
-TurboScript 不提供独立 schema、codec、TBE 或 DataBind 公共接口。
+Toad 不提供独立 schema、codec、TBE 或 DataBind 公共接口。
 
 ## 验证状态
 

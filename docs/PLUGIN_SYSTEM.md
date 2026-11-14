@@ -1,9 +1,9 @@
-# TurboScript Native Plugin System
+# Toad Native Plugin System
 
-TurboScript uses the **current Salts Plugin ABI** for native plugin discovery,
+Toad uses the **current Salts Plugin ABI** for native plugin discovery,
 loading, lifecycle, leases, and capability publication.
 
-TurboScript does not define a second generic native-plugin ABI.
+Toad does not define a second generic native-plugin ABI.
 
 ## Architecture
 
@@ -11,10 +11,10 @@ TurboScript does not define a second generic native-plugin ABI.
 import("fin")
    |
    v
-TurboScript language/import layer
+Toad language/import layer
    |
    v
-Salts::Plugin registry
+CMeta::Plugin registry
   load -> start -> acquire lease
    |
    v
@@ -30,7 +30,7 @@ cmeta_plugin_manifest
           { self, vtable }
    |
    v
-TurboScript binding cache
+Toad binding cache
    |
    +--> interpreter / JIT calls
    +--> CFlow admission for graphable Functions
@@ -38,16 +38,16 @@ TurboScript binding cache
 
 ### Ownership
 
-- **Salts::Plugin** owns DSO loading, the single Plugin ABI, lifecycle, and
+- **CMeta::Plugin** owns DSO loading, the single Plugin ABI, lifecycle, and
   leases.
 - **CMeta** owns native function/interface type, ABI, effects, properties,
   direction, and ownership semantics.
-- **TurboScript** owns `import()`, script namespaces, script-value conversion,
+- **Toad** owns `import()`, script namespaces, script-value conversion,
   diagnostics, interpreter/JIT execution, and Host Module ABI.
 - **CFlow** may consume a pre-bound canonical Function when its reflected
   effects and type contract allow graph admission.
 
-The Host Module ABI used to execute compiled TurboScript programs is separate
+The Host Module ABI used to execute compiled Toad programs is separate
 from the Salts Plugin ABI used to publish native capabilities.
 
 ## Loading and discovery
@@ -58,7 +58,7 @@ For a logical import such as:
 import("fin");
 ```
 
-TurboScript resolves the platform plugin filename and loads it through
+Toad resolves the platform plugin filename and loads it through
 `cmeta_plugin_registry_*`. The DSO must publish the current
 `cmeta_plugin_query` entry and a valid current-ABI manifest.
 
@@ -86,12 +86,12 @@ The semantic source of truth is:
 FunctionDesc + FunctionAbi + exact invoke adapter
 ```
 
-The TurboScript dispatch row is only a cached language binding.
+The Toad dispatch row is only a cached language binding.
 
 Example shape:
 
 ```c
-#include <salts/plugin.h>
+#include <cmeta/plugin.h>
 #include <salts/thread.h>
 
 FunctionDeclResult(value, double, CMETA_RESULT_VALUE, my_double,
@@ -161,7 +161,7 @@ value = math.double(3.5);
 
 ### Current scalar binding boundary
 
-TurboScript currently binds the finite CMeta scalar universe directly:
+Toad currently binds the finite CMeta scalar universe directly:
 
 - `bool`
 - `int`
@@ -174,7 +174,7 @@ TurboScript currently binds the finite CMeta scalar universe directly:
 Pointer/object/aggregate/opaque and OUT/INOUT signatures require an explicit
 future language binding rather than guessed dynamic invocation.
 
-Integer-valued canonical bindings preserve exact ExprTk value types instead of
+Integer-valued canonical bindings preserve exact Engine value types instead of
 passing through legacy integer-to-double normalization.
 
 ## CFlow admission
@@ -195,7 +195,7 @@ Plugin Function
 ```
 
 Functions marked STATEFUL, IO, ASYNC, MAY_FAIL where incompatible, or UNKNOWN
-remain conservative graph barriers. TurboScript does not maintain a parallel
+remain conservative graph barriers. Toad does not maintain a parallel
 plugin purity registry.
 
 The plugin lease must remain live for every graph/plan/run that can reach
@@ -213,13 +213,13 @@ Examples include:
 - other capabilities naturally represented as `{self, vtable}`.
 
 The Interface descriptor is the native semantic contract. Script adapters
-should convert TurboScript values at the language boundary instead of exposing
-ExprTk types in the provider Interface.
+should convert Toad values at the language boundary instead of exposing
+Engine types in the provider Interface.
 
 ## Migration helpers in this repository
 
-`TS_PLUGIN_MODULE`, `TS_PLUGIN_MODULE_WITH_UNLOAD`, and
-`TS_PLUGIN_STATEFUL` publish capabilities through the current Salts Plugin
+`TOAD_PLUGIN_MODULE`, `TOAD_PLUGIN_MODULE_WITH_UNLOAD`, and
+`TOAD_PLUGIN_STATEFUL` publish capabilities through the current Salts Plugin
 manifest and are retained only to migrate existing modules incrementally.
 
 They are **not** a second loader or ABI.
@@ -230,7 +230,7 @@ For new native capability design:
 2. prefer canonical INTERFACE exports for stateful providers;
 3. use generated DataBind/CMeta contracts where a logical Service/Component
    contract already exists;
-4. keep script namespace and conversion logic in TurboScript.
+4. keep script namespace and conversion logic in Toad.
 
 ## Hot-path rule
 
@@ -249,7 +249,7 @@ There must be no per-call:
 
 ## Lifecycle
 
-TurboScript retains the Salts Plugin lease while plugin-owned callbacks,
+Toad retains the Salts Plugin lease while plugin-owned callbacks,
 descriptors, interfaces, or plan callables remain reachable.
 
 Context teardown removes script-visible references before releasing the lease
@@ -261,7 +261,7 @@ Plugins should link against the installed/current Salts Plugin ABI and CMeta
 headers rather than copying ABI structs into project-local headers.
 
 In this repository, use the normal CMake dependency graph and
-`Salts::Plugin` / `Salts::PluginABI` targets as appropriate.
+`CMeta::Plugin` / `CMeta::PluginABI` targets as appropriate.
 
 ## Troubleshooting
 
@@ -275,7 +275,7 @@ and that all of its dynamic dependencies are available.
 Ensure the DSO publishes `cmeta_plugin_query` and was rebuilt against the
 current Salts Plugin ABI.
 
-There is no fallback to an older TurboScript-private plugin ABI.
+There is no fallback to an older Toad-private plugin ABI.
 
 ### Function export fails initialization
 
@@ -283,14 +283,14 @@ Check:
 
 - valid FunctionDesc and FunctionAbi,
 - exact adapter is non-null,
-- parameter directions/carriers are supported by the current TurboScript
+- parameter directions/carriers are supported by the current Toad
   binding,
 - `export_id` does not conflict with an existing environment function.
 
 ## See also
 
-- `exprtk/include/ts_plugin.h` — TurboScript migration adapters over Salts
+- `engine/include/toad/plugin.h` — Toad migration adapters over Salts
   Plugin Interface publication.
-- `turbo_script/include/ts_plugin_loader.h` — TurboScript binding adapter.
+- `script/include/toad/plugin_loader.h` — Toad binding adapter.
 - issue #22 — Plugin ABI/CMeta convergence tracking.
 - issue #84 — TurboDB::Orm database integration with explicit user driver configuration.

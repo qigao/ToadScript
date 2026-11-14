@@ -19,7 +19,7 @@
 #include "universe.h"       /* universe_t, universe_asset_t */
 #include "market_rules.h"   /* universe_market_rules_t      */
 #include "bar_window.h"     /* bar_window_t                 */
-#include "exprtk_types.h"   /* mem_pool_t                */
+#include <toad/types.h>   /* mem_pool_t                */
 
 #ifdef __cplusplus
 extern "C" {

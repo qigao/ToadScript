@@ -5,8 +5,8 @@
 #ifndef NET_CTX_H
 #define NET_CTX_H
 
-#include "exprtk.h"
-#include "cmeta_buffer.h"
+#include <toad/engine.h>
+#include "memory/buffer.h"
 #include <http_client/http.h>
 
 #include <string.h>
@@ -32,11 +32,11 @@ typedef struct net_ctx_s {
 
 typedef struct {
     net_ctx_t     *ctx;
-    exprtk_env_t  *env;
+    toad_env_t  *env;
     mem_pool_t *scratch;
 } http_ud_t;
 
-#define NET_ZERO ((exprtk_value_t){EXPRTK_VAL_NUMBER, .data.number = 0.0})
+#define NET_ZERO ((toad_value_t){TOAD_VAL_NUMBER, .data.number = 0.0})
 
 chttp_client *net_ctx_ensure_client(net_ctx_t *ctx);
 

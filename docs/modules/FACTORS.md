@@ -54,12 +54,12 @@
 
 ## 📊 Basic Standardization
 
-### `exprtk_vec_rank` - Cross-Sectional Ranking
+### `toad_vec_rank` - Cross-Sectional Ranking
 
 **🎓 Purpose**: Convert values to ranks for percentile-based signals.
 
 ```c
-size_t exprtk_vec_rank(const double *in, size_t n,
+size_t toad_vec_rank(const double *in, size_t n,
                        double *out, turbo_pool_t *arena);
 ```
 
@@ -72,7 +72,7 @@ size_t exprtk_vec_rank(const double *in, size_t n,
 double momentum[] = {0.15, 0.08, 0.22, 0.05, 0.18};
 double ranks[5];
 
-exprtk_vec_rank(momentum, 5, ranks, &arena);
+toad_vec_rank(momentum, 5, ranks, &arena);
 // ranks = [2, 1, 4, 0, 3]
 //          ↑  ↑  ↑  ↑  ↑
 //        15% 8% 22% 5% 18%
@@ -98,12 +98,12 @@ for (int i = 0; i < 5; i++) {
 
 ---
 
-### `exprtk_vec_zscore` - Z-Score Normalization
+### `toad_vec_zscore` - Z-Score Normalization
 
 **🎓 Purpose**: Standardize to zero mean and unit variance for combining factors.
 
 ```c
-size_t exprtk_vec_zscore(const double *in, size_t n,
+size_t toad_vec_zscore(const double *in, size_t n,
                          double *out, turbo_pool_t *arena);
 ```
 
@@ -119,9 +119,9 @@ double quality[] = {0.85, 0.92, 0.78, 0.88, 0.90};      // ROE
 
 // Standardize each factor
 double z_momentum[5], z_value[5], z_quality[5];
-exprtk_vec_zscore(momentum, 5, z_momentum, &arena);
-exprtk_vec_zscore(value, 5, z_value, &arena);
-exprtk_vec_zscore(quality, 5, z_quality, &arena);
+toad_vec_zscore(momentum, 5, z_momentum, &arena);
+toad_vec_zscore(value, 5, z_value, &arena);
+toad_vec_zscore(quality, 5, z_quality, &arena);
 
 // Combine with equal weights
 double combined[5];
@@ -140,12 +140,12 @@ for (int i = 0; i < 5; i++) {
 
 ---
 
-### `exprtk_vec_winsorize` - Outlier Capping
+### `toad_vec_winsorize` - Outlier Capping
 
 **🎓 Purpose**: Cap extreme values to reduce outlier impact.
 
 ```c
-size_t exprtk_vec_winsorize(const double *in, size_t n,
+size_t toad_vec_winsorize(const double *in, size_t n,
                             double limit_pct, double *out,
                             turbo_pool_t *arena);
 ```
@@ -161,7 +161,7 @@ double returns[] = {0.01, 0.02, -0.01, 0.50, 0.01};  // 50% is outlier
 double winsorized[5];
 
 // Cap at 10th/90th percentiles
-exprtk_vec_winsorize(returns, 5, 0.1, winsorized, &arena);
+toad_vec_winsorize(returns, 5, 0.1, winsorized, &arena);
 
 printf("Original:   ");
 for (int i = 0; i < 5; i++) printf("%.2f ", returns[i]);
@@ -177,12 +177,12 @@ for (int i = 0; i < 5; i++) printf("%.2f ", winsorized[i]);
 
 ---
 
-### `exprtk_vec_standardize` - Min-Max Scaling
+### `toad_vec_standardize` - Min-Max Scaling
 
 **🎓 Purpose**: Scale to [0, 1] range for bounded inputs.
 
 ```c
-size_t exprtk_vec_standardize(const double *in, size_t n,
+size_t toad_vec_standardize(const double *in, size_t n,
                               double *out, turbo_pool_t *arena);
 ```
 
@@ -194,7 +194,7 @@ size_t exprtk_vec_standardize(const double *in, size_t n,
 double prices[] = {100, 150, 120, 180, 110};
 double scaled[5];
 
-exprtk_vec_standardize(prices, 5, scaled, &arena);
+toad_vec_standardize(prices, 5, scaled, &arena);
 // scaled = [0.0, 0.625, 0.25, 1.0, 0.125]
 //           ↑    ↑      ↑     ↑    ↑
 //          min  mid    mid   max  low
@@ -209,12 +209,12 @@ exprtk_vec_standardize(prices, 5, scaled, &arena);
 
 ## 📈 Distribution Statistics
 
-### `exprtk_vec_skewness` - Distribution Asymmetry
+### `toad_vec_skewness` - Distribution Asymmetry
 
 **🎓 Purpose**: Measure tail asymmetry for risk assessment.
 
 ```c
-double exprtk_vec_skewness(const double *in, size_t n);
+double toad_vec_skewness(const double *in, size_t n);
 ```
 
 **Returns:**
@@ -229,8 +229,8 @@ double exprtk_vec_skewness(const double *in, size_t n);
 double strategy_a[] = {0.01, 0.01, 0.01, 0.01, 0.01};  // Consistent
 double strategy_b[] = {-0.05, 0.02, 0.02, 0.02, 0.04}; // Crash risk
 
-double skew_a = exprtk_vec_skewness(strategy_a, 5);
-double skew_b = exprtk_vec_skewness(strategy_b, 5);
+double skew_a = toad_vec_skewness(strategy_a, 5);
+double skew_b = toad_vec_skewness(strategy_b, 5);
 
 printf("Strategy A skewness: %.3f (symmetric)\n", skew_a);
 printf("Strategy B skewness: %.3f (negative = crash risk)\n", skew_b);
@@ -247,12 +247,12 @@ if (skew_b < -0.5) {
 
 ---
 
-### `exprtk_vec_kurtosis` - Tail Thickness
+### `toad_vec_kurtosis` - Tail Thickness
 
 **🎓 Purpose**: Measure tail risk (excess kurtosis).
 
 ```c
-double exprtk_vec_kurtosis(const double *in, size_t n);
+double toad_vec_kurtosis(const double *in, size_t n);
 ```
 
 **Returns:**
@@ -264,7 +264,7 @@ double exprtk_vec_kurtosis(const double *in, size_t n);
 
 ```c
 double returns[] = {0.01, 0.02, -0.01, 0.05, -0.04, 0.01, -0.03};
-double kurt = exprtk_vec_kurtosis(returns, 7);
+double kurt = toad_vec_kurtosis(returns, 7);
 
 printf("Kurtosis: %.3f\n", kurt);
 
@@ -282,12 +282,12 @@ if (kurt > 1.0) {
 
 ---
 
-### `exprtk_vec_entropy` - Information Content
+### `toad_vec_entropy` - Information Content
 
 **🎓 Purpose**: Measure distribution uniformity.
 
 ```c
-double exprtk_vec_entropy(const double *in, size_t n, size_t bins);
+double toad_vec_entropy(const double *in, size_t n, size_t bins);
 ```
 
 **Returns:**
@@ -301,8 +301,8 @@ double exprtk_vec_entropy(const double *in, size_t n, size_t bins);
 double efficient_market[] = {0.01, -0.01, 0.02, -0.02, 0.01};  // Random
 double trending_market[] = {0.02, 0.02, 0.02, 0.02, 0.02};     // Trending
 
-double entropy_eff = exprtk_vec_entropy(efficient_market, 5, 5);
-double entropy_trend = exprtk_vec_entropy(trending_market, 5, 5);
+double entropy_eff = toad_vec_entropy(efficient_market, 5, 5);
+double entropy_trend = toad_vec_entropy(trending_market, 5, 5);
 
 printf("Efficient market entropy: %.3f (high = random)\n", entropy_eff);
 printf("Trending market entropy:  %.3f (low = predictable)\n", entropy_trend);
@@ -312,12 +312,12 @@ printf("Trending market entropy:  %.3f (low = predictable)\n", entropy_trend);
 
 ## ⚡ Realized Volatility
 
-### `exprtk_vec_rvar` - Realized Variance
+### `toad_vec_rvar` - Realized Variance
 
 **🎓 Purpose**: High-frequency volatility measure.
 
 ```c
-double exprtk_vec_rvar(const double *in, size_t n);
+double toad_vec_rvar(const double *in, size_t n);
 ```
 
 **Formula:** `RV = Σ r² / n`
@@ -329,7 +329,7 @@ double exprtk_vec_rvar(const double *in, size_t n);
 double returns_5min[78];  // 6.5 hours * 12 periods/hour
 // ... load data ...
 
-double daily_rvar = exprtk_vec_rvar(returns_5min, 78);
+double daily_rvar = toad_vec_rvar(returns_5min, 78);
 double daily_vol = sqrt(daily_rvar);
 
 printf("Realized volatility: %.2f%%\n", daily_vol * 100);
@@ -346,18 +346,18 @@ printf("Annualized volatility: %.2f%%\n", annual_vol * 100);
 
 ---
 
-### `exprtk_vec_rskew` - Realized Skewness
+### `toad_vec_rskew` - Realized Skewness
 
 **🎓 Purpose**: Intraday tail asymmetry.
 
 ```c
-double exprtk_vec_rskew(const double *in, size_t n);
+double toad_vec_rskew(const double *in, size_t n);
 ```
 
 #### Example: Jump Risk Detection
 
 ```c
-double rskew = exprtk_vec_rskew(returns_5min, 78);
+double rskew = toad_vec_rskew(returns_5min, 78);
 
 if (rskew < -1.0) {
     printf("⚠️ Negative jump risk detected!\n");
@@ -370,18 +370,18 @@ if (rskew < -1.0) {
 
 ---
 
-### `exprtk_vec_rkurt` - Realized Kurtosis
+### `toad_vec_rkurt` - Realized Kurtosis
 
 **🎓 Purpose**: Intraday tail thickness.
 
 ```c
-double exprtk_vec_rkurt(const double *in, size_t n);
+double toad_vec_rkurt(const double *in, size_t n);
 ```
 
 #### Example: Volatility Regime Detection
 
 ```c
-double rkurt = exprtk_vec_rkurt(returns_5min, 78);
+double rkurt = toad_vec_rkurt(returns_5min, 78);
 
 if (rkurt > 3.0) {
     printf("⚠️ High intraday volatility regime\n");
@@ -394,12 +394,12 @@ if (rkurt > 3.0) {
 
 ## 🏛️ Market Microstructure
 
-### `exprtk_vec_illiq` - Amihud Illiquidity
+### `toad_vec_illiq` - Amihud Illiquidity
 
 **🎓 Purpose**: Measure price impact of trading.
 
 ```c
-double exprtk_vec_illiq(const double *ret, const double *amount, size_t n);
+double toad_vec_illiq(const double *ret, const double *amount, size_t n);
 ```
 
 **Formula:** `ILLIQ = avg(|return| / dollar_volume)`
@@ -413,7 +413,7 @@ double exprtk_vec_illiq(const double *ret, const double *amount, size_t n);
 double returns[] = {0.01, -0.02, 0.015, -0.01, 0.02};
 double volumes[] = {1000000, 1500000, 800000, 1200000, 900000};  // Dollar volume
 
-double illiq = exprtk_vec_illiq(returns, volumes, 5);
+double illiq = toad_vec_illiq(returns, volumes, 5);
 
 printf("Illiquidity: %.6f\n", illiq);
 
@@ -432,12 +432,12 @@ if (illiq > 0.00001) {
 
 ---
 
-### `exprtk_vec_trend_strength` - Trend Quality
+### `toad_vec_trend_strength` - Trend Quality
 
 **🎓 Purpose**: Measure trend persistence (R² of linear regression).
 
 ```c
-double exprtk_vec_trend_strength(const double *price, size_t n);
+double toad_vec_trend_strength(const double *price, size_t n);
 ```
 
 **Returns:** 0.0 (no trend) to 1.0 (perfect trend)
@@ -446,7 +446,7 @@ double exprtk_vec_trend_strength(const double *price, size_t n);
 
 ```c
 double prices[] = {100, 101, 102, 103, 104, 105};
-double strength = exprtk_vec_trend_strength(prices, 6);
+double strength = toad_vec_trend_strength(prices, 6);
 
 printf("Trend strength: %.3f\n", strength);
 
@@ -461,12 +461,12 @@ if (strength > 0.7) {
 
 ---
 
-### `exprtk_vec_efficiency` - Price Efficiency
+### `toad_vec_efficiency` - Price Efficiency
 
 **🎓 Purpose**: Measure directional movement efficiency.
 
 ```c
-double exprtk_vec_efficiency(const double *price, size_t n);
+double toad_vec_efficiency(const double *price, size_t n);
 ```
 
 **Formula:** `Efficiency = net_movement / total_movement`
@@ -477,7 +477,7 @@ double exprtk_vec_efficiency(const double *price, size_t n);
 
 ```c
 double prices[] = {100, 101, 103, 102, 105, 104, 107};
-double efficiency = exprtk_vec_efficiency(prices, 7);
+double efficiency = toad_vec_efficiency(prices, 7);
 
 printf("Efficiency: %.3f\n", efficiency);
 
@@ -495,12 +495,12 @@ if (efficiency > 0.6) {
 
 ## 🌐 Cross-Sectional Factors
 
-### `exprtk_vec_csad` - Cross-Sectional Absolute Deviation
+### `toad_vec_csad` - Cross-Sectional Absolute Deviation
 
 **🎓 Purpose**: Detect herding behavior across assets.
 
 ```c
-size_t exprtk_vec_csad(const double *rets, size_t na, size_t np,
+size_t toad_vec_csad(const double *rets, size_t na, size_t np,
                        double *out, turbo_pool_t *arena);
 ```
 
@@ -521,7 +521,7 @@ double returns[] = {
 };
 double csad[5];
 
-exprtk_vec_csad(returns, 3, 5, csad, &arena);
+toad_vec_csad(returns, 3, 5, csad, &arena);
 
 for (int t = 0; t < 5; t++) {
     printf("Day %d CSAD: %.4f ", t, csad[t]);
@@ -540,12 +540,12 @@ for (int t = 0; t < 5; t++) {
 
 ---
 
-### `exprtk_vec_quantile` - Rolling Quantile
+### `toad_vec_quantile` - Rolling Quantile
 
 **🎓 Purpose**: Calculate rolling percentile rank.
 
 ```c
-size_t exprtk_vec_quantile(const double *in, size_t n, size_t window,
+size_t toad_vec_quantile(const double *in, size_t n, size_t window,
                            double *out, turbo_pool_t *arena);
 ```
 
@@ -555,7 +555,7 @@ size_t exprtk_vec_quantile(const double *in, size_t n, size_t window,
 double prices[] = {100, 102, 101, 105, 103, 108, 107};
 double quantile[7];
 
-exprtk_vec_quantile(prices, 7, 3, quantile, &arena);  // 3-day window
+toad_vec_quantile(prices, 7, 3, quantile, &arena);  // 3-day window
 
 for (int i = 0; i < 7; i++) {
     printf("Day %d: Price=%.0f, Quantile=%.2f ", i, prices[i], quantile[i]);
@@ -573,12 +573,12 @@ for (int i = 0; i < 7; i++) {
 
 ## 🧠 Behavioral Finance
 
-### `exprtk_vec_salience` - Attention Factor
+### `toad_vec_salience` - Attention Factor
 
 **🎓 Purpose**: Measure attention-grabbing price movements.
 
 ```c
-double exprtk_vec_salience(const double *ret, const double *mkt_ret,
+double toad_vec_salience(const double *ret, const double *mkt_ret,
                            size_t n, double delta);
 ```
 
@@ -590,7 +590,7 @@ double exprtk_vec_salience(const double *ret, const double *mkt_ret,
 double stock_ret[] = {0.01, 0.05, -0.02, 0.08, -0.01};
 double market_ret[] = {0.01, 0.02, -0.01, 0.02, 0.00};
 
-double salience = exprtk_vec_salience(stock_ret, market_ret, 5, 0.7);
+double salience = toad_vec_salience(stock_ret, market_ret, 5, 0.7);
 
 printf("Salience: %.3f\n", salience);
 
@@ -603,12 +603,12 @@ if (salience > 0.5) {
 
 ---
 
-### `exprtk_vec_str` - Short-Term Reversal
+### `toad_vec_str` - Short-Term Reversal
 
 **🎓 Purpose**: Measure mean reversion tendency.
 
 ```c
-double exprtk_vec_str(const double *ret, const double *mkt_ret,
+double toad_vec_str(const double *ret, const double *mkt_ret,
                       size_t n, double delta);
 ```
 
@@ -620,7 +620,7 @@ double exprtk_vec_str(const double *ret, const double *mkt_ret,
 double stock_ret[] = {0.02, -0.01, 0.03, -0.02, 0.01, -0.01};
 double market_ret[] = {0.01, 0.00, 0.01, -0.01, 0.00, 0.00};
 
-double str = exprtk_vec_str(stock_ret, market_ret, 6, 1.0);
+double str = toad_vec_str(stock_ret, market_ret, 6, 1.0);
 
 printf("STR: %.3f\n", str);
 
@@ -648,15 +648,15 @@ turbo_pool_init(&arena, 1024 * 1024);
 // Step 1: Clean data (remove outliers)
 double raw_factor[100];
 double winsorized[100];
-exprtk_vec_winsorize(raw_factor, 100, 0.05, winsorized, &arena);
+toad_vec_winsorize(raw_factor, 100, 0.05, winsorized, &arena);
 
 // Step 2: Standardize (for combining)
 double zscore[100];
-exprtk_vec_zscore(winsorized, 100, zscore, &arena);
+toad_vec_zscore(winsorized, 100, zscore, &arena);
 
 // Step 3: Rank (for portfolio construction)
 double ranks[100];
-exprtk_vec_rank(zscore, 100, ranks, &arena);
+toad_vec_rank(zscore, 100, ranks, &arena);
 
 // Step 4: Select top/bottom deciles
 for (int i = 0; i < 100; i++) {
@@ -681,9 +681,9 @@ double momentum[100], value[100], quality[100];
 
 // Standardize each
 double z_mom[100], z_val[100], z_qual[100];
-exprtk_vec_zscore(momentum, 100, z_mom, &arena);
-exprtk_vec_zscore(value, 100, z_val, &arena);
-exprtk_vec_zscore(quality, 100, z_qual, &arena);
+toad_vec_zscore(momentum, 100, z_mom, &arena);
+toad_vec_zscore(value, 100, z_val, &arena);
+toad_vec_zscore(quality, 100, z_qual, &arena);
 
 // Combine with custom weights
 double combined[100];
@@ -695,7 +695,7 @@ for (int i = 0; i < 100; i++) {
 
 // Rank for portfolio construction
 double ranks[100];
-exprtk_vec_rank(combined, 100, ranks, &arena);
+toad_vec_rank(combined, 100, ranks, &arena);
 ```
 
 ---
@@ -708,10 +708,10 @@ double raw_factor[100];
 double returns[100];
 
 // Calculate factor
-exprtk_vec_zscore(raw_factor, 100, raw_factor, &arena);
+toad_vec_zscore(raw_factor, 100, raw_factor, &arena);
 
 // Calculate volatility
-double rvar = exprtk_vec_rvar(returns, 100);
+double rvar = toad_vec_rvar(returns, 100);
 double vol = sqrt(rvar);
 
 // Risk-adjust
@@ -731,8 +731,8 @@ turbo_pool_t arena;
 turbo_pool_init(&arena, 1024 * 1024);
 
 for (int stock = 0; stock < 1000; stock++) {
-    exprtk_vec_rank(data[stock], n, ranks[stock], &arena);
-    exprtk_vec_zscore(data[stock], n, zscore[stock], &arena);
+    toad_vec_rank(data[stock], n, ranks[stock], &arena);
+    toad_vec_zscore(data[stock], n, zscore[stock], &arena);
 }
 
 turbo_pool_free(&arena);
@@ -741,7 +741,7 @@ turbo_pool_free(&arena);
 for (int stock = 0; stock < 1000; stock++) {
     turbo_pool_t arena;
     turbo_pool_init(&arena, 1024);  // Slow!
-    exprtk_vec_rank(data[stock], n, ranks[stock], &arena);
+    toad_vec_rank(data[stock], n, ranks[stock], &arena);
     turbo_pool_free(&arena);
 }
 ```
@@ -756,13 +756,13 @@ for (int stock = 0; stock < 1000; stock++) {
 // WRONG: Using future data
 for (int t = 0; t < n; t++) {
     // This uses data from t+1, t+2, ... (future!)
-    double factor = exprtk_vec_zscore(data, n, output, &arena);
+    double factor = toad_vec_zscore(data, n, output, &arena);
 }
 
 // CORRECT: Use only past data
 for (int t = window; t < n; t++) {
     // Only use data[0] to data[t]
-    double factor = exprtk_vec_zscore(&data[t-window], window, output, &arena);
+    double factor = toad_vec_zscore(&data[t-window], window, output, &arena);
 }
 ```
 

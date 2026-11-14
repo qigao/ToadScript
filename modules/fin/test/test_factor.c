@@ -19,7 +19,7 @@ suite("Factor Processing") {
       mem_pool_t arena;
       mem_init(&arena, 1024);
 
-      size_t result = exprtk_vec_rank(in, n, out, &arena);
+      size_t result = toad_vec_rank(in, n, out, &arena);
 
       check((result) == (n));
       check(fabs((double)(out[0]) - (double)(3.0)) <= (double)(EPSILON)); // 3.0 is rank 3
@@ -38,7 +38,7 @@ suite("Factor Processing") {
       mem_pool_t arena;
       mem_init(&arena, 1024);
 
-      size_t result = exprtk_vec_rank(in, n, out, &arena);
+      size_t result = toad_vec_rank(in, n, out, &arena);
 
       check((result) == (n));
       check(fabs((double)(out[0]) - (double)(0.0)) <= (double)(EPSILON));  // 1.0 is rank 0
@@ -55,7 +55,7 @@ suite("Factor Processing") {
       mem_pool_t arena;
       mem_init(&arena, 1024);
 
-      size_t result = exprtk_vec_rank(in, 1, out, &arena);
+      size_t result = toad_vec_rank(in, 1, out, &arena);
 
       check((result) == (1));
       check(fabs((double)(out[0]) - (double)(0.0)) <= (double)(EPSILON));
@@ -72,7 +72,7 @@ suite("Factor Processing") {
       mem_pool_t arena;
       mem_init(&arena, 1024);
 
-      size_t result = exprtk_vec_zscore(in, n, out, &arena);
+      size_t result = toad_vec_zscore(in, n, out, &arena);
 
       check((result) == (n));
 
@@ -102,7 +102,7 @@ suite("Factor Processing") {
       mem_pool_t arena;
       mem_init(&arena, 1024);
 
-      size_t result = exprtk_vec_zscore(in, n, out, &arena);
+      size_t result = toad_vec_zscore(in, n, out, &arena);
 
       check((result) == (n));
       for (size_t i = 0; i < n; i++) {
@@ -118,7 +118,7 @@ suite("Factor Processing") {
       mem_pool_t arena;
       mem_init(&arena, 1024);
 
-      size_t result = exprtk_vec_zscore(in, 1, out, &arena);
+      size_t result = toad_vec_zscore(in, 1, out, &arena);
 
       check((result) == (1));
       check(fabs((double)(out[0]) - (double)(0.0)) <= (double)(EPSILON));
@@ -135,7 +135,7 @@ suite("Factor Processing") {
       mem_pool_t arena;
       mem_init(&arena, 1024);
 
-      size_t result = exprtk_vec_winsorize(in, n, 0.2, out, &arena);
+      size_t result = toad_vec_winsorize(in, n, 0.2, out, &arena);
 
       check((result) == (n));
       // 20th percentile should cap the extreme value
@@ -152,7 +152,7 @@ suite("Factor Processing") {
       mem_pool_t arena;
       mem_init(&arena, 1024);
 
-      size_t result = exprtk_vec_winsorize(in, n, 0.6, out, &arena); // Invalid: > 0.5
+      size_t result = toad_vec_winsorize(in, n, 0.6, out, &arena); // Invalid: > 0.5
 
       check((result) == (n));
       // Should just copy input
@@ -172,7 +172,7 @@ suite("Factor Processing") {
       mem_pool_t arena;
       mem_init(&arena, 1024);
 
-      size_t result = exprtk_vec_standardize(in, n, out, &arena);
+      size_t result = toad_vec_standardize(in, n, out, &arena);
 
       check((result) == (n));
       check(fabs((double)(out[0]) - (double)(0.0)) <= (double)(EPSILON));   // Min maps to 0
@@ -191,7 +191,7 @@ suite("Factor Processing") {
       mem_pool_t arena;
       mem_init(&arena, 1024);
 
-      size_t result = exprtk_vec_standardize(in, n, out, &arena);
+      size_t result = toad_vec_standardize(in, n, out, &arena);
 
       check((result) == (n));
       for (size_t i = 0; i < n; i++) {
@@ -207,8 +207,8 @@ suite("Factor Processing") {
       double symmetric[] = {1.0, 2.0, 3.0, 4.0, 5.0};
       double right_skewed[] = {1.0, 1.0, 1.0, 2.0, 10.0};
 
-      double skew_sym = exprtk_vec_skewness(symmetric, 5);
-      double skew_right = exprtk_vec_skewness(right_skewed, 5);
+      double skew_sym = toad_vec_skewness(symmetric, 5);
+      double skew_right = toad_vec_skewness(right_skewed, 5);
 
       // Symmetric distribution should have skewness near 0
       check(fabs((double)(skew_sym) - (double)(0.0)) <= (double)(0.1));
@@ -220,8 +220,8 @@ suite("Factor Processing") {
       double normal[] = {1.0, 2.0, 3.0, 4.0, 5.0};
       double heavy_tail[] = {3.0, 3.0, 3.0, 1.0, 10.0};
 
-      double kurt_normal = exprtk_vec_kurtosis(normal, 5);
-      double kurt_heavy = exprtk_vec_kurtosis(heavy_tail, 5);
+      double kurt_normal = toad_vec_kurtosis(normal, 5);
+      double kurt_heavy = toad_vec_kurtosis(heavy_tail, 5);
 
       // Uniform-ish distribution should have negative excess kurtosis
       check(kurt_normal < 0.0);
@@ -233,8 +233,8 @@ suite("Factor Processing") {
       double uniform[] = {1.0, 2.0, 3.0, 4.0, 5.0};
       double concentrated[] = {1.0, 1.0, 1.0, 1.0, 2.0};
 
-      double entropy_uniform = exprtk_vec_entropy(uniform, 5, 5);
-      double entropy_conc = exprtk_vec_entropy(concentrated, 5, 5);
+      double entropy_uniform = toad_vec_entropy(uniform, 5, 5);
+      double entropy_conc = toad_vec_entropy(concentrated, 5, 5);
 
       // Uniform distribution should have higher entropy
       check(entropy_uniform > entropy_conc);
@@ -246,9 +246,9 @@ suite("Factor Processing") {
       double two[] = {1.0, 2.0};
 
       // Should not crash with small samples
-      double skew = exprtk_vec_skewness(single, 1);
-      double kurt = exprtk_vec_kurtosis(two, 2);
-      double entropy = exprtk_vec_entropy(single, 1, 1);
+      double skew = toad_vec_skewness(single, 1);
+      double kurt = toad_vec_kurtosis(two, 2);
+      double entropy = toad_vec_entropy(single, 1, 1);
 
       check(skew == 0.0);
       check(kurt == 0.0);
@@ -261,7 +261,7 @@ suite("Factor Processing") {
       double returns[] = {0.01, -0.02, 0.015, -0.01, 0.02};
       size_t n = 5;
 
-      double rvar = exprtk_vec_rvar(returns, n);
+      double rvar = toad_vec_rvar(returns, n);
 
       check(rvar > 0.0);
       // RV should be average of squared returns
@@ -277,8 +277,8 @@ suite("Factor Processing") {
       double symmetric[] = {0.01, -0.01, 0.01, -0.01, 0.01};
       double right_skewed[] = {0.01, 0.01, 0.01, 0.02, 0.1};
 
-      double rskew_sym = exprtk_vec_rskew(symmetric, 5);
-      double rskew_right = exprtk_vec_rskew(right_skewed, 5);
+      double rskew_sym = toad_vec_rskew(symmetric, 5);
+      double rskew_right = toad_vec_rskew(right_skewed, 5);
 
       // Symmetric should be near 0
       check(fabs((double)(rskew_sym) - (double)(0.0)) <= (double)(0.5));
@@ -289,7 +289,7 @@ suite("Factor Processing") {
     it("should calculate realized kurtosis") {
       double returns[] = {0.01, 0.01, 0.01, 0.01, 0.05};
 
-      double rkurt = exprtk_vec_rkurt(returns, 5);
+      double rkurt = toad_vec_rkurt(returns, 5);
 
       // Should return a valid value
       check(rkurt == rkurt); // Not NaN
@@ -302,7 +302,7 @@ suite("Factor Processing") {
       double amounts[] = {1000000, 1500000, 800000, 1200000, 900000};
       size_t n = 5;
 
-      double illiq = exprtk_vec_illiq(returns, amounts, n);
+      double illiq = toad_vec_illiq(returns, amounts, n);
 
       check(illiq > 0.0);
       // Higher returns / lower volume = higher illiquidity
@@ -312,7 +312,7 @@ suite("Factor Processing") {
       double returns[] = {0.01, 0.02, 0.01};
       double amounts[] = {1000, 0.0, 1000}; // Zero volume in middle
 
-      double illiq = exprtk_vec_illiq(returns, amounts, 3);
+      double illiq = toad_vec_illiq(returns, amounts, 3);
 
       check(illiq > 0.0); // Should skip zero volume periods
     }
@@ -320,7 +320,7 @@ suite("Factor Processing") {
     it("should calculate volatility ratio") {
       double vol[] = {0.1, 0.1, 0.2, 0.2, 0.1, 0.1};
 
-      double ratio = exprtk_vec_vol_ratio(vol, 6, 2, 1);
+      double ratio = toad_vec_vol_ratio(vol, 6, 2, 1);
 
       check(ratio > 0.0);
       // Segment 1 (indices 2-3) has higher vol than average
@@ -331,8 +331,8 @@ suite("Factor Processing") {
       double uptrend[] = {100, 101, 102, 103, 104};
       double sideways[] = {100, 101, 100, 101, 100};
 
-      double strength_up = exprtk_vec_trend_strength(uptrend, 5);
-      double strength_side = exprtk_vec_trend_strength(sideways, 5);
+      double strength_up = toad_vec_trend_strength(uptrend, 5);
+      double strength_side = toad_vec_trend_strength(sideways, 5);
 
       // Strong uptrend should have high R²
       check(strength_up > 0.9);
@@ -344,8 +344,8 @@ suite("Factor Processing") {
       double efficient[] = {100, 101, 102, 103, 104}; // Straight line
       double random[] = {100, 99, 101, 100, 102};     // Random walk
 
-      double eff_straight = exprtk_vec_efficiency(efficient, 5);
-      double eff_random = exprtk_vec_efficiency(random, 5);
+      double eff_straight = toad_vec_efficiency(efficient, 5);
+      double eff_random = toad_vec_efficiency(random, 5);
 
       // Straight line should be highly efficient
       check(eff_straight > 0.9);
@@ -366,7 +366,7 @@ suite("Factor Processing") {
       mem_pool_t arena;
       mem_init(&arena, 1024);
 
-      size_t result = exprtk_vec_csad(returns, 3, 4, out, &arena);
+      size_t result = toad_vec_csad(returns, 3, 4, out, &arena);
 
       check((result) == (4));
       // CSAD should be positive
@@ -383,7 +383,7 @@ suite("Factor Processing") {
       mem_pool_t arena;
       mem_init(&arena, 1024);
 
-      size_t result = exprtk_vec_quantile(in, 5, 3, out, &arena);
+      size_t result = toad_vec_quantile(in, 5, 3, out, &arena);
 
       check((result) == (5));
       // Last value (5.0) in window [3,4,5] has rank 2/3 = 0.667
@@ -397,7 +397,7 @@ suite("Factor Processing") {
     it("should calculate fractal volatility dimension") {
       double vol[] = {0.1, 0.15, 0.12, 0.18, 0.14, 0.16, 0.13, 0.17};
 
-      double fvd = exprtk_vec_fvd(vol, 8, 6);
+      double fvd = toad_vec_fvd(vol, 8, 6);
 
       check(fvd >= 0.0);
     }
@@ -405,7 +405,7 @@ suite("Factor Processing") {
     it("should calculate return-signed jump") {
       double returns[] = {0.01, 0.02, 0.15, -0.01, -0.12, 0.01}; // Positive jump larger
 
-      double rsj = exprtk_vec_rsj(returns, 6);
+      double rsj = toad_vec_rsj(returns, 6);
 
       // Should detect asymmetry
       check(rsj >= -1.0 && rsj <= 1.0);
@@ -415,7 +415,7 @@ suite("Factor Processing") {
       double am_returns[] = {0.01, 0.02, 0.01, 0.03};
       double pm_returns[] = {-0.01, 0.01, -0.01, 0.01};
 
-      double spread = exprtk_vec_apm(am_returns, pm_returns, 4);
+      double spread = toad_vec_apm(am_returns, pm_returns, 4);
 
       // AM returns are higher on average
       check(spread > 0.0);
@@ -428,7 +428,7 @@ suite("Factor Processing") {
       mem_pool_t arena;
       mem_init(&arena, 1024);
 
-      size_t result = exprtk_vec_cgo(prices, volumes, 6, 3, out, &arena);
+      size_t result = toad_vec_cgo(prices, volumes, 6, 3, out, &arena);
 
       check((result) == (6));
       // First period-1 values should be 0
@@ -444,7 +444,7 @@ suite("Factor Processing") {
       double ret[] = {0.01, 0.05, -0.02, 0.03, -0.01};
       double mkt[] = {0.01, 0.02, -0.01, 0.02, 0.00};
 
-      double salience = exprtk_vec_salience(ret, mkt, 5, 0.7);
+      double salience = toad_vec_salience(ret, mkt, 5, 0.7);
 
       // Should return a valid value
       check(salience == salience); // Not NaN
@@ -454,13 +454,10 @@ suite("Factor Processing") {
       double ret[] = {0.02, -0.01, 0.03, -0.02, 0.01, -0.01};
       double mkt[] = {0.01, 0.00, 0.01, -0.01, 0.00, 0.00};
 
-      double str = exprtk_vec_str(ret, mkt, 6, 1.0);
+      double str = toad_vec_str(ret, mkt, 6, 1.0);
 
       // STR should be between -1 and 1 (correlation)
       check(str >= -1.0 && str <= 1.0);
     }
   }
 }
-
-
-

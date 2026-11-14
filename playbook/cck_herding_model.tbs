@@ -24,10 +24,10 @@ function run_herding_test(return_matrix, na, np) {
     // CSAD_t = a + b1*|Rm_t| + b2*Rm_t^2
     // We look for a negative b2 coefficient (The "Gamma 2")
 
-    // In TurboScript, we can use a rolling regression or a lookback window
+    // In Toad, we can use a rolling regression or a lookback window
     // For this example, we calculate the Herding Intensity:
     var mkt_ret_sq = INDEX_RETURNS * INDEX_RETURNS;
-    
+
     // Simple heuristic: If CSAD is significantly lower than projected by |Rm|, herding exists
     var projection = finance.ta_sma(mkt_ret, 20); // Baseline sensitivity
     var herding_intensity = projection / (csad_vec + 1e-6);

@@ -1,6 +1,6 @@
 # fin Module - Quantitative Finance Toolkit
 
-> **Professional-grade financial analysis and portfolio optimization for TurboScript**
+> **Professional-grade financial analysis and portfolio optimization for Toad**
 
 ---
 
@@ -74,7 +74,7 @@ int main() {
     // 2. Calculate factor: standardize returns to z-scores
     double returns[] = {0.01, 0.02, -0.01, 0.03, 0.01};
     double zscore[5];
-    exprtk_vec_zscore(returns, 5, zscore, &arena);
+    toad_vec_zscore(returns, 5, zscore, &arena);
     // zscore now has mean ≈ 0, std ≈ 1
 
     // 3. Optimize portfolio: find best risk-adjusted allocation
@@ -85,7 +85,7 @@ int main() {
         0.00, 0.02, 0.16
     };
     double weights[3];
-    double sharpe = exprtk_pf_max_sharpe(expected_returns, covariance, 3,
+    double sharpe = toad_pf_max_sharpe(expected_returns, covariance, 3,
                                           0.02, weights, &arena);
     // weights now contains optimal allocation (sums to 1.0)
     // sharpe is the portfolio's risk-adjusted return
@@ -96,7 +96,7 @@ int main() {
     double signal[] = {1, 1, 1, 0, 0};  // 1=long, 0=flat, -1=short
     double equity[5], trades[5];
 
-    size_t num_trades = exprtk_bt_backtest(
+    size_t num_trades = toad_bt_backtest(
         open, close, signal, 5,
         10000.0,  // Initial capital
         0.001,    // 0.1% commission
@@ -128,8 +128,8 @@ turbo_pool_t arena;
 turbo_pool_init(&arena, 1024 * 1024);
 
 for (int i = 0; i < num_stocks; i++) {
-    exprtk_vec_rank(data[i], n, ranks[i], &arena);
-    exprtk_vec_zscore(data[i], n, zscore[i], &arena);
+    toad_vec_rank(data[i], n, ranks[i], &arena);
+    toad_vec_zscore(data[i], n, zscore[i], &arena);
 }
 
 turbo_pool_free(&arena);  // Free once at end
@@ -138,7 +138,7 @@ turbo_pool_free(&arena);  // Free once at end
 for (int i = 0; i < num_stocks; i++) {
     turbo_pool_t arena;
     turbo_pool_init(&arena, 1024);  // Slow!
-    exprtk_vec_rank(data[i], n, ranks[i], &arena);
+    toad_vec_rank(data[i], n, ranks[i], &arena);
     turbo_pool_free(&arena);
 }
 ```
@@ -147,13 +147,13 @@ for (int i = 0; i < num_stocks; i++) {
 
 ```c
 // Most functions return 0 or NaN on error
-double sharpe = exprtk_sharpe(returns, n, rf, 252.0);
+double sharpe = toad_sharpe(returns, n, rf, 252.0);
 if (isnan(sharpe)) {
     // Handle error: insufficient data, all zeros, etc.
 }
 
 // Size functions return 0 on error
-size_t count = exprtk_vec_rank(data, n, ranks, &arena);
+size_t count = toad_vec_rank(data, n, ranks, &arena);
 if (count == 0) {
     // Handle error: null pointer, invalid size, etc.
 }
@@ -168,7 +168,7 @@ void* worker_thread(void* arg) {
     turbo_pool_init(&arena, 1024 * 1024);
 
     // Safe: arena is thread-local
-    exprtk_vec_zscore(data, n, output, &arena);
+    toad_vec_zscore(data, n, output, &arena);
 
     turbo_pool_free(&arena);
     return NULL;
@@ -183,23 +183,23 @@ void* worker_thread(void* arg) {
 
 | Function | Purpose | Returns |
 |----------|---------|---------|
-| `exprtk_sharpe` | Risk-adjusted return | Sharpe ratio |
-| `exprtk_sortino` | Downside risk-adjusted return | Sortino ratio |
-| `exprtk_calmar` | Return vs max drawdown | Calmar ratio |
-| `exprtk_profit_factor` | Gross profit / gross loss | Profit factor |
-| `exprtk_win_rate` | Percentage of winning trades | Win rate (0-1) |
-| `exprtk_max_dd` | Maximum drawdown | Max DD (0-1) |
-| `exprtk_avg_win` | Average winning trade | Average win |
-| `exprtk_avg_loss` | Average losing trade | Average loss |
-| `exprtk_max_win` | Largest winning trade | Max win |
-| `exprtk_max_loss` | Largest losing trade | Max loss |
+| `toad_sharpe` | Risk-adjusted return | Sharpe ratio |
+| `toad_sortino` | Downside risk-adjusted return | Sortino ratio |
+| `toad_calmar` | Return vs max drawdown | Calmar ratio |
+| `toad_profit_factor` | Gross profit / gross loss | Profit factor |
+| `toad_win_rate` | Percentage of winning trades | Win rate (0-1) |
+| `toad_max_dd` | Maximum drawdown | Max DD (0-1) |
+| `toad_avg_win` | Average winning trade | Average win |
+| `toad_avg_loss` | Average losing trade | Average loss |
+| `toad_max_win` | Largest winning trade | Max win |
+| `toad_max_loss` | Largest losing trade | Max loss |
 
-#### `exprtk_sharpe` - Calculate Sharpe Ratio
+#### `toad_sharpe` - Calculate Sharpe Ratio
 
 **👤 End User**: Measures how much return you get per unit of risk.
 
 ```c
-double exprtk_sharpe(const double *returns, size_t n,
+double toad_sharpe(const double *returns, size_t n,
                      double rf, double annual_factor);
 ```
 
@@ -214,7 +214,7 @@ double exprtk_sharpe(const double *returns, size_t n,
 **Example:**
 ```c
 double daily_returns[] = {0.01, 0.02, -0.01, 0.03, 0.01};
-double sharpe = exprtk_sharpe(daily_returns, 5, 0.0, 252.0);
+double sharpe = toad_sharpe(daily_returns, 5, 0.0, 252.0);
 // sharpe ≈ 2.5 (excellent risk-adjusted return)
 ```
 
@@ -225,12 +225,12 @@ double sharpe = exprtk_sharpe(daily_returns, 5, 0.0, 252.0);
 
 ---
 
-#### `exprtk_sortino` - Calculate Sortino Ratio
+#### `toad_sortino` - Calculate Sortino Ratio
 
 **👤 End User**: Like Sharpe, but only penalizes downside volatility (losses).
 
 ```c
-double exprtk_sortino(const double *returns, size_t n,
+double toad_sortino(const double *returns, size_t n,
                       double rf, double annual_factor);
 ```
 
@@ -240,18 +240,18 @@ double exprtk_sortino(const double *returns, size_t n,
 ```c
 // Strategy with big wins, small losses
 double returns[] = {0.05, -0.01, 0.08, -0.01, 0.06};
-double sortino = exprtk_sortino(returns, 5, 0.0, 252.0);
+double sortino = toad_sortino(returns, 5, 0.0, 252.0);
 // sortino > sharpe (because upside volatility isn't penalized)
 ```
 
 ---
 
-#### `exprtk_profit_factor` - Gross Profit / Gross Loss
+#### `toad_profit_factor` - Gross Profit / Gross Loss
 
 **👤 End User**: How many dollars you make for every dollar you lose.
 
 ```c
-double exprtk_profit_factor(const double *trades, size_t n);
+double toad_profit_factor(const double *trades, size_t n);
 ```
 
 **Returns:** Profit factor (>1.0 means profitable, >2.0 is strong)
@@ -259,7 +259,7 @@ double exprtk_profit_factor(const double *trades, size_t n);
 **Example:**
 ```c
 double trades[] = {100, -50, 150, -30, 80, -40};
-double pf = exprtk_profit_factor(trades, 6);
+double pf = toad_profit_factor(trades, 6);
 // pf = (100+150+80) / (50+30+40) = 330/120 = 2.75 (strong)
 ```
 
@@ -285,7 +285,7 @@ double pf = exprtk_profit_factor(trades, 6);
 double momentum[] = {0.15, 0.08, 0.22, 0.05, 0.18};  // 5 stocks
 double ranks[5];
 
-exprtk_vec_rank(momentum, 5, ranks, &arena);
+toad_vec_rank(momentum, 5, ranks, &arena);
 // ranks = [2, 1, 4, 0, 3]  (stock 3 has highest momentum)
 
 // Use ranks for portfolio construction
@@ -306,10 +306,10 @@ for (int i = 0; i < 5; i++) {
 
 | Function | Purpose | Use Case |
 |----------|---------|----------|
-| `exprtk_pf_cov_matrix` | Calculate covariance matrix | Foundation for all optimization |
-| `exprtk_pf_min_variance` | Minimum risk portfolio | Conservative allocation |
-| `exprtk_pf_max_sharpe` | Maximum risk-adjusted return | Optimal allocation |
-| `exprtk_pf_markowitz` | Target return optimization | Efficient frontier |
+| `toad_pf_cov_matrix` | Calculate covariance matrix | Foundation for all optimization |
+| `toad_pf_min_variance` | Minimum risk portfolio | Conservative allocation |
+| `toad_pf_max_sharpe` | Maximum risk-adjusted return | Optimal allocation |
+| `toad_pf_markowitz` | Target return optimization | Efficient frontier |
 
 #### Quick Example: Maximum Sharpe Portfolio
 
@@ -324,7 +324,7 @@ double cov[] = {
 double rf = 0.02;  // 2% risk-free rate
 double weights[3];
 
-double sharpe = exprtk_pf_max_sharpe(mu, cov, 3, rf, weights, &arena);
+double sharpe = toad_pf_max_sharpe(mu, cov, 3, rf, weights, &arena);
 
 printf("Optimal Portfolio:\n");
 printf("  Asset 1: %.1f%%\n", weights[0] * 100);
@@ -339,18 +339,18 @@ printf("  Sharpe Ratio: %.2f\n", sharpe);
 
 | Function | Purpose | Returns |
 |----------|---------|---------|
-| `exprtk_bt_backtest` | Vectorized backtest | Number of trades |
-| `exprtk_bt_stats` | Calculate statistics | 10 performance metrics |
-| `exprtk_bt_slippage` | Market impact model | Slippage cost |
-| `exprtk_bt_cost` | Total trading cost | Commission + tax + slippage |
-| `exprtk_bt_kelly` | Kelly criterion | Optimal bet size |
+| `toad_bt_backtest` | Vectorized backtest | Number of trades |
+| `toad_bt_stats` | Calculate statistics | 10 performance metrics |
+| `toad_bt_slippage` | Market impact model | Slippage cost |
+| `toad_bt_cost` | Total trading cost | Commission + tax + slippage |
+| `toad_bt_kelly` | Kelly criterion | Optimal bet size |
 
-#### `exprtk_bt_backtest` - Simple Vectorized Backtest
+#### `toad_bt_backtest` - Simple Vectorized Backtest
 
 **👤 End User**: Simulate trading a strategy on historical data.
 
 ```c
-size_t exprtk_bt_backtest(const double *open, const double *close,
+size_t toad_bt_backtest(const double *open, const double *close,
                           const double *signal, size_t n,
                           double cash0, double commission,
                           double *equity, double *trades);
@@ -375,7 +375,7 @@ double close[] = {101, 102, 103, 104, 105, 106, 107};
 double signal[] = {1, 1, 1, 0, -1, -1, 0};  // Long, then short
 double equity[7], trades[7];
 
-size_t num_trades = exprtk_bt_backtest(
+size_t num_trades = toad_bt_backtest(
     open, close, signal, 7,
     10000.0,  // $10k initial
     0.001,    // 0.1% commission
@@ -389,12 +389,12 @@ printf("Return: %.2f%%\n", (equity[6] / 10000.0 - 1.0) * 100);
 
 ---
 
-#### `exprtk_bt_stats` - Calculate Backtest Statistics
+#### `toad_bt_stats` - Calculate Backtest Statistics
 
 **👤 End User**: Get comprehensive performance metrics from a backtest.
 
 ```c
-size_t exprtk_bt_stats(const double *equity, const double *trades, size_t n,
+size_t toad_bt_stats(const double *equity, const double *trades, size_t n,
                        size_t num_trades, double annual, double *out);
 ```
 
@@ -413,7 +413,7 @@ size_t exprtk_bt_stats(const double *equity, const double *trades, size_t n,
 **Example:**
 ```c
 double stats[10];
-exprtk_bt_stats(equity, trades, 7, num_trades, 252.0, stats);
+toad_bt_stats(equity, trades, 7, num_trades, 252.0, stats);
 
 printf("=== Backtest Results ===\n");
 printf("Total Return:    %.2f%%\n", stats[0] * 100);
@@ -430,16 +430,16 @@ printf("Profit Factor:   %.2f\n", stats[5]);
 
 | Function | Purpose | Use Case |
 |----------|---------|----------|
-| `exprtk_fixed_frac` | Fixed fractional sizing | Risk-based position sizing |
-| `exprtk_optimal_f` | Optimal f (Ralph Vince) | Maximize geometric growth |
-| `exprtk_mc_simulate` | Monte Carlo simulation | Risk analysis, VaR |
+| `toad_fixed_frac` | Fixed fractional sizing | Risk-based position sizing |
+| `toad_optimal_f` | Optimal f (Ralph Vince) | Maximize geometric growth |
+| `toad_mc_simulate` | Monte Carlo simulation | Risk analysis, VaR |
 
-#### `exprtk_fixed_frac` - Fixed Fractional Position Sizing
+#### `toad_fixed_frac` - Fixed Fractional Position Sizing
 
 **👤 End User**: Calculate position size based on risk tolerance.
 
 ```c
-double exprtk_fixed_frac(double equity, double risk_pct, double stop_dist);
+double toad_fixed_frac(double equity, double risk_pct, double stop_dist);
 ```
 
 **Parameters:**
@@ -455,7 +455,7 @@ double equity = 10000.0;     // $10k account
 double risk_pct = 0.02;      // Risk 2% per trade
 double stop_dist = 0.05;     // 5% stop loss
 
-double position_size = exprtk_fixed_frac(equity, risk_pct, stop_dist);
+double position_size = toad_fixed_frac(equity, risk_pct, stop_dist);
 // position_size = (10000 * 0.02) / 0.05 = $4000
 
 // If stock is $100, buy 40 shares
@@ -583,12 +583,12 @@ universe_adjust_prices(u, raw_prices, adj_prices, 5);
 
 ---
 
-#### `exprtk_optimal_f` - Optimal Fixed Fraction
+#### `toad_optimal_f` - Optimal Fixed Fraction
 
 **🎓 Advanced**: Calculate optimal bet size using Ralph Vince's method.
 
 ```c
-double exprtk_optimal_f(const double *trades, size_t n, double *out);
+double toad_optimal_f(const double *trades, size_t n, double *out);
 ```
 
 **Parameters:**
@@ -603,7 +603,7 @@ double exprtk_optimal_f(const double *trades, size_t n, double *out);
 double trades[] = {100, -50, 150, -30, 80, -40, 120, -20};
 double out[2];
 
-double opt_f = exprtk_optimal_f(trades, 8, out);
+double opt_f = toad_optimal_f(trades, 8, out);
 
 printf("Optimal f: %.3f\n", out[0]);      // e.g., 0.25 (25% of capital)
 printf("TWR: %.3f\n", out[1]);            // Terminal wealth relative
@@ -634,11 +634,11 @@ int main() {
 
     // Standardize returns
     double zscore[7];
-    exprtk_vec_zscore(returns, n, zscore, &arena);
+    toad_vec_zscore(returns, n, zscore, &arena);
 
     // Check distribution
-    double skew = exprtk_vec_skewness(returns, n);
-    double kurt = exprtk_vec_kurtosis(returns, n);
+    double skew = toad_vec_skewness(returns, n);
+    double kurt = toad_vec_kurtosis(returns, n);
     printf("Skewness: %.3f (%.0f tail)\n", skew, skew > 0 ? 1 : -1);
     printf("Kurtosis: %.3f (%s tails)\n", kurt, kurt > 0 ? "fat" : "thin");
 
@@ -653,10 +653,10 @@ int main() {
     };
 
     double cov[9];
-    exprtk_pf_cov_matrix(returns_matrix, 3, 5, cov, &arena);
+    toad_pf_cov_matrix(returns_matrix, 3, 5, cov, &arena);
 
     double weights[3];
-    double sharpe = exprtk_pf_max_sharpe(mu, cov, 3, 0.02, weights, &arena);
+    double sharpe = toad_pf_max_sharpe(mu, cov, 3, 0.02, weights, &arena);
 
     printf("Max Sharpe Portfolio:\n");
     printf("  Sharpe Ratio: %.3f\n", sharpe);
@@ -671,13 +671,13 @@ int main() {
     double signal[] = {1, 1, 1, 0, -1, -1, 0};
     double equity[7], trades[7];
 
-    size_t num_trades = exprtk_bt_backtest(
+    size_t num_trades = toad_bt_backtest(
         open, close, signal, n,
         10000.0, 0.001, equity, trades
     );
 
     double stats[10];
-    exprtk_bt_stats(equity, trades, n, num_trades, 252.0, stats);
+    toad_bt_stats(equity, trades, n, num_trades, 252.0, stats);
 
     printf("Results:\n");
     printf("  Total Return:  %.2f%%\n", stats[0] * 100);
@@ -689,7 +689,7 @@ int main() {
     // === STEP 4: Risk Management ===
     printf("\n=== Risk Management ===\n");
 
-    double position_size = exprtk_fixed_frac(equity[n-1], 0.02, 0.05);
+    double position_size = toad_fixed_frac(equity[n-1], 0.02, 0.05);
     printf("Position Size: $%.2f (2%% risk, 5%% stop)\n", position_size);
 
     turbo_pool_free(&arena);
@@ -748,12 +748,12 @@ Compared to Python (pandas/numpy) on typical quantitative tasks:
 ```c
 // WRONG: arena not initialized
 turbo_pool_t arena;
-exprtk_vec_zscore(data, n, output, &arena);  // Crash!
+toad_vec_zscore(data, n, output, &arena);  // Crash!
 
 // CORRECT:
 turbo_pool_t arena;
 turbo_pool_init(&arena, 1024 * 1024);
-exprtk_vec_zscore(data, n, output, &arena);
+toad_vec_zscore(data, n, output, &arena);
 turbo_pool_free(&arena);
 ```
 
@@ -772,11 +772,11 @@ double variance = sum_sq / n;
 ```c
 // WRONG: output not allocated
 double *output;
-exprtk_vec_zscore(data, n, output, &arena);  // Crash!
+toad_vec_zscore(data, n, output, &arena);  // Crash!
 
 // CORRECT:
 double output[100];
-exprtk_vec_zscore(data, n, output, &arena);
+toad_vec_zscore(data, n, output, &arena);
 ```
 
 ### ❌ Assuming Weights Are Sorted
@@ -784,7 +784,7 @@ exprtk_vec_zscore(data, n, output, &arena);
 ```c
 // WRONG: Assuming highest return gets highest weight
 double weights[3];
-exprtk_pf_max_sharpe(mu, cov, 3, rf, weights, &arena);
+toad_pf_max_sharpe(mu, cov, 3, rf, weights, &arena);
 // weights[2] might not be largest even if mu[2] is largest!
 
 // CORRECT: Check actual weights
@@ -810,7 +810,7 @@ for (int i = 0; i < 3; i++) {
 - **[PORTFOLIO.md](PORTFOLIO.md)** - Modern portfolio theory and optimization
 - **[GRAPH_ALGORITHMS.md](GRAPH_ALGORITHMS.md)** - Bellman-Ford, arbitrage detection
 - **[ta_fin_cheatsheet.md](ta_fin_cheatsheet.md)** - Quick reference for all functions
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - TurboScript system architecture
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Toad system architecture
 
 ---
 

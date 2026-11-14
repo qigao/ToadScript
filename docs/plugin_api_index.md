@@ -1,7 +1,7 @@
-# TurboScript Plugin API Index
+# Toad Plugin API Index
 
 Source of truth: `tScript/modules/*/src`.
-Load plugins via `import("name")` or `turbo_script_load_plugin(ctx, "name")`.
+Load plugins via `import("name")` or `toad_script_load_plugin(ctx, "name")`.
 
 ## csv plugin (`csv`)
 
@@ -16,7 +16,7 @@ Expression syntax for `csv.filter` / `csv.filter_count`:
 - `csv.filter`
 - `csv.filter_count`
 - `csv.get`
-- `csv.ts_get_num`
+- `csv.toad_script_get_num`
 - `csv.open`
 - `csv.rows`
 - `csv.stream_file`

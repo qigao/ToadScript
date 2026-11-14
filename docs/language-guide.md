@@ -1,6 +1,6 @@
-# TurboScript Language Guide
+# Toad Language Guide
 
-Complete reference for TurboScript syntax and language features.
+Complete reference for Toad syntax and language features.
 
 ---
 
@@ -22,7 +22,7 @@ Complete reference for TurboScript syntax and language features.
 
 ## Data Types
 
-TurboScript supports native scalar and container data types:
+Toad supports native scalar and container data types:
 
 ### Number
 
@@ -103,7 +103,7 @@ var nested = map{
 ### Plain Object
 
 Plain objects are dynamic record values produced by host and parser modules.
-For typed document mapping, declare a TurboScript class and use `mapper`:
+For typed document mapping, declare a Toad class and use `mapper`:
 
 ```javascript
 class User { name: string; age: int64; }
@@ -678,7 +678,7 @@ s.substr(0, 5)         // "Hello"
 s[0..5]                // "Hello" (slicing)
 
 // Replacement
-s.replace("World", "TurboScript")  // "Hello TurboScript"
+s.replace("World", "Toad")  // "Hello Toad"
 
 // Length
 s.length()             // 11
@@ -745,7 +745,7 @@ Current contract:
 
 ### Container Contract
 
-TurboScript currently has three different collection roles:
+Toad currently has three different collection roles:
 
 - `vector`: dense numeric data. Use it for math, slicing, TA, and time-series work.
 - `map`: named fields and records. Missing keys currently fall back to numeric `0`.
@@ -762,13 +762,13 @@ Truthiness rules:
 
 - In script conditions, numbers use numeric truth, strings and bytes use `len > 0`, and containers are true when non-empty.
 - `null` is false. Functions, classes, and instances are true.
-- Host C APIs use the same broad truthiness model for exported `exprtk_value_t` values.
+- Host C APIs use the same broad truthiness model for exported `toad_value_t` values.
 
 ---
 
 ## Object-Oriented Programming
 
-TurboScript supports class-based OOP with runtime class values:
+Toad supports class-based OOP with runtime class values:
 
 ```javascript
 class Counter {
@@ -932,7 +932,7 @@ var result = f(4) + mod.answer;   // 46
 Current contract:
 
 - `import("./file.tbs")` executes the script once.
-- Script import paths must end with `.tbs`; `.ts` is not recognized as a TurboScript source extension.
+- Script import paths must end with `.tbs`; `.ts` is not recognized as a Toad source extension.
 - If the script calls `export(...)`, `import()` returns a `map` of exported names.
 - Re-importing the same resolved script path uses the cached module result and does not re-execute the file.
 - Scripts that rely on global side effects still work, but new scripts should prefer explicit exports.
@@ -1000,7 +1000,7 @@ are available through `datetime.parse()`, `date.parse()`, `time.parse()`, and
 
 ### Importing Scripts
 
-Load other TurboScript files:
+Load other Toad files:
 
 ```javascript
 // utils.tbs
@@ -1109,7 +1109,7 @@ divide(10, 0);  // Aborts with message: "Division by zero"
 
 ## Safety and Limits
 
-TurboScript enforces resource limits to prevent runaway scripts:
+Toad enforces resource limits to prevent runaway scripts:
 
 ### Recursion Limit
 
@@ -1133,7 +1133,7 @@ while (true) {
 ### Configuring Limits (C API)
 
 ```c
-turbo_script_ctx_t *ctx = turbo_script_init();
+toad_script_ctx_t *ctx = toad_script_init();
 ctx->env->max_recursion = 500;
 ctx->env->max_loop_iterations = 100000;
 ```
@@ -1217,7 +1217,7 @@ var result = sum(map(filter(data, x => x > 0), x => x * 2));
 
 ### 3.1 Vector Pipeline Primitives
 
-TurboScript now ships a small, explicit pipeline core for numeric vectors:
+Toad now ships a small, explicit pipeline core for numeric vectors:
 
 ```javascript
 var cleaned = [1, -2, 3, 0]
@@ -1241,10 +1241,10 @@ var prev = lag([10, 20, 30], 1, -1); // [-1, 10, 20]
 
 ### 3.2 Java Stream-Style Chains
 
-`stream.*` is a TurboScript language facade. Graphable numeric in-memory
+`stream.*` is a Toad language facade. Graphable numeric in-memory
 pipelines execute through **CMeta + CFlow + MIR kernels**; source shapes or
-operations that are not yet admitted stay on the existing eager TurboScript /
-ExprTk adapter path.
+operations that are not yet admitted stay on the existing eager Toad /
+Engine adapter path.
 
 ```javascript
 var total = stream.of([1, -2, 3])
@@ -1277,7 +1277,7 @@ Current execution contract:
 - `stream.text(...).lines().count/collect/toList` and
   `stream.text(...).split(sep).count/collect/toList` use a typed synchronous
   CFlow Plan while preserving eager text evaluation. `collect/toList` copy
-  borrowed CFlow slices into TurboScript-owned strings before source cleanup.
+  borrowed CFlow slices into Toad-owned strings before source cleanup.
   `split` preserves byte-oriented empty-separator behavior and leading,
   trailing, or adjacent empty tokens; source and separator expressions are each
   evaluated once.
@@ -1320,7 +1320,7 @@ var data = read_file("data.txt");  // May fail silently
 ## Next Steps
 
 - **[API Reference](api-reference.md)** - Complete function reference
-- **[Plugin Development](plugin-development.md)** - Extend TurboScript with C/C++
+- **[Plugin Development](plugin-development.md)** - Extend Toad with C/C++
 - **[Module Documentation](modules/)** - Domain-specific guides
 
 ---

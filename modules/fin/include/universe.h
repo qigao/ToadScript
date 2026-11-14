@@ -15,7 +15,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include "exprtk_types.h"   /* mem_pool_t (via exprtk_types -> turbo_buff) */
+#include <toad/types.h>   /* mem_pool_t (via toad_types -> turbo_buff) */
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,7 +50,7 @@ extern "C" {
  * @brief Metadata for a single tradable asset.
  *
  * Dates are stored as epoch days (days since 1970-01-01) as doubles,
- * consistent with exprtk_finance.c date conventions.
+ * consistent with finance.c date conventions.
  */
 typedef struct {
     uint32_t id;                /**< Stable numeric ID (primary key)           */

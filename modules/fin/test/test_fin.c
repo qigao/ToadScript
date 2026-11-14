@@ -22,7 +22,7 @@ suite("fin test") {
       double rf = 0.0;              // Risk-free rate
       double annual_factor = 252.0; // Daily returns
 
-      double sharpe = exprtk_sharpe(returns, n, rf, annual_factor);
+      double sharpe = toad_sharpe(returns, n, rf, annual_factor);
 
       check(sharpe > 0); // Positive returns should give positive Sharpe
     }
@@ -33,7 +33,7 @@ suite("fin test") {
       double rf = 0.005;            // 0.5% risk-free rate
       double annual_factor = 252.0;
 
-      double sharpe = exprtk_sharpe(returns, n, rf, annual_factor);
+      double sharpe = toad_sharpe(returns, n, rf, annual_factor);
 
       check(sharpe != 0);
     }
@@ -44,7 +44,7 @@ suite("fin test") {
       double rf = 0.0;
       double annual_factor = 252.0;
 
-      double sortino = exprtk_sortino(returns, n, rf, annual_factor);
+      double sortino = toad_sortino(returns, n, rf, annual_factor);
 
       check(sortino != 0);
     }
@@ -55,8 +55,8 @@ suite("fin test") {
       double rf = 0.0;
       double annual_factor = 252.0;
 
-      double sharpe = exprtk_sharpe(returns, n, rf, annual_factor);
-      double sortino = exprtk_sortino(returns, n, rf, annual_factor);
+      double sharpe = toad_sharpe(returns, n, rf, annual_factor);
+      double sortino = toad_sortino(returns, n, rf, annual_factor);
 
       // Sortino should be >= Sharpe (only penalizes downside)
       check(sortino >= sharpe - EPSILON);
@@ -67,7 +67,7 @@ suite("fin test") {
       size_t n = 6;
       double annual_factor = 252.0;
 
-      double calmar = exprtk_calmar(equity, n, annual_factor);
+      double calmar = toad_calmar(equity, n, annual_factor);
 
       check(calmar > 0); // Positive equity growth should give positive Calmar
     }
@@ -77,7 +77,7 @@ suite("fin test") {
       size_t n = 3;
       double annual_factor = 2.0;
 
-      double calmar = exprtk_calmar(equity, n, annual_factor);
+      double calmar = toad_calmar(equity, n, annual_factor);
 
       check(fabs((double)(calmar) - (double)(2.0)) <= (double)(EPSILON));
     }
@@ -86,7 +86,7 @@ suite("fin test") {
       double trades[] = {100, -50, 150, -30, 80, -40};
       size_t n = 6;
 
-      double pf = exprtk_profit_factor(trades, n);
+      double pf = toad_profit_factor(trades, n);
 
       check(pf > 1.0); // More profit than loss
     }
@@ -95,7 +95,7 @@ suite("fin test") {
       double trades[] = {50, -100, 30, -150, 40, -80};
       size_t n = 6;
 
-      double pf = exprtk_profit_factor(trades, n);
+      double pf = toad_profit_factor(trades, n);
 
       check(pf < 1.0); // More loss than profit
     }
@@ -104,7 +104,7 @@ suite("fin test") {
       double trades[] = {100, -50, 150, -30, 80, -40};
       size_t n = 6;
 
-      double exp = exprtk_expectancy(trades, n);
+      double exp = toad_expectancy(trades, n);
 
       check(exp > 0); // Net positive trades
     }
@@ -113,7 +113,7 @@ suite("fin test") {
       double trades[] = {50, -100, 30, -150, 40, -80};
       size_t n = 6;
 
-      double exp = exprtk_expectancy(trades, n);
+      double exp = toad_expectancy(trades, n);
 
       check(exp < 0); // Net negative trades
     }
@@ -122,7 +122,7 @@ suite("fin test") {
       double trades[] = {100, -50, 150, -30, 80, -40};
       size_t n = 6;
 
-      double payoff = exprtk_payoff_ratio(trades, n);
+      double payoff = toad_payoff_ratio(trades, n);
 
       check(payoff > 0); // Payoff ratio should be positive
       check(payoff > 1.0); // Average win > average loss
@@ -132,7 +132,7 @@ suite("fin test") {
       double equity[] = {10000, 11000, 10500, 9500, 9000, 9500, 10000, 11000};
       size_t n = 8;
 
-      size_t duration = exprtk_max_dd_duration(equity, n);
+      size_t duration = toad_max_dd_duration(equity, n);
 
       check(duration > 0); // Should have some drawdown period
       check(duration < n); // Duration can't exceed total periods
@@ -142,7 +142,7 @@ suite("fin test") {
       double equity[] = {10000, 11000, 10500, 9500, 9000, 9500, 10000};
       size_t n = 7;
 
-      double ulcer = exprtk_ulcer_index(equity, n);
+      double ulcer = toad_ulcer_index(equity, n);
 
       check(ulcer > 0); // Ulcer index should be positive
     }
@@ -152,7 +152,7 @@ suite("fin test") {
       double benchmark[] = {0.008, 0.015, -0.005, 0.025, 0.009};
       size_t n = 5;
 
-      double ir = exprtk_information_ratio(returns, benchmark, n);
+      double ir = toad_information_ratio(returns, benchmark, n);
 
       check(ir != 0); // Should return a value
     }
@@ -163,7 +163,7 @@ suite("fin test") {
       size_t n = 5;
       double rf = 0.0;
 
-      double treynor = exprtk_treynor(returns, benchmark, n, rf);
+      double treynor = toad_treynor(returns, benchmark, n, rf);
 
       check(treynor != 0); // Should return a value
     }
@@ -176,7 +176,7 @@ suite("fin test") {
       double rf = 0.0;
       double annual_factor = 252.0;
 
-      double sharpe = exprtk_sharpe(returns, n, rf, annual_factor);
+      double sharpe = toad_sharpe(returns, n, rf, annual_factor);
 
       // Should handle gracefully (might return 0 or inf)
       check(sharpe == sharpe); // Check not NaN
@@ -188,7 +188,7 @@ suite("fin test") {
       double rf = 0.0;
       double annual_factor = 252.0;
 
-      double sharpe = exprtk_sharpe(returns, n, rf, annual_factor);
+      double sharpe = toad_sharpe(returns, n, rf, annual_factor);
 
       // Zero variance should return inf or handle gracefully
       check(sharpe == sharpe); // Check not NaN
@@ -198,8 +198,8 @@ suite("fin test") {
       double trades[] = {0, 0, 0, 0};
       size_t n = 4;
 
-      double pf = exprtk_profit_factor(trades, n);
-      double exp = exprtk_expectancy(trades, n);
+      double pf = toad_profit_factor(trades, n);
+      double exp = toad_expectancy(trades, n);
 
       check(pf == pf);  // Check not NaN
       check(exp == 0);  // Expectancy should be 0
@@ -209,13 +209,11 @@ suite("fin test") {
       double equity[] = {10000, 10000, 10000, 10000};
       size_t n = 4;
 
-      size_t duration = exprtk_max_dd_duration(equity, n);
-      double ulcer = exprtk_ulcer_index(equity, n);
+      size_t duration = toad_max_dd_duration(equity, n);
+      double ulcer = toad_ulcer_index(equity, n);
 
       check(duration == 0);  // No drawdown
       check(ulcer == 0);     // No drawdown pain
     }
   }
 }
-
- 

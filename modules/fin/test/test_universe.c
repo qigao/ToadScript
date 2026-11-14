@@ -7,7 +7,7 @@
 #include "universe.h"
 #include "provider.h"
 #include "market_rules.h"
-#include "../src/exprtk_universe.h"
+#include "../src/universe_bindings.h"
 #include "tinytest.h"
 #include <stdio.h>
 #include <math.h>
@@ -735,28 +735,28 @@ suite("Universe Management") {
     }
   }
 
-  group("Exprtk Universe Wrappers") {
+  group("Engine Universe Wrappers") {
     it("should return a full mask vector from filter_gt wrapper") {
       mem_pool_t arena;
       mem_pool_t scratch;
       mem_init(&arena, 16384);
       mem_init(&scratch, 4096);
       universe_t *u = make_test_universe(&arena);
-      exprtk_env_t env;
+      toad_env_t env;
       double values[] = { 50.0, 10.0, 30.0, 40.0, 20.0 };
-      exprtk_value_t args[2];
-      exprtk_value_t out;
+      toad_value_t args[2];
+      toad_value_t out;
 
       check_not_null(u);
       universe_advance(u, 120); /* active: AAPL, MSFT, AMZN */
 
-      exprtk_env_init(&env);
+      toad_env_init(&env);
       env.user_data = u;
-      args[0] = exprtk_val_vec(values, 5);
-      args[1] = exprtk_val_num(25.0);
+      args[0] = toad_val_vec(values, 5);
+      args[1] = toad_val_num(25.0);
 
       out = fn_universe_filter_gt(2, args, &env, &scratch);
-      check((out.type) == (EXPRTK_VAL_VECTOR));
+      check((out.type) == (TOAD_VAL_VECTOR));
       check(((int)out.data.vector.size) == (5));
       check(fabs((double)(out.data.vector.data[0]) - (double)(1.0)) <= (double)(EPSILON));
       check(fabs((double)(out.data.vector.data[1]) - (double)(0.0)) <= (double)(EPSILON));
@@ -764,7 +764,7 @@ suite("Universe Management") {
       check(fabs((double)(out.data.vector.data[3]) - (double)(1.0)) <= (double)(EPSILON)); /* AMZN=40 > 25 */
       check(fabs((double)(out.data.vector.data[4]) - (double)(0.0)) <= (double)(EPSILON)); /* inactive asset */
 
-      exprtk_env_free(&env);
+      toad_env_free(&env);
       universe_free(u);
       mem_destroy(&scratch);
       mem_destroy(&arena);
@@ -776,23 +776,23 @@ suite("Universe Management") {
       mem_init(&arena, 16384);
       mem_init(&scratch, 4096);
       universe_t *u = make_test_universe(&arena);
-      exprtk_env_t env;
+      toad_env_t env;
       double values[] = { 30.0, 10.0, 99.0, 20.0, 99.0 };
-      exprtk_value_t args[1];
-      exprtk_value_t out;
+      toad_value_t args[1];
+      toad_value_t out;
 
       check_not_null(u);
       universe_advance(u, 120); /* active: AAPL, MSFT, AMZN */
 
-      exprtk_env_init(&env);
+      toad_env_init(&env);
       env.user_data = u;
-      args[0] = exprtk_val_vec(values, 5);
+      args[0] = toad_val_vec(values, 5);
 
       out = fn_universe_cross_sum(1, args, &env, &scratch);
-      check((out.type) == (EXPRTK_VAL_NUMBER));
+      check((out.type) == (TOAD_VAL_NUMBER));
       check(fabs((double)(out.data.number) - (double)(60.0)) <= (double)(EPSILON));
 
-      exprtk_env_free(&env);
+      toad_env_free(&env);
       universe_free(u);
       mem_destroy(&scratch);
       mem_destroy(&arena);

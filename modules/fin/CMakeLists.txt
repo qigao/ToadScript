@@ -1,6 +1,6 @@
 # fin_plugin — import("fin")
 set(TARGET_NAME fin)
-set(TARGET_NAME_PLUGIN fin_tbs)
+set(TARGET_NAME_PLUGIN toad_fin_plugin)
 
 cmake_add_source(SOURCE_FILES RECURSE PATTERNS "*.c*" "*.h*")
 
@@ -14,11 +14,11 @@ target_include_directories(
                         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/fin>)
 target_include_directories(${TARGET_NAME} PRIVATE ${SIMDE_INCLUDE_DIRS})
 
-target_link_libraries(${TARGET_NAME} PUBLIC exprtk Salts::Core)
+target_link_libraries(${TARGET_NAME} PUBLIC toad_engine Salts::Core)
 if(UNIX)
   target_link_libraries(${TARGET_NAME} PRIVATE m)
 endif()
-# ── SHARED plugin DLL (loaded at runtime via ts_plugin_load) ─────
+# ── SHARED plugin DLL (loaded at runtime via toad_plugin_load) ─────
 add_library(${TARGET_NAME_PLUGIN} SHARED ${SOURCE_FILES})
 
 cmake_config_target(${TARGET_NAME_PLUGIN} FOLDER modules/fin OUTPUT_NAME
@@ -40,6 +40,6 @@ cmake_install_headers(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/
                       DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/fin)
 
 # ── Tests ─────────────────────────────────────────────────────────
-if(BUILD_TESTING)
+if(BUILD_TESTS)
   add_subdirectory(test)
 endif()

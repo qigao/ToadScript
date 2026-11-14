@@ -1,7 +1,7 @@
 set(TARGET_NAME fuzzy)
-set(TARGET_NAME_PLUGIN fuzzy_tbs)
+set(TARGET_NAME_PLUGIN toad_fuzzy_plugin)
 
-set(FUZZY_SOURCES src/exprtk_mod_fuzzy.c)
+set(FUZZY_SOURCES src/mod_fuzzy.c)
 set(FUZZY_PLUGIN_SOURCES src/fuzzy_plugin.c)
 set(FUZZY_HEADERS include/fuzzy.h)
 
@@ -10,7 +10,7 @@ add_library(${TARGET_NAME} STATIC ${FUZZY_SOURCES} ${FUZZY_HEADERS})
 cmake_config_target(
   ${TARGET_NAME}
   ALIAS
-  TurboScript::Fuzzy
+  Toad::Fuzzy
   FOLDER
   modules/fuzzy
   EXPORT_NAME
@@ -20,7 +20,7 @@ target_include_directories(
   ${TARGET_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
                         $<INSTALL_INTERFACE:include>)
 
-target_link_libraries(${TARGET_NAME} PUBLIC exprtk Salts::Core
+target_link_libraries(${TARGET_NAME} PUBLIC toad_engine Salts::Core
                                             unofficial::tre::tre)
 
 add_library(${TARGET_NAME_PLUGIN} SHARED ${FUZZY_PLUGIN_SOURCES})
@@ -42,6 +42,6 @@ set_target_properties(
 cmake_install_headers(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/
                       DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/fuzzy)
 
-if(BUILD_TESTING)
+if(BUILD_TESTS)
   add_subdirectory(test)
 endif()

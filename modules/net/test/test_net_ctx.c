@@ -3,16 +3,16 @@
  * @brief Tests for net_ctx — context lifecycle and helpers.
  */
 #include "net_ctx.h"
-#include "exprtk_module.h"
+#include <toad/module.h>
 #include "tinytest.h"
 #include <string.h>
-#include <cmeta_buffer.h>
+#include <memory/buffer.h>
 
 /* Exercise the registered native boundary without the script dispatcher's
  * compatibility conversion from integer to number. */
-static exprtk_value_t call_ws_consume(
-    exprtk_env_t *env, exprtk_value_t args[2]) {
-    for (exprtk_func_t *function = env->funcs; function; function = function->next) {
+static toad_value_t call_ws_consume(
+    toad_env_t *env, toad_value_t args[2]) {
+    for (toad_func_t *function = env->funcs; function; function = function->next) {
         if (strcmp(function->name, "ws.consume") == 0) {
             return function->data.native.fn(
                 2u, args, env, function->data.native.user_data);
@@ -125,52 +125,52 @@ spec("net_ctx") {
 
     describe("WebSocket script boundary") {
         static net_ctx_t *ctx;
-        static exprtk_env_t env;
+        static toad_env_t env;
         static mem_pool_t scratch;
 
         before_each() {
             ctx = net_ctx_create();
-            exprtk_env_init(&env);
+            toad_env_init(&env);
             mem_init(&scratch, 256);
             net_load(ctx, &env, &scratch);
         }
 
         after_each() {
-            exprtk_env_free(&env);
+            toad_env_free(&env);
             net_ctx_destroy(ctx);
             mem_destroy(&scratch);
         }
 
         it("accepts integer timeouts before checking the connection") {
-            exprtk_value_t args[2] = {0};
-            exprtk_value_t result;
-            args[0] = exprtk_val_int(1);
-            args[1].type = EXPRTK_VAL_FUNCTION;
+            toad_value_t args[2] = {0};
+            toad_value_t result;
+            args[0] = toad_val_int(1);
+            args[1].type = TOAD_VAL_FUNCTION;
             result = call_ws_consume(&env, args);
             check_equal(result.data.number, 0.0);
             check_equal(ctx->error_msg, "ws client not connected");
-            exprtk_value_destroy(&result);
+            toad_value_destroy(&result);
         }
 
         it("rejects fractional and out of range timeouts") {
-            exprtk_value_t args[2] = {0};
-            exprtk_value_t result;
-            args[1].type = EXPRTK_VAL_FUNCTION;
-            args[0] = exprtk_val_num(1.5);
+            toad_value_t args[2] = {0};
+            toad_value_t result;
+            args[1].type = TOAD_VAL_FUNCTION;
+            args[0] = toad_val_num(1.5);
             result = call_ws_consume(&env, args);
             check_equal(result.data.number, 0.0);
             check_equal(ctx->error_msg, "");
-            exprtk_value_destroy(&result);
-            args[0] = exprtk_val_int((int64_t)UINT32_MAX + 1);
+            toad_value_destroy(&result);
+            args[0] = toad_val_int((int64_t)UINT32_MAX + 1);
             result = call_ws_consume(&env, args);
             check_equal(result.data.number, 0.0);
             check_equal(ctx->error_msg, "");
-            exprtk_value_destroy(&result);
+            toad_value_destroy(&result);
         }
 
         it("releases a disconnected client and permits repeated close") {
             chttp_websocket_client_config config = {0};
-            exprtk_value_t result;
+            toad_value_t result;
             config.size = sizeof(config);
 #if defined(_WIN32)
             config.network.backend = NATIVE_IO_BACKEND_IOCP;
@@ -189,14 +189,14 @@ spec("net_ctx") {
             ctx->ws_client = calloc(1u, sizeof(*ctx->ws_client));
             check_not_null(ctx->ws_client);
             check_equal(chttp_websocket_client_init(ctx->ws_client, &config), SALTS_OK);
-            result = exprtk_call_internal("ws.close", 0u, NULL, &env);
+            result = toad_call_internal("ws.close", 0u, NULL, &env);
             check_equal(result.data.number, 1.0);
             check_null(ctx->ws_client);
-            exprtk_value_destroy(&result);
-            result = exprtk_call_internal("ws.close", 0u, NULL, &env);
+            toad_value_destroy(&result);
+            result = toad_call_internal("ws.close", 0u, NULL, &env);
             check_equal(result.data.number, 1.0);
             check_equal(ctx->error_msg, "");
-            exprtk_value_destroy(&result);
+            toad_value_destroy(&result);
         }
     }
 }

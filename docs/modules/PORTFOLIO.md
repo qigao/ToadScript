@@ -46,12 +46,12 @@
 
 ## 📊 Covariance Matrix - The Foundation
 
-### `exprtk_pf_cov_matrix` - Calculate Covariance
+### `toad_pf_cov_matrix` - Calculate Covariance
 
 **💼 Purpose**: Measure how assets move together (correlation × volatility).
 
 ```c
-void exprtk_pf_cov_matrix(const double *returns, size_t na, size_t np,
+void toad_pf_cov_matrix(const double *returns, size_t na, size_t np,
                           double *out, turbo_pool_t *arena);
 ```
 
@@ -75,7 +75,7 @@ double returns[] = {
 };
 
 double cov[9];  // 3×3 matrix
-exprtk_pf_cov_matrix(returns, 3, 5, cov, &arena);
+toad_pf_cov_matrix(returns, 3, 5, cov, &arena);
 
 // Interpret results
 printf("=== Covariance Matrix ===\n");
@@ -124,12 +124,12 @@ for (size_t i = 1; i < 5; i++) {
 
 ## 🛡️ Minimum Variance Portfolio
 
-### `exprtk_pf_min_variance` - Lowest Risk Portfolio
+### `toad_pf_min_variance` - Lowest Risk Portfolio
 
 **💼 Purpose**: Find the portfolio with the lowest possible volatility.
 
 ```c
-double exprtk_pf_min_variance(const double *cov, size_t n,
+double toad_pf_min_variance(const double *cov, size_t n,
                               double *weights, turbo_pool_t *arena);
 ```
 
@@ -151,7 +151,7 @@ double cov[] = {
 };
 double weights[2];
 
-double variance = exprtk_pf_min_variance(cov, 2, weights, &arena);
+double variance = toad_pf_min_variance(cov, 2, weights, &arena);
 double volatility = sqrt(variance);
 
 printf("=== Minimum Variance Portfolio ===\n");
@@ -179,7 +179,7 @@ double cov[25] = {
 };
 double weights[5];
 
-double variance = exprtk_pf_min_variance(cov, 5, weights, &arena);
+double variance = toad_pf_min_variance(cov, 5, weights, &arena);
 
 printf("=== 5-Asset Min Variance Portfolio ===\n");
 for (int i = 0; i < 5; i++) {
@@ -194,12 +194,12 @@ printf("Portfolio risk: %.2f%%\n", sqrt(variance) * 100);
 
 ## ⚡ Maximum Sharpe Ratio Portfolio
 
-### `exprtk_pf_max_sharpe` - Optimal Risk-Adjusted Return
+### `toad_pf_max_sharpe` - Optimal Risk-Adjusted Return
 
 **💼 Purpose**: Find the portfolio with the best return per unit of risk.
 
 ```c
-double exprtk_pf_max_sharpe(const double *mu, const double *cov, size_t n,
+double toad_pf_max_sharpe(const double *mu, const double *cov, size_t n,
                             double rf, double *weights, turbo_pool_t *arena);
 ```
 
@@ -233,7 +233,7 @@ double cov[] = {
 double rf = 0.02;  // 2% risk-free rate (T-bills)
 double weights[3];
 
-double sharpe = exprtk_pf_max_sharpe(mu, cov, 3, rf, weights, &arena);
+double sharpe = toad_pf_max_sharpe(mu, cov, 3, rf, weights, &arena);
 
 printf("=== Maximum Sharpe Portfolio ===\n");
 printf("Sharpe Ratio: %.3f\n", sharpe);
@@ -282,10 +282,10 @@ double rf_10y = 0.040;  // 10-year Treasury: 4.0%
 double weights_short[3], weights_long[3];
 
 // Short-term strategy (use short-term rate)
-double sharpe_short = exprtk_pf_max_sharpe(mu, cov, 3, rf_1m, weights_short, &arena);
+double sharpe_short = toad_pf_max_sharpe(mu, cov, 3, rf_1m, weights_short, &arena);
 
 // Long-term strategy (use long-term rate)
-double sharpe_long = exprtk_pf_max_sharpe(mu, cov, 3, rf_10y, weights_long, &arena);
+double sharpe_long = toad_pf_max_sharpe(mu, cov, 3, rf_10y, weights_long, &arena);
 
 printf("Short-term Sharpe: %.3f\n", sharpe_short);
 printf("Long-term Sharpe:  %.3f\n", sharpe_long);
@@ -295,12 +295,12 @@ printf("Long-term Sharpe:  %.3f\n", sharpe_long);
 
 ## 🎯 Markowitz Optimization
 
-### `exprtk_pf_markowitz` - Target Return Portfolio
+### `toad_pf_markowitz` - Target Return Portfolio
 
 **💼 Purpose**: Find minimum risk portfolio that achieves a target return.
 
 ```c
-double exprtk_pf_markowitz(const double *mu, const double *cov, size_t n,
+double toad_pf_markowitz(const double *mu, const double *cov, size_t n,
                            double target, double *weights, turbo_pool_t *arena);
 ```
 
@@ -326,7 +326,7 @@ double cov[] = {
 double target = 0.10;  // Target 10% return
 double weights[3];
 
-double variance = exprtk_pf_markowitz(mu, cov, 3, target, weights, &arena);
+double variance = toad_pf_markowitz(mu, cov, 3, target, weights, &arena);
 double volatility = sqrt(variance);
 
 printf("=== Target Return Portfolio ===\n");
@@ -368,7 +368,7 @@ printf("------  ------  ------\n");
 for (int i = 0; i <= 10; i++) {
     double target = min_ret + (max_ret - min_ret) * i / 10.0;
     double weights[3];
-    double variance = exprtk_pf_markowitz(mu, cov, 3, target, weights, &arena);
+    double variance = toad_pf_markowitz(mu, cov, 3, target, weights, &arena);
     double vol = sqrt(variance);
     double sharpe = (target - 0.02) / vol;  // Assuming 2% risk-free rate
 
@@ -439,7 +439,7 @@ int main() {
 ```c
     // Calculate covariance matrix
     double cov[9];
-    exprtk_pf_cov_matrix(returns_flat, 3, 99, cov, &arena);
+    toad_pf_cov_matrix(returns_flat, 3, 99, cov, &arena);
 
     // Calculate expected returns (simple average)
     double mu[3];
@@ -473,7 +473,7 @@ int main() {
 ```c
     // 1. Minimum Variance Portfolio
     double weights_minvar[3];
-    double var_min = exprtk_pf_min_variance(cov, 3, weights_minvar, &arena);
+    double var_min = toad_pf_min_variance(cov, 3, weights_minvar, &arena);
 
     printf("\n=== Minimum Variance Portfolio ===\n");
     printf("Risk: %.2f%%\n", sqrt(var_min) * 100);
@@ -484,7 +484,7 @@ int main() {
     // 2. Maximum Sharpe Portfolio
     double rf = 0.02;  // 2% risk-free rate
     double weights_sharpe[3];
-    double sharpe = exprtk_pf_max_sharpe(mu, cov, 3, rf, weights_sharpe, &arena);
+    double sharpe = toad_pf_max_sharpe(mu, cov, 3, rf, weights_sharpe, &arena);
 
     printf("\n=== Maximum Sharpe Portfolio ===\n");
     printf("Sharpe Ratio: %.3f\n", sharpe);
@@ -495,7 +495,7 @@ int main() {
     // 3. Target Return Portfolio
     double target = 0.10;  // 10% target
     double weights_target[3];
-    double var_target = exprtk_pf_markowitz(mu, cov, 3, target, weights_target, &arena);
+    double var_target = toad_pf_markowitz(mu, cov, 3, target, weights_target, &arena);
 
     printf("\n=== Target Return Portfolio (10%%) ===\n");
     printf("Risk: %.2f%%\n", sqrt(var_target) * 100);
@@ -525,7 +525,7 @@ for (int i = 0; i < n; i++) {
 
 // Remove outliers (winsorize)
 double winsorized[n];
-exprtk_vec_winsorize(returns, n, 0.05, winsorized, &arena);
+toad_vec_winsorize(returns, n, 0.05, winsorized, &arena);
 ```
 
 ---
@@ -559,7 +559,7 @@ for (int t = window_daily; t < total_days; t++) {
 ```c
 // Calculate sample covariance
 double cov[9];
-exprtk_pf_cov_matrix(returns, 3, 99, cov, &arena);
+toad_pf_cov_matrix(returns, 3, 99, cov, &arena);
 
 // Calculate average correlation
 double avg_corr = 0.0;
@@ -699,7 +699,7 @@ if (max_weight > 0.5) {
 
 ```c
 // WRONG: Using sample estimates as truth
-double sharpe = exprtk_pf_max_sharpe(mu, cov, n, rf, weights, &arena);
+double sharpe = toad_pf_max_sharpe(mu, cov, n, rf, weights, &arena);
 printf("Expected Sharpe: %.3f\n", sharpe);  // Overoptimistic!
 
 // CORRECT: Account for estimation error

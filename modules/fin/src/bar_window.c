@@ -4,7 +4,7 @@
  */
 
 #include "bar_window.h"
-#include "exprtk_types.h"   /* mem_alloc */
+#include <toad/types.h>   /* mem_alloc */
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>

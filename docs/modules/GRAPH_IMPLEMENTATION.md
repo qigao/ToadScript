@@ -10,7 +10,7 @@ Graph algorithms (Bellman-Ford) have been successfully added to the **fin module
 
 ### New Files
 
-1. **`modules/fin/src/exprtk_graph.c`** (9KB)
+1. **`modules/fin/src/graph.c`** (9KB)
    - Bellman-Ford algorithm implementation
    - Negative cycle detection
    - Path extraction
@@ -31,7 +31,7 @@ Graph algorithms (Bellman-Ford) have been successfully added to the **fin module
 1. **`modules/fin/include/fin.h`**
    - Added 4 graph function declarations
 
-2. **`modules/fin/src/exprtk_mod_strategy.c`**
+2. **`modules/fin/src/mod_strategy.c`**
    - Registered 4 graph functions in strategy module
 
 ---
@@ -58,11 +58,11 @@ let has_arbitrage = detect_arbitrage(rates, n_currencies);
 
 ## 💡 Key Design Decisions
 
-### Why in fin Module (not exprtk)?
+### Why in fin Module (not engine)?
 
 1. **Domain-specific**: Graph algorithms are primarily for financial network analysis
 2. **Use cases**: Currency arbitrage, risk propagation, trading networks
-3. **Modularity**: Keeps exprtk focused on core expression evaluation
+3. **Modularity**: Keeps engine focused on core expression evaluation
 4. **Plugin architecture**: fin is a plugin, can be loaded on-demand
 
 ### Algorithm Choice: Bellman-Ford
@@ -240,7 +240,7 @@ ctest -R test_graph -V
 
 ### Developer Documentation
 
-- **exprtk_graph.c** (9KB)
+- **graph.c** (9KB)
   - Well-commented implementation
   - Clear function signatures
   - Error handling
@@ -262,7 +262,7 @@ ctest -R test_graph -V
 
 ## 🎉 Summary
 
-Graph algorithms are now available in TurboScript via the **fin module**!
+Graph algorithms are now available in Toad via the **fin module**!
 
 **Key Features:**
 - 🔄 Currency arbitrage detection
