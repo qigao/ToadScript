@@ -5,7 +5,7 @@ include(CMakeOptions.cmake)
 # Toad Project - A Simple DSL with MIR JIT Backend
 project(
   Toad
-  VERSION 0.1.1
+  VERSION 0.1.2
   LANGUAGES C CXX)
 
 # Project configuration - output directories
