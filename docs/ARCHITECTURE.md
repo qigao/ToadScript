@@ -21,6 +21,39 @@ Unsupported language forms must fail during validation, MIR lowering, or runtime
 
 ## Frontend
 
+### Host capability admission and concurrent initialization
+
+Starting with 0.1.1, `toad_script_module_options_t::flags` accepts
+`TOAD_SCRIPT_MODULE_EXPLICIT_CALLS`. It preserves the module-options layout and
+the zero/default behavior. `reserved0` remains a source-compatible alias; all
+other reserved fields must remain zero. Unknown flag bits fail admission.
+
+An explicit-call module closes its callable set over top-level named functions,
+the `list` constructor and host functions registered before compilation. The
+compiler rejects ambient builtins (including filesystem, process and clock
+helpers), imports, unknown calls, callable rebinding/shadowing, nested/anonymous
+functions, dynamic member calls, template evaluation, destructuring and OOP or
+generator forms before MIR lowering. A bounded table admits at most
+`max_exports` named functions, including unexported helpers, with a hard cap of
+256. Both interpreter and JIT execute the admitted module through the same Host
+ABI. Existing modules with flags zero retain their established language behavior.
+
+This is capability admission for trusted embedded computation, not process
+isolation. The host owns the effects of callbacks it explicitly registers.
+Independent contexts remain confined to their own owner threads; their builtin
+module registration now runs once per Script runtime. Engine registry mutation,
+sorting and lookup share its owner mutex, and lookups copy entries before
+releasing that mutex so later registration cannot invalidate a reflected entry.
+The mutex is not held while executing a builtin or host callback. No throughput
+improvement is claimed; the synchronized registry has an admission/lookup cost.
+
+Formal regressions are `test_script_host_policy` and
+`test_script_host_concurrency`, alongside the existing Host suites. The latter
+starts eight owners together and creates/calls/destroys 128 contexts, alternating
+interpreter and JIT. This is a regression test, not a data-race sanitizer proof.
+
+### Frontend implementation
+
 The frontend is implemented by `engine`:
 
 - `parser/lexer.re`: re2c lexer.

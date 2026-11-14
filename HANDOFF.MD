@@ -379,3 +379,25 @@
   Linux 发布图使用 `llvm-native-benchmark-user`，通过同一轮 CTest 执行正式 suites
   和 benchmark。未提供完整匹配 SDK 的 Windows ARM64、Android x64、macOS GCC
   和 Linux ARM64 GCC 入口不再对外展示。
+
+
+## 2026-11-15: Toad 0.1.1 Host consumer qualification
+
+- HIGH / fact: RulesForge's real DSO/owner-thread regression against published
+  0.1.0 crashed in two simultaneous `toad_registry_init` calls (qsort/strcmp).
+  The LLDB backtrace is retained in RulesForge build/toad-debug.log. Each Script
+  context had appended builtin modules to a shared reallocating registry.
+- Script registration now uses Base sync_once; Engine mutation, sort and lookup
+  share a mutex, and copied entries leave its lock. Builtin execution does not
+  hold it. No external SDK installation was modified.
+- The 0.1.0 bare context/native plugin authorizer did not close ambient builtin
+  access. The additive EXPLICIT_CALLS module flag admits named script/registered
+  host calls and list construction, rejecting ambient/dynamic invocation before
+  lowering. Default flag-zero behavior and the options ABI layout are preserved.
+- The user explicitly authorized fixing and publishing Toad, then completing
+  RulesForge using only the newly published SDK. Version metadata is 0.1.1;
+  released Base/CMeta/Utils/CNet/CHttp/cache versions remain unchanged.
+- Local native-release-user configure/full build/CTest passed 61/61, including
+  eight concurrent owners and both interpreter/JIT policy execution. No sanitizer
+  or non-Windows qualification is claimed by that result. CI/release qualification
+  must complete before the RulesForge restore selects 0.1.1.

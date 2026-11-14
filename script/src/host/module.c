@@ -22,7 +22,86 @@ typedef struct ts_host_ast_usage_s {
   size_t nodes;
   size_t imports;
   size_t string_bytes;
+  toad_script_ctx_t *ctx;
+  toad_node_t *root;
+  toad_node_t *policy_error;
+  const char *functions[256];
+  size_t function_count;
 } ts_host_ast_usage_t;
+
+static int ts_host_closed_name(ts_host_ast_usage_t *usage, const char *name) {
+  size_t slot;
+  if (!name) return 0;
+  if (strcmp(name, "list") == 0 || strcmp(name, "export") == 0) return 1;
+  for (size_t i = 0; i < usage->function_count; ++i)
+    if (strcmp(name, usage->functions[i]) == 0) return 1;
+  return usage->ctx && !toad_registry_find(name) &&
+         ts_host_registry_find_slot(usage->ctx, (toad_script_string_view_t){name, strlen(name)},
+                                    &slot) == TOAD_SCRIPT_STATUS_OK;
+}
+
+static int ts_host_closed_top_level(ts_host_ast_usage_t *usage, const toad_node_t *node) {
+  if (!usage->root || usage->root->type != TOAD_NODE_BLOCK) return 0;
+  for (size_t i = 0; i < usage->root->data.block.count; ++i)
+    if (usage->root->data.block.statements[i] == node) return 1;
+  return 0;
+}
+
+static int ts_host_closed_prepare(ts_host_ast_usage_t *usage,
+                                  const toad_script_module_options_t *options) {
+  if (!usage->root || usage->root->type != TOAD_NODE_BLOCK) return 0;
+  for (size_t i = 0; i < usage->root->data.block.count; ++i) {
+    toad_node_t *node = usage->root->data.block.statements[i];
+    if (!node || node->type != TOAD_NODE_FUNCTION_DEFINITION) continue;
+    const char *name = node->data.func_def.name;
+    if (!name || ts_host_closed_name(usage, name) || toad_registry_find(name) ||
+        usage->function_count >= options->max_exports || usage->function_count >= 256) {
+      usage->policy_error = node;
+      return 0;
+    }
+    usage->functions[usage->function_count++] = name;
+  }
+  return 1;
+}
+
+static int ts_host_closed_node(ts_host_ast_usage_t *usage, const toad_node_t *node) {
+  switch (node->type) {
+  case TOAD_NODE_FUNCTION_CALL:
+    return ts_host_closed_name(usage, node->data.function.name) &&
+           (strcmp(node->data.function.name, "export") != 0 || ts_host_closed_top_level(usage, node));
+  case TOAD_NODE_ASSIGNMENT:
+  case TOAD_NODE_CONSTANT_DECL:
+    return !ts_host_closed_name(usage, node->data.assignment.name);
+  case TOAD_NODE_FUNCTION_DEFINITION:
+    if (!ts_host_closed_top_level(usage, node)) return 0;
+    for (size_t i = 0; i < node->data.func_def.arg_count; ++i) {
+      const toad_node_t *arg = node->data.func_def.arg_params[i];
+      if (!arg || arg->type != TOAD_NODE_VARIABLE || ts_host_closed_name(usage, arg->data.variable.name)) return 0;
+    }
+    return 1;
+  case TOAD_NODE_FOR_IN:
+    return !ts_host_closed_name(usage, node->data.for_in.var_name);
+  case TOAD_NODE_TRY_CATCH:
+    return !ts_host_closed_name(usage, node->data.try_catch.catch_var);
+  case TOAD_NODE_FUNCTION_EXPRESSION:
+  case TOAD_NODE_TEMPLATE_STRING:
+  case TOAD_NODE_MEMBER_CALL:
+  case TOAD_NODE_DESTRUCTURING_ASSIGNMENT:
+  case TOAD_NODE_REST_PARAMETER:
+  case TOAD_NODE_YIELD:
+  case TOAD_NODE_GENERATOR_FUNCTION:
+  case TOAD_NODE_CLASS_DEF:
+  case TOAD_NODE_METHOD:
+  case TOAD_NODE_FIELD_DECL:
+  case TOAD_NODE_NEW:
+  case TOAD_NODE_THIS:
+  case TOAD_NODE_SUPER:
+  case TOAD_NODE_INSTANCEOF:
+    return 0;
+  default:
+    return 1; /* Recursive usage visitor remains exhaustive and fail closed. */
+  }
+}
 
 static int ts_host_options_valid(const toad_script_module_options_t *options);
 
@@ -66,6 +145,11 @@ static void ts_host_parse_span(const char *message, const char *source,
 static int ts_host_ast_usage(toad_node_t *node, ts_host_ast_usage_t *usage,
                              const toad_script_module_options_t *options) {
   if (!node) return 1;
+  if ((options->flags & TOAD_SCRIPT_MODULE_EXPLICIT_CALLS) &&
+      !ts_host_closed_node(usage, node)) {
+    usage->policy_error = node;
+    return 0;
+  }
   if (!ts_host_charge(&usage->nodes, 1, options->max_ast_nodes)) return 0;
   switch (node->type) {
   case TOAD_NODE_NUMBER:
@@ -308,7 +392,8 @@ void toad_script_module_options_init(toad_script_module_options_t *options) {
 }
 
 static int ts_host_options_valid(const toad_script_module_options_t *options) {
-  if (!options || options->struct_size != sizeof(*options) || options->reserved0 != 0)
+  if (!options || options->struct_size != sizeof(*options) ||
+      (options->flags & ~TOAD_SCRIPT_MODULE_EXPLICIT_CALLS) != 0)
     return 0;
   for (size_t i = 0; i < 4; ++i) if (options->reserved[i] != 0) return 0;
   return options->max_source_bytes <= TS_HOST_MODULE_SOURCE_LIMIT &&
@@ -390,8 +475,15 @@ static toad_script_status_t ts_host_module_compile_impl(
     goto fail;
   }
   usage.string_bytes = options->module_name.size;
-  if (!ts_host_ast_usage(module->ast, &usage, options)) {
-    status = TOAD_SCRIPT_STATUS_LIMIT_EXCEEDED; goto fail;
+  usage.ctx = ctx;
+  usage.root = module->ast;
+  if (((options->flags & TOAD_SCRIPT_MODULE_EXPLICIT_CALLS) && !ts_host_closed_prepare(&usage, options)) ||
+      !ts_host_ast_usage(module->ast, &usage, options)) {
+    bad_node = usage.policy_error;
+    status = bad_node ? TOAD_SCRIPT_STATUS_VALIDATION_ERROR : TOAD_SCRIPT_STATUS_LIMIT_EXCEEDED;
+    if (bad_node)
+      snprintf(ctx->error_msg, sizeof(ctx->error_msg), "Explicit-call module rejected ambient/dynamic callable access or rebinding");
+    goto fail;
   }
   status = ts_host_scan_exports(module->ast, options, &module->exports, &bad_node);
   if (status != TOAD_SCRIPT_STATUS_OK) goto fail;

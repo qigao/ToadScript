@@ -31,8 +31,8 @@ typedef struct {
 
 #define TOAD_SCRIPT_VERSION_MAJOR 0
 #define TOAD_SCRIPT_VERSION_MINOR 1
-#define TOAD_SCRIPT_VERSION_PATCH 0
-#define TOAD_SCRIPT_VERSION_STRING "0.1.0"
+#define TOAD_SCRIPT_VERSION_PATCH 1
+#define TOAD_SCRIPT_VERSION_STRING "0.1.1"
 #define TOAD_SCRIPT_NATIVE_ABI_VERSION 3
 
 typedef enum {
@@ -439,7 +439,8 @@ TOAD_SCRIPT_C_API void toad_script_print_jit_stats(toad_script_ctx_t *ctx, FILE 
  * Export handles belong to the instance that resolves them; zero is invalid.
  * Source, argument and callback views are borrowed only for the receiving call.
  * Result getter views remain valid until that result is reset, written or freed.
- * Initialize options with the matching initializer and keep reserved fields zero.
+ * Initialize options with the matching initializer; set only documented flags
+ * and keep all remaining reserved fields zero.
  * Initialize export/error info to zero with struct_size set to sizeof the struct.
  * Non-OK status never authorizes use of an output handle or value. Use the result
  * error getter for diagnostics when the operation could validate that result.
@@ -495,9 +496,20 @@ struct toad_script_record_entry_view_s {
   toad_script_value_view_t value;
 };
 
+/* Close the module's callable set over top-level named functions, the language
+ * list constructor and explicitly registered host callbacks. Ambient builtins,
+ * imports, dynamic calls, callable rebinding, classes, generators and template
+ * evaluation are rejected before lowering. Host callbacks still carry the
+ * permissions explicitly granted by their owner; this is not process isolation.
+ * The option defaults to zero and does not change existing module semantics. */
+#define TOAD_SCRIPT_MODULE_EXPLICIT_CALLS UINT32_C(1)
+
 typedef struct toad_script_module_options_s {
   uint32_t struct_size;
-  uint32_t reserved0;
+  union {
+    uint32_t flags;
+    uint32_t reserved0; /* Source-compatible name for the former zero field. */
+  };
   toad_script_string_view_t module_name;
   size_t max_source_bytes;
   size_t max_ast_nodes;

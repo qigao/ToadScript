@@ -9,12 +9,24 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "threads/threads.h"
 #define REGISTRY_INITIAL_CAP 256
 
 static toad_func_entry_t *g_registry = NULL;
 static size_t g_registry_count = 0;
 static size_t g_registry_cap = 0;
 static int g_registry_ready = 0;
+static sync_once_t g_registry_once = SALTS_ONCE_INIT;
+static sync_mutex_t g_registry_mutex;
+
+static void registry_mutex_init(void) {
+    sync_mutex_init(&g_registry_mutex);
+}
+
+static void registry_lock(void) {
+    sync_once(&g_registry_once, registry_mutex_init);
+    sync_mutex_lock(&g_registry_mutex);
+}
 
 static const cmeta_type_identity toad_env_cmeta_identity =
     CMETA_TYPE_ID_ATOM_INIT("toad.engine.env");
@@ -265,7 +277,7 @@ static int is_global_compat_namespace(const char *module_name, size_t module_nam
     return 0;
 }
 
-void toad_registry_add_module(const toad_module_t *mod) {
+static void registry_add_module_locked(const toad_module_t *mod) {
     if (!mod) return;
     for (size_t i = 0; i < mod->count; ++i) {
         if (g_registry_count >= g_registry_cap) {
@@ -280,65 +292,76 @@ void toad_registry_add_module(const toad_module_t *mod) {
     g_registry_ready = 0; // Need re-sort
 }
 
-void toad_registry_init(void) {
+static void registry_init_locked(void) {
     if (g_registry_ready) return;
 
     /* Register core module by default */
-    toad_registry_add_module(toad_module_core());
+    registry_add_module_locked(toad_module_core());
 
     qsort(g_registry, g_registry_count, sizeof(toad_func_entry_t), entry_cmp);
     g_registry_ready = 1;
 }
 
-static const toad_func_entry_t *toad_registry_find_entry(
-    const char *name) {
-    if (!name) return NULL;
-    if (!g_registry_ready) toad_registry_init();
-    if (g_registry_count == 0) return NULL;
+void toad_registry_add_module(const toad_module_t *mod) {
+    registry_lock();
+    registry_add_module_locked(mod);
+    sync_mutex_unlock(&g_registry_mutex);
+}
 
-    return (const toad_func_entry_t *)bsearch(
-        name, g_registry, g_registry_count,
-        sizeof(toad_func_entry_t), search_cmp);
+void toad_registry_init(void) {
+    registry_lock();
+    registry_init_locked();
+    sync_mutex_unlock(&g_registry_mutex);
+}
+
+/* Registry storage may move during explicit module registration. Copy its
+ * entry under the owner lock; module-owned names and code remain borrowed. */
+static int registry_find_copy(const char *name, toad_func_entry_t *out) {
+    const toad_func_entry_t *hit;
+    int found = 0;
+    if (!name) return 0;
+    registry_lock();
+    registry_init_locked();
+    hit = (const toad_func_entry_t *)bsearch(name, g_registry, g_registry_count,
+                                           sizeof(toad_func_entry_t), search_cmp);
+    if (hit) { *out = *hit; found = 1; }
+    sync_mutex_unlock(&g_registry_mutex);
+    return found;
 }
 
 toad_builtin_fn toad_registry_find(const char *name) {
-    const toad_func_entry_t *hit = toad_registry_find_entry(name);
-    return hit ? hit->fn : NULL;
+    toad_func_entry_t hit;
+    return registry_find_copy(name, &hit) ? hit.fn : NULL;
 }
 
-static const toad_func_entry_t *toad_find_builtin_entry(
-    const char *name, toad_env_t *env) {
+static int toad_find_builtin_entry(const char *name, toad_env_t *env,
+                                   toad_func_entry_t *out) {
     const toad_func_entry_t *hit;
     const char *dot;
-
-    if (!name) return NULL;
+    if (!name) return 0;
     if (env) {
         hit = mod_cache_find_entry(env, name);
-        if (hit) return hit;
-
+        if (hit) { *out = *hit; return 1; }
         dot = strchr(name, '.');
         if (dot) {
-            hit = mod_find_entry_in_named_module(
-                env, name, (size_t)(dot - name), dot + 1);
-            if (hit) return hit;
+            hit = mod_find_entry_in_named_module(env, name, (size_t)(dot - name), dot + 1);
+            if (hit) { *out = *hit; return 1; }
         }
     }
-    return toad_registry_find_entry(name);
+    return registry_find_copy(name, out);
 }
 
 toad_builtin_fn toad_find_builtin(const char *name, toad_env_t *env) {
-    const toad_func_entry_t *hit = toad_find_builtin_entry(name, env);
-    return hit ? hit->fn : NULL;
+    toad_func_entry_t hit;
+    return toad_find_builtin_entry(name, env, &hit) ? hit.fn : NULL;
 }
 
-int toad_find_builtin_reflection(
-    const char *name, toad_env_t *env, toad_function_reflection_t *out) {
-    const toad_func_entry_t *entry;
-
+int toad_find_builtin_reflection(const char *name, toad_env_t *env,
+                                  toad_function_reflection_t *out) {
+    toad_func_entry_t entry;
     if (!out) return 0;
     memset(out, 0, sizeof(*out));
-    entry = toad_find_builtin_entry(name, env);
-    return entry != NULL && toad_func_entry_reflect(entry, out);
+    return toad_find_builtin_entry(name, env, &entry) && toad_func_entry_reflect(&entry, out);
 }
 
 toad_value_t toad_call_builtin(toad_builtin_fn fn, size_t argc,

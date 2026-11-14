@@ -1,4 +1,8 @@
 if(BUILD_TESTS)
+cmake_add_test(TARGET test_script_host_policy
+  SOURCES test_script_host_policy.c LIBS toad_script Salts::TinyTest FOLDER script/test)
+cmake_add_test(TARGET test_script_host_concurrency
+  SOURCES test_script_host_concurrency.cpp LIBS toad_script Salts::TinyTest Threads::Threads FOLDER script/test)
 # Plugin loader fixtures use the same output layout as production plugins.
 add_library(test_plugin_loader_fixture SHARED plugin_loader_fixture.c)
 cmake_config_target(

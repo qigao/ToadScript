@@ -6,6 +6,7 @@
 #include <toad/module.h>
 
 #include "internal.h"
+#include "threads/threads.h"
 
 // Forward declarations for engine built-in modules
 extern const toad_module_t *toad_module_math(void);
@@ -15,7 +16,9 @@ extern const toad_module_t *toad_module_io(void);
 extern const toad_module_t *toad_module_core(void);
 extern const toad_module_t *toad_module_regex(void);
 
-void toad_script_register_modules(void) {
+static sync_once_t modules_once = SALTS_ONCE_INIT;
+
+static void register_modules_once(void) {
   toad_registry_add_module(toad_module_math());
   toad_registry_add_module(toad_module_string());
   toad_registry_add_module(toad_module_stats());
@@ -24,4 +27,8 @@ void toad_script_register_modules(void) {
   toad_registry_add_module(toad_module_regex());
 
   toad_registry_init(); // Sort the registry
+}
+
+void toad_script_register_modules(void) {
+  sync_once(&modules_once, register_modules_once);
 }

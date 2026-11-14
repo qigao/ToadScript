@@ -14,6 +14,12 @@ The current practical focus is host-driven automation and data processing:
 - a C API for compiling scripts, binding host values and registering native
   functions.
 
+Host modules can opt into `TOAD_SCRIPT_MODULE_EXPLICIT_CALLS` for an explicitly
+admitted callable set without ambient I/O or imports. See the
+[capability and concurrency contract](docs/ARCHITECTURE.md#host-capability-admission-and-concurrent-initialization).
+Callbacks retain the permissions granted by the host; this option does not
+provide process isolation.
+
 Toad is not a TypeScript implementation or a security sandbox. Native
 plugins execute with the host process's permissions, so only trusted scripts
 and plugins should be loaded. Embedders can reject unapproved native plugin
