@@ -3,7 +3,6 @@
  * @brief Timeseries module: ts_diff/ts_autocorr/ts_pacf/ts_adf/ts_garch/ts_hurst
  */
 #include <toad/module.h>
-#include "ts_internal.h"
 #include "ts.h"
 #include <math.h>
 #include <stdint.h>

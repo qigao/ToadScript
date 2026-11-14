@@ -75,22 +75,6 @@ Count: 6
 - `mapper.write_yaml`
 - `mapper.write_xml`
 
-## fuzzy plugin (`fuzzy`)
-
-Count: 11
-
-- `fuzzy.search`
-- `fuzzy.regex`
-- `fuzzy.regex_search`
-- `fuzzy.fuzzy_search`
-- `fuzzy.fuzzy_regex_search`
-- `fuzzy.levenshtein`
-- `fuzzy.lev`
-- `fuzzy.agrep`
-- `fuzzy.ac`
-- `fuzzy.multi_search`
-- `fuzzy.tre_version`
-
 ## vec plugin (`vec`)
 
 Count: 14

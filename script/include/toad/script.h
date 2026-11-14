@@ -29,10 +29,10 @@ typedef struct {
   size_t bound;
 } toad_script_value_map_iterator_t;
 
-#define TOAD_SCRIPT_VERSION_MAJOR 3
-#define TOAD_SCRIPT_VERSION_MINOR 0
-#define TOAD_SCRIPT_VERSION_PATCH 10
-#define TOAD_SCRIPT_VERSION_STRING "3.0.10"
+#define TOAD_SCRIPT_VERSION_MAJOR 0
+#define TOAD_SCRIPT_VERSION_MINOR 1
+#define TOAD_SCRIPT_VERSION_PATCH 0
+#define TOAD_SCRIPT_VERSION_STRING "0.1.0"
 #define TOAD_SCRIPT_NATIVE_ABI_VERSION 3
 
 typedef enum {

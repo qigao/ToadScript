@@ -7,6 +7,7 @@
       "baseline": "b1febdf10867f0e2cfcd3751bf83acaba3073280",
       "packages": [ 
         "zstd",
+        "mir-jit",
         "vcpkg-make"
       ]
     }

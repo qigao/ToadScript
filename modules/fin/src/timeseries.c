@@ -3,7 +3,6 @@
  * @brief Timeseries analysis implementations
  */
 #include "ts.h"
-#include "ts_internal.h"
 #include <math.h>
 #include <simde/x86/avx2.h>
 #include <simde/x86/fma.h>

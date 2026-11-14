@@ -108,6 +108,51 @@ def main():
                     or producer['sizeBytes'] != item['size']
                     or 'sha256:' + producer['sha256'] != item['digest']):
                 raise ValueError('SaltsBase manifest does not qualify the selected SDK')
+        elif repo == 'cmeta':
+            metadata, _ = download(repo, f'{repo}-{versions[repo]}-manifest.json')
+            manifest = json.loads(metadata.read_text(encoding='utf-8-sig'))
+            producer, = [s for s in manifest['sdks'] if s['platform'] == selected_profile]
+            item = asset(repo, name)
+            if (manifest['schemaVersion'] != 1 or manifest['name'] != 'cmeta'
+                    or manifest['version'] != versions[repo]
+                    or manifest['repository'] != 'https://github.com/qigao/cmeta'
+                    or manifest['ci']['conclusion'] != 'success'
+                    or producer['file'] != name or producer['sizeBytes'] != item['size']
+                    or 'sha256:' + producer['sha256'] != item['digest']
+                    or manifest['dependencies']['vcpkg-cache'] != versions['vcpkg-cache']):
+                raise ValueError('CMeta manifest does not qualify the selected SDK')
+            required_base = manifest['dependencies']['SaltsBase']
+            if required_base != versions['salts-base']:
+                raise ValueError(f'CMeta {versions[repo]} release requires SaltsBase '
+                                 f'{required_base}; selected {versions["salts-base"]}. '
+                                 'A matching published CMeta SDK is required.')
+        elif repo == 'chttp':
+            metadata, _ = download(repo, f'{repo}-{versions[repo]}-manifest.json')
+            manifest = json.loads(metadata.read_text(encoding='utf-8-sig'))
+            producer, = [s for s in manifest['sdks'] if s['profile'] == selected_profile]
+            item = asset(repo, name)
+            dependencies = manifest['dependencies']
+            # CMeta publishes SameMinorVersion compatibility. A selected patch
+            # upgrade must still match Base exactly via its own release manifest.
+            cmeta_version = tuple(map(int, versions['cmeta'].split('.')))
+            cmeta_minimum = tuple(map(int, dependencies['CMeta'].split('.')))
+            run_info = json.loads(run('gh', 'api',
+                f'repos/qigao/chttp/actions/runs/{manifest["producer_run"]}'))
+            if (manifest['schema'] != 1 or manifest['repository'] != 'qigao/chttp'
+                    or manifest['cmake_package'] != 'Chttp'
+                    or manifest['version'] != versions[repo]
+                    or run_info['conclusion'] != 'success'
+                    or run_info['head_sha'] != manifest['commit']
+                    or producer['asset'] != name or producer['sizeBytes'] != item['size']
+                    or 'sha256:' + producer['sha256'] != item['digest']
+                    or producer['sdk_manifest']['profile'] != selected_profile
+                    or cmeta_version[:2] != cmeta_minimum[:2]
+                    or cmeta_version < cmeta_minimum
+                    or any(dependencies[key] != versions[dependency] for key, dependency in (
+                        ('SaltsBase', 'salts-base'),
+                        ('SaltsCNet', 'salts-cnet'), ('SaltsUtils', 'salts-utils'),
+                        ('vcpkg-cache', 'vcpkg-cache')))):
+                raise ValueError('CHttp manifest does not qualify the selected SDK/dependency set')
         archive, item = download(repo, name)
         target = destination / f'{repo}-{versions[repo]}-{selected_profile}'
         receipt = dict(repository=repo, version=versions[repo], profile=selected_profile,
@@ -134,7 +179,8 @@ def main():
     cnet_profile = {'windows-llvm-mingw-x64': 'windows-x64',
                     'linux-clang-x64': 'linux-x64', 'linux-clang-arm64': 'linux-arm64',
                     'macos-clang-arm64': 'macos-arm64'}.get(profile, profile)
-    sdk('salts-cnet', 'SALTSCORE', 'lib/cmake/SaltsCore/SaltsCoreConfig.cmake', cnet_profile)
+    sdk('salts-cnet', 'SALTSCORE', 'lib/cmake/SaltsCNet/SaltsCNetConfig.cmake', cnet_profile)
+    sdk('chttp', 'CHTTP', 'lib/cmake/Chttp/ChttpConfig.cmake', profile)
     helper = infra / 'scripts/restore-native-dependency.py'
     os.environ['VCPKG_TARGET_TRIPLET'] = triplet
     lock = destination / f'vcpkg-cache-{triplet}.lock.json'
@@ -164,10 +210,6 @@ def main():
             'bin/re2c.exe' if host_rid.startswith('windows') else 'bin/re2c', 'RE2C_ROOT', True)
     package('vcpkg-cache', 'Qigao.Lemon.Binary', '1.0.0', 'tools/' + host_rid,
             'bin/lemon.exe' if host_rid.startswith('windows') else 'bin/lemon', 'LEMON_ROOT', True)
-    package('turbodb', 'TurboDB.Native', versions['turbodb'], 'sdk/' + args.rid,
-            'lib/cmake/TurboDB/TurboDBConfig.cmake', 'TURBODB_ROOT')
-    package('chttp', 'CHttp.Native', versions['chttp'], 'sdk/' + args.rid,
-            'lib/cmake/Chttp/ChttpConfig.cmake', 'CHTTP_ROOT')
     output = root / 'build/native-sdk-environment.json'
     output.write_text(json.dumps(environment, indent=2) + '\n')
     print(json.dumps(environment))
@@ -175,7 +217,7 @@ def main():
 
 VERSIONS = {'vcpkg-cache': 'VCPKG_CACHE_VERSION', 'salts-base': 'SALTS_BASE_VERSION',
             'cmeta': 'CMETA_VERSION', 'salts-utils': 'SALTS_UTILS_VERSION',
-            'salts-cnet': 'SALTS_CORE_VERSION', 'turbodb': 'TURBODB_VERSION', 'chttp': 'CHTTP_VERSION'}
+            'salts-cnet': 'SALTS_CORE_VERSION', 'chttp': 'CHTTP_VERSION'}
 PROFILES = {'windows-x64': ('windows-msvc-x64', 'x64-windows'),
             'linux-x64': ('linux-clang-x64', 'x64-linux'),
             'linux-arm64': ('linux-clang-arm64', 'arm64-linux'),

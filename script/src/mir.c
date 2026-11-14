@@ -1884,7 +1884,7 @@ MIR_reg_t ts_compile_expr(ts_mir_compiler_t *c, toad_node_t *node) {
     ts_register_helper_written_vars(c, node);
     return ts_emit_runtime_value_node(c, node);
 
-  case EXPRTK_NODE_THROW: {
+  case TOAD_NODE_THROW: {
     MIR_reg_t result = ts_emit_runtime_value_node(c, node);
     if (!c->failed)
       (void)ts_mir_managed_slots_require_terminal_at_throw(c);
@@ -2128,7 +2128,7 @@ done:
   return valid;
 }
 
-void ts_compile_stmt(ts_mir_compiler_t *c, exprtk_node_t *node) {
+void ts_compile_stmt(ts_mir_compiler_t *c, toad_node_t *node) {
   if (!c || c->failed || !node) return;
 
   /* Host export declarations are compile-time metadata. Comparing node
@@ -2329,14 +2329,14 @@ void ts_compile_stmt(ts_mir_compiler_t *c, exprtk_node_t *node) {
   }
 
   /*  break/continue/return */
-  case EXPRTK_NODE_FLOW: {
-    if (node->data.flow.type == exprtk_TOKEN_BREAK && c->loop_depth > 0) {
+  case TOAD_NODE_FLOW: {
+    if (node->data.flow.type == toad_TOKEN_BREAK && c->loop_depth > 0) {
       if (!ts_mir_managed_slot_record_loop_edge(c, 0)) break;
       MIR_append_insn(
           c->ctx, c->func,
           MIR_new_insn(c->ctx, MIR_JMP,
                        MIR_new_label_op(c->ctx, c->loop_stack[c->loop_depth - 1].break_label)));
-    } else if (node->data.flow.type == exprtk_TOKEN_CONTINUE && c->loop_depth > 0) {
+    } else if (node->data.flow.type == toad_TOKEN_CONTINUE && c->loop_depth > 0) {
       if (!ts_mir_managed_slot_record_loop_edge(c, 1)) break;
       MIR_append_insn(
           c->ctx, c->func,
@@ -2389,7 +2389,7 @@ void ts_compile_stmt(ts_mir_compiler_t *c, exprtk_node_t *node) {
   }
 
   /* For-in: native compilation for pre-bound vectors; other collections are unsupported. */
-  case EXPRTK_NODE_FOR_IN: {
+  case TOAD_NODE_FOR_IN: {
     /*
      * Evaluate the collection and loop through the runtime bridge. The old
      * native fast path baked the compile-time vector length into MIR and cached

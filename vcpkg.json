@@ -1,6 +1,6 @@
 {
-  "name": "turboscript",
-  "version-semver": "3.0.11",
+  "name": "toad",
+  "version-semver": "0.1.0",
   "dependencies": [
     "gmssl",
     {

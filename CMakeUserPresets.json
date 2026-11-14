@@ -9,16 +9,16 @@
       "name": "native-release-user",
       "displayName": "Windows llvm-mingw Release",
       "inherits": [
-        "llvm-mingw-native-environment",
-        "windows-llvm-mingw",
-        "full-native"
+        "target-llvm-mingw-x64",
+        "full-native",
+        "native-environment"
       ]
     },
     {
       "name": "llvm-native-asan-ubsan-user",
       "displayName": "Linux LLVM ASan+UBSan",
       "inherits": [
-        "llvm-native-environment",
+        "native-environment",
         "full-native-asan-ubsan",
         "toolkit-llvm-native"
       ]
@@ -27,7 +27,7 @@
       "name": "llvm-native-tsan-user",
       "displayName": "Linux LLVM TSan",
       "inherits": [
-        "llvm-native-environment",
+        "native-environment",
         "full-native-tsan",
         "toolkit-llvm-native"
       ]
@@ -36,8 +36,8 @@
       "name": "msvc-release-user",
       "displayName": "Windows MSVC Release",
       "inherits": [
-        "msvc-environment",
         "windows-msvc",
+        "native-environment",
         "full-native"
       ]
     },
@@ -45,7 +45,7 @@
       "name": "llvm-native-release-user",
       "displayName": "POSIX LLVM Release",
       "inherits": [
-        "llvm-native-environment",
+        "native-environment",
         "toolkit-llvm-native",
         "full-native"
       ]
@@ -54,8 +54,17 @@
       "name": "gcc-release-user",
       "displayName": "Linux GCC Release",
       "inherits": [
-        "gcc-environment",
+        "native-environment",
         "linux-gcc",
+        "full-native"
+      ]
+    },
+    {
+      "name": "gcc-arm64-release-user",
+      "displayName": "Linux ARM64 GCC Release",
+      "inherits": [
+        "native-environment",
+        "linux-gcc-arm64",
         "full-native"
       ]
     },
@@ -63,7 +72,7 @@
       "name": "android-release-user",
       "displayName": "Android NDK Clang Release",
       "inherits": [
-        "android-environment",
+        "vcpkg-cache",
         "android-release"
       ]
     },
@@ -71,34 +80,122 @@
       "name": "llvm-mingw-x64-release-user",
       "displayName": "llvm-mingw Windows x64 Release",
       "inherits": [
-        "llvm-mingw-x64-environment",
         "target-llvm-mingw-x64",
-        "release-mode"
+        "release-mode",
+        "native-environment"
+      ]
+    },
+    {
+      "name": "llvm-mingw-arm64-release-user",
+      "displayName": "llvm-mingw Windows ARM64 Release",
+      "inherits": [
+        "target-llvm-mingw-arm64",
+        "release-mode",
+        "native-environment"
       ]
     },
     {
       "name": "android-arm64-release-user",
       "displayName": "Android NDK arm64-v8a Release",
       "inherits": [
-        "android-arm64-environment",
-        "android-arm64-v8a-release"
+        "android-arm64-v8a-release",
+        "vcpkg-cache"
       ]
     },
     {
-      "name": "native-benchmark-user",
-      "displayName": "Windows Release benchmark graph",
-      "inherits": "native-release-user",
+      "name": "android-x64-release-user",
+      "displayName": "Android NDK x86_64 Release",
+      "inherits": [
+        "android-x86_64-release",
+        "vcpkg-cache"
+      ]
+    },
+    {
+      "name": "macos-gcc-release-user",
+      "displayName": "macOS GCC Release",
+      "inherits": [
+        "native-environment",
+        "macos-gcc",
+        "full-native"
+      ]
+    },
+    {
+      "name": "ci-vcpkg",
+      "hidden": true,
+      "description": "CI consumes restored preinstalled vcpkg-cache packages",
+      "environment": {
+        "VCPKG_INSTALLED_DIR": "$penv{SALTS_CI_VCPKG_INSTALLED_DIR}"
+      },
       "cacheVariables": {
-        "BUILD_BENCHMARK": "ON"
+        "BUILD_TESTS": "OFF",
+        "BUILD_BENCHMARK": "OFF",
+        "BUILD_EXAMPLES": "OFF"
       }
     },
     {
-      "name": "llvm-native-benchmark-user",
-      "displayName": "POSIX LLVM Release with benchmarks",
-      "inherits": "llvm-native-release-user",
+      "name": "ci-native-tests",
+      "hidden": true,
+      "inherits": "ci-vcpkg",
+      "description": "Native CI builds and executes the complete formal test graph",
       "cacheVariables": {
-        "BUILD_BENCHMARK": "ON"
+        "BUILD_TESTS": "ON"
       }
+    },
+    {
+      "name": "ci-msvc-release-user",
+      "displayName": "CI shared vcpkg cache: msvc-release-user",
+      "inherits": [
+        "ci-native-tests",
+        "msvc-release-user"
+      ]
+    },
+    {
+      "name": "ci-llvm-mingw-x64-release-user",
+      "displayName": "CI shared vcpkg cache: llvm-mingw-x64-release-user",
+      "inherits": [
+        "ci-native-tests",
+        "llvm-mingw-x64-release-user"
+      ]
+    },
+    {
+      "name": "ci-llvm-native-release-user",
+      "displayName": "CI shared vcpkg cache: llvm-native-release-user",
+      "inherits": [
+        "ci-native-tests",
+        "llvm-native-release-user"
+      ]
+    },
+    {
+      "name": "ci-gcc-release-user",
+      "displayName": "CI shared vcpkg cache: gcc-release-user",
+      "inherits": [
+        "ci-native-tests",
+        "gcc-release-user"
+      ]
+    },
+    {
+      "name": "ci-gcc-arm64-release-user",
+      "displayName": "CI shared vcpkg cache: gcc-arm64-release-user",
+      "inherits": [
+        "ci-native-tests",
+        "gcc-arm64-release-user"
+      ]
+    },
+    {
+      "name": "ci-android-arm64-release-user",
+      "displayName": "CI Android arm64-v8a Release (build and install)",
+      "inherits": [
+        "ci-vcpkg",
+        "android-arm64-release-user"
+      ]
+    },
+    {
+      "name": "ci-android-x64-release-user",
+      "displayName": "CI Android x86_64 Release (build and install)",
+      "inherits": [
+        "ci-vcpkg",
+        "android-x64-release-user"
+      ]
     }
   ],
   "buildPresets": [
@@ -191,12 +288,28 @@
       "configurePreset": "gcc-release-user"
     },
     {
+      "name": "gcc-arm64-release-user",
+      "inherits": [
+        "base-build",
+        "build-linux"
+      ],
+      "configurePreset": "gcc-arm64-release-user"
+    },
+    {
       "name": "install-gcc-release-user",
       "inherits": [
         "base-install",
         "build-linux"
       ],
       "configurePreset": "gcc-release-user"
+    },
+    {
+      "name": "install-gcc-arm64-release-user",
+      "inherits": [
+        "base-install",
+        "build-linux"
+      ],
+      "configurePreset": "gcc-arm64-release-user"
     },
     {
       "name": "android-release-user",
@@ -225,6 +338,22 @@
       "configurePreset": "llvm-mingw-x64-release-user"
     },
     {
+      "name": "llvm-mingw-arm64-release-user",
+      "inherits": [
+        "base-build",
+        "build-windows"
+      ],
+      "configurePreset": "llvm-mingw-arm64-release-user"
+    },
+    {
+      "name": "install-llvm-mingw-arm64-release-user",
+      "inherits": [
+        "base-install",
+        "build-windows"
+      ],
+      "configurePreset": "llvm-mingw-arm64-release-user"
+    },
+    {
       "name": "android-arm64-release-user",
       "inherits": "base-build",
       "configurePreset": "android-arm64-release-user"
@@ -235,36 +364,120 @@
       "configurePreset": "android-arm64-release-user"
     },
     {
-      "name": "native-benchmark-user",
+      "name": "android-x64-release-user",
+      "inherits": "base-build",
+      "configurePreset": "android-x64-release-user"
+    },
+    {
+      "name": "install-android-x64-release-user",
+      "inherits": "base-install",
+      "configurePreset": "android-x64-release-user"
+    },
+    {
+      "name": "macos-gcc-release-user",
       "inherits": [
         "base-build",
-        "build-windows"
+        "build-macos"
       ],
-      "configurePreset": "native-benchmark-user"
+      "configurePreset": "macos-gcc-release-user"
     },
     {
-      "name": "install-native-benchmark-user",
+      "name": "install-macos-gcc-release-user",
       "inherits": [
         "base-install",
-        "build-windows"
+        "build-macos"
       ],
-      "configurePreset": "native-benchmark-user"
+      "configurePreset": "macos-gcc-release-user"
     },
     {
-      "name": "llvm-native-benchmark-user",
+      "name": "ci-msvc-release-user",
       "inherits": [
-        "base-build",
-        "build-posix"
+        "msvc-release-user"
       ],
-      "configurePreset": "llvm-native-benchmark-user"
+      "configurePreset": "ci-msvc-release-user"
     },
     {
-      "name": "install-llvm-native-benchmark-user",
+      "name": "install-ci-msvc-release-user",
       "inherits": [
-        "base-install",
-        "build-posix"
+        "install-msvc-release-user"
       ],
-      "configurePreset": "llvm-native-benchmark-user"
+      "configurePreset": "ci-msvc-release-user"
+    },
+    {
+      "name": "ci-llvm-mingw-x64-release-user",
+      "inherits": [
+        "llvm-mingw-x64-release-user"
+      ],
+      "configurePreset": "ci-llvm-mingw-x64-release-user"
+    },
+    {
+      "name": "install-ci-llvm-mingw-x64-release-user",
+      "inherits": [
+        "install-llvm-mingw-x64-release-user"
+      ],
+      "configurePreset": "ci-llvm-mingw-x64-release-user"
+    },
+    {
+      "name": "ci-llvm-native-release-user",
+      "inherits": [
+        "llvm-native-release-user"
+      ],
+      "configurePreset": "ci-llvm-native-release-user"
+    },
+    {
+      "name": "install-ci-llvm-native-release-user",
+      "inherits": [
+        "install-llvm-native-release-user"
+      ],
+      "configurePreset": "ci-llvm-native-release-user"
+    },
+    {
+      "name": "ci-gcc-release-user",
+      "inherits": [
+        "gcc-release-user"
+      ],
+      "configurePreset": "ci-gcc-release-user"
+    },
+    {
+      "name": "ci-gcc-arm64-release-user",
+      "inherits": [
+        "gcc-arm64-release-user"
+      ],
+      "configurePreset": "ci-gcc-arm64-release-user"
+    },
+    {
+      "name": "install-ci-gcc-release-user",
+      "inherits": [
+        "install-gcc-release-user"
+      ],
+      "configurePreset": "ci-gcc-release-user"
+    },
+    {
+      "name": "install-ci-gcc-arm64-release-user",
+      "inherits": [
+        "install-gcc-arm64-release-user"
+      ],
+      "configurePreset": "ci-gcc-arm64-release-user"
+    },
+    {
+      "name": "ci-android-arm64-release-user",
+      "inherits": "android-arm64-release-user",
+      "configurePreset": "ci-android-arm64-release-user"
+    },
+    {
+      "name": "install-ci-android-arm64-release-user",
+      "inherits": "install-android-arm64-release-user",
+      "configurePreset": "ci-android-arm64-release-user"
+    },
+    {
+      "name": "ci-android-x64-release-user",
+      "inherits": "android-x64-release-user",
+      "configurePreset": "ci-android-x64-release-user"
+    },
+    {
+      "name": "install-ci-android-x64-release-user",
+      "inherits": "install-android-x64-release-user",
+      "configurePreset": "ci-android-x64-release-user"
     }
   ],
   "testPresets": [
@@ -317,22 +530,63 @@
       "configurePreset": "gcc-release-user"
     },
     {
-      "name": "ci-linux-sanitizer-user",
-      "inherits": "base-test",
-      "configurePreset": "ci-linux-sanitizer-user",
-      "filter": {
-        "include": {
-          "name": "^(test_turbo_script_host_(result|registry|module|instance|call|state|limits)|test_turbo_script_cflow_(mir_kernel|lower|qualification))$"
-        }
-      }
-    },
-    {
-      "name": "llvm-native-benchmark-user",
+      "name": "gcc-arm64-release-user",
       "inherits": [
         "base-test",
-        "test-posix"
+        "test-linux"
       ],
-      "configurePreset": "llvm-native-benchmark-user"
+      "configurePreset": "gcc-arm64-release-user"
+    },
+    {
+      "name": "macos-gcc-release-user",
+      "inherits": [
+        "base-test",
+        "test-macos"
+      ],
+      "configurePreset": "macos-gcc-release-user"
+    },
+    {
+      "name": "llvm-mingw-x64-release-user",
+      "inherits": [
+        "base-test",
+        "test-windows"
+      ],
+      "configurePreset": "llvm-mingw-x64-release-user"
+    },
+    {
+      "name": "ci-msvc-release-user",
+      "inherits": [
+        "msvc-release-user"
+      ],
+      "configurePreset": "ci-msvc-release-user"
+    },
+    {
+      "name": "ci-llvm-mingw-x64-release-user",
+      "inherits": [
+        "llvm-mingw-x64-release-user"
+      ],
+      "configurePreset": "ci-llvm-mingw-x64-release-user"
+    },
+    {
+      "name": "ci-llvm-native-release-user",
+      "inherits": [
+        "llvm-native-release-user"
+      ],
+      "configurePreset": "ci-llvm-native-release-user"
+    },
+    {
+      "name": "ci-gcc-release-user",
+      "inherits": [
+        "gcc-release-user"
+      ],
+      "configurePreset": "ci-gcc-release-user"
+    },
+    {
+      "name": "ci-gcc-arm64-release-user",
+      "inherits": [
+        "gcc-arm64-release-user"
+      ],
+      "configurePreset": "ci-gcc-arm64-release-user"
     }
   ]
 }

@@ -7,6 +7,11 @@ cmake_add_test(
   test_graph.c
   test_nash.c
   test_universe.c
+  test_ta.c
+  test_ta_advanced.c
+  test_ta_edge.c
+  test_timeseries.c
+  test_ts_rolling.c
   LIBS
   fin
   Salts::TinyTest

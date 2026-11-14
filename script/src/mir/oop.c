@@ -1007,7 +1007,7 @@ static MIR_reg_t ts_emit_oop_member_set_reg(ts_mir_compiler_t *c, const char *ob
 
 /* Resolve the current receiver on every access. The returned slot is
  * borrowed only for the immediately following MIR load/store; never retain an
- * exprtk_instance_t pointer across script assignments or invocations. */
+ * toad_instance_t pointer across script assignments or invocations. */
 static MIR_reg_t ts_emit_oop_numeric_slot(
     ts_mir_compiler_t *c, const char *object_name, const char *member_name,
     int create_if_missing, MIR_label_t missing_label) {
@@ -1028,7 +1028,7 @@ static MIR_reg_t ts_emit_oop_numeric_slot(
 
 MIR_reg_t ts_try_emit_oop_member_get_slot(ts_mir_compiler_t *c, const char *object_name,
                                                  const char *member_name,
-                                                 exprtk_node_t *object_node) {
+                                                 toad_node_t *object_node) {
   (void)object_node;
   if (!ts_oop_member_can_use_num_slot(c, object_name, member_name)) return 0;
 
@@ -1042,7 +1042,7 @@ MIR_reg_t ts_try_emit_oop_member_get_slot(ts_mir_compiler_t *c, const char *obje
   MIR_append_insn(c->ctx, c->func,
                   MIR_new_insn(c->ctx, MIR_DMOV, MIR_new_reg_op(c->ctx, res),
                                MIR_new_mem_op(c->ctx, MIR_T_D,
-                                              (int64_t)offsetof(exprtk_value_t, data.number),
+                                              (int64_t)offsetof(toad_value_t, data.number),
                                               slot_reg, 0, 1)));
   MIR_append_insn(c->ctx, c->func,
                   MIR_new_insn(c->ctx, MIR_JMP, MIR_new_label_op(c->ctx, done_label)));
@@ -1071,7 +1071,7 @@ static MIR_reg_t ts_try_emit_oop_member_set_slot(ts_mir_compiler_t *c, const cha
   MIR_append_insn(c->ctx, c->func,
                   MIR_new_insn(c->ctx, MIR_DMOV,
                                MIR_new_mem_op(c->ctx, MIR_T_D,
-                                              (int64_t)offsetof(exprtk_value_t, data.number),
+                                              (int64_t)offsetof(toad_value_t, data.number),
                                               slot_reg, 0, 1),
                                MIR_new_reg_op(c->ctx, value_reg)));
   MIR_append_insn(c->ctx, c->func,
@@ -1429,24 +1429,24 @@ double ts_mir_oop_member_set(void *ctx_ptr, const char *object_name, const char 
 
 void *ts_mir_oop_num_ptr(void *ctx_ptr, const char *object_name,
                          const char *member_name, int64_t create_if_missing) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
-  exprtk_instance_t *instance;
-  exprtk_value_t object;
-  exprtk_class_t *field_owner = NULL;
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
+  toad_instance_t *instance;
+  toad_value_t object;
+  toad_class_t *field_owner = NULL;
   const cmeta_data_desc *class_data;
   const cmeta_data_struct_shape *shape;
   const cmeta_data_field_desc *field;
   cmeta_object_ref reflected = CMETA_OBJECT_REF_INIT;
-  exprtk_value_t *slot;
+  toad_value_t *slot;
   int access;
 
   if (!ctx || !object_name || !member_name ||
       (create_if_missing != 0 && create_if_missing != 1))
     return NULL;
 
-  object = exprtk_env_get(&ctx->env, object_name);
-  if (object.type != EXPRTK_VAL_INSTANCE || !object.data.instance_val.instance) {
-    ctx->error_code = TURBO_SCRIPT_ERROR_RUNTIME;
+  object = toad_env_get(&ctx->env, object_name);
+  if (object.type != TOAD_VAL_INSTANCE || !object.data.instance_val.instance) {
+    ctx->error_code = TOAD_SCRIPT_ERROR_RUNTIME;
     snprintf(ctx->error_msg, sizeof(ctx->error_msg),
              "JIT runtime error: '%s.%s' requires an instance numeric field",
              object_name, member_name);
@@ -1458,10 +1458,10 @@ void *ts_mir_oop_num_ptr(void *ctx_ptr, const char *object_name,
 
   /*
    * Resolve the current instance for every access. The prior implementation
-   * cached an exprtk_instance_t pointer in MIR-immediate memory, then reused it
+   * cached an toad_instance_t pointer in MIR-immediate memory, then reused it
    * after the script variable could be reassigned and the old instance freed.
    */
-  access = exprtk_class_get_instance_field_access(
+  access = toad_class_get_instance_field_access(
       instance->klass, member_name, &field_owner);
   if (access != TOAD_ACCESS_PUBLIC ||
       toad_instance_borrow_cmeta_object(instance, &reflected) != CMETA_OK) {
@@ -1492,7 +1492,7 @@ void *ts_mir_oop_num_ptr(void *ctx_ptr, const char *object_name,
   }
   cmeta_object_release(&reflected);
 
-  slot = exprtk_instance_get_field_slot(instance, member_name);
+  slot = toad_instance_get_field_slot(instance, member_name);
   if (!slot && create_if_missing) {
     toad_instance_set_field(instance, member_name, toad_val_num(0.0));
     slot = toad_instance_get_field_slot(instance, member_name);
@@ -1504,7 +1504,7 @@ void *ts_mir_oop_num_ptr(void *ctx_ptr, const char *object_name,
         slots_begin + instance->field_slot_count * sizeof(*instance->field_slots);
     if (!slot || !instance->field_slots ||
         slot_addr < slots_begin || slot_addr >= slots_end) {
-      ctx->error_code = TURBO_SCRIPT_ERROR_RUNTIME;
+      ctx->error_code = TOAD_SCRIPT_ERROR_RUNTIME;
       snprintf(ctx->error_msg, sizeof(ctx->error_msg),
                "JIT runtime error: instance has no numeric slot field '%s'", member_name);
       snprintf(ctx->env.error_msg, sizeof(ctx->env.error_msg), "%s", ctx->error_msg);

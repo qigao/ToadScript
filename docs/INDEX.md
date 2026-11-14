@@ -34,7 +34,7 @@ DataBind 公共接口。
 
 - `parser`: 配置文本解析
 - `os`: 进程、服务、日志和系统电源操作
-- `cron`: 定时任务
+- `timer`: 一次性定时与固定延迟调度
 - `ta` / `fin` / `strategy`: 时间序列、金融与策略辅助
 - `vec`: 向量操作
 - `net` / `http`: 网络与 HTTP 能力

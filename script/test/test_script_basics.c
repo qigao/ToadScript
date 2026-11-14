@@ -167,11 +167,11 @@ spec("toad_script_basics") {
       toad_script_free(interp);
     }
 
-    it("should load crypto through its collision-safe plugin filename") {
+    it("should load finance from the assembled plugins") {
       toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
 
       check_not_null(ctx);
-      check_equal(toad_script_load_plugin(ctx, "crypto"), 0);
+      check_equal(toad_script_load_plugin(ctx, "fin"), 0);
       toad_script_free(ctx);
     }
 

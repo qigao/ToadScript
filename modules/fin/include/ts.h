@@ -1,12 +1,12 @@
 /**
- * @file fin.h
+ * @file ts.h
  * @brief Finance, TA, and Timeseries module public API.
  *
  * Provides per-env module descriptors (ta, finance, timeseries) and
  * the underlying C-level indicator / backtest / risk functions.
  */
-#ifndef FIN_H
-#define FIN_H
+#ifndef TOAD_TIMESERIES_H
+#define TOAD_TIMESERIES_H
 
 #include <toad/types.h>
 
@@ -69,4 +69,4 @@ size_t toad_ts_cum_return(const double *in, size_t n, double *out);
 }
 #endif
 
-#endif /* FIN_H */
+#endif /* TOAD_TIMESERIES_H */

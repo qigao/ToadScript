@@ -450,8 +450,8 @@ spec("toad_script_mir_oop") {
     }
 
     it("should refresh typed numeric field slots after receiver reassignment") {
-      turbo_script_ctx_t *ctx_interp = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
-      turbo_script_ctx_t *ctx_jit = turbo_script_init(TURBO_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx_interp = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
+      toad_script_ctx_t *ctx_jit = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *script =
           "class Point {"
           "  x: number = 1.0;"
@@ -467,15 +467,15 @@ spec("toad_script_mir_oop") {
           "second = p.x;"
           "result = first + second;";
 
-      check((turbo_script_run(ctx_interp, script)) == (0));
-      check((turbo_script_run_jit(ctx_jit, script)) == (0));
-      check(fabs((double)(ts_get_num(ctx_interp, "result")) - (double)(41.0)) <=
+      check((toad_script_run(ctx_interp, script)) == (0));
+      check((toad_script_run_jit(ctx_jit, script)) == (0));
+      check(fabs((double)(toad_script_get_num(ctx_interp, "result")) - (double)(41.0)) <=
             (double)(EPS));
-      check(fabs((double)(ts_get_num(ctx_jit, "result")) -
-                 (double)(ts_get_num(ctx_interp, "result"))) <= (double)(EPS));
+      check(fabs((double)(toad_script_get_num(ctx_jit, "result")) -
+                 (double)(toad_script_get_num(ctx_interp, "result"))) <= (double)(EPS));
 
-      turbo_script_free(ctx_interp);
-      turbo_script_free(ctx_jit);
+      toad_script_free(ctx_interp);
+      toad_script_free(ctx_jit);
     }
 
     it("should preserve int64 fields outside the double slot fast path") {
@@ -1181,12 +1181,12 @@ spec("toad_script_mir_oop") {
       toad_script_free(ctx_jit);
     }
 
-    it("should preserve values returned by dynamically imported OS functions") {
+    it("should preserve strings returned by imported IO functions") {
       toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
-      const char *script = "import(\"os\");"
+      const char *script = "import(\"io\");"
                            "class Result { platform: string; };"
                            "payload = Result();"
-                           "payload.platform = os.platform_name();"
+                           "payload.platform = io.os_name();"
                            "result = payload.platform;";
 
       check((toad_script_run_jit(ctx, script)) == (0));

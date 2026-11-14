@@ -164,10 +164,8 @@ MIR_reg_t ts_emit_template_string_assign(ts_mir_compiler_t *c, const char *targe
 
 /* --- Access helpers: member/index fast path + runtime helpers --- */
 MIR_reg_t ts_emit_member_access(ts_mir_compiler_t *c, const char *obj_name,
-                                       const char *member, exprtk_node_t *object_node) {
-  exprtk_value_t compile_value = exprtk_env_get(&c->ts_ctx->env, obj_name);
                                        const char *member, toad_node_t *object_node) {
-  toad_value_t obj = toad_env_get(&c->ts_ctx->env, obj_name);
+  toad_value_t compile_value = toad_env_get(&c->ts_ctx->env, obj_name);
   MIR_reg_t oop_slot = ts_try_emit_oop_member_get_slot(c, obj_name, member, object_node);
   if (oop_slot) return oop_slot;
 
@@ -179,35 +177,11 @@ MIR_reg_t ts_emit_member_access(ts_mir_compiler_t *c, const char *obj_name,
    * Map reads do not need a field cache. If the variable later becomes an
    * instance, the generic checked helper supports a NULL cache as well.
    */
-  exprtk_oop_field_cache_t *cache = NULL;
-  if (!(exprtk_value_is_object_like(&compile_value) &&
-        exprtk_map_has(&compile_value, member))) {
-    cache = (exprtk_oop_field_cache_t *)calloc(1, sizeof(*cache));
+  toad_oop_field_cache_t *cache = NULL;
+  if (!(toad_value_is_object_like(&compile_value) &&
+        toad_map_has(&compile_value, member))) {
+    cache = (toad_oop_field_cache_t *)calloc(1, sizeof(*cache));
   }
-  if (toad_value_is_object_like(&obj) && toad_map_has(&obj, member)) {
-    MIR_reg_t ptr_reg = ts_mir_get_or_add_map_ptr(c, obj_name, member);
-
-    if (ptr_reg) {
-      MIR_reg_t res = ts_mir_new_temp_reg(c);
-      MIR_append_insn(c->ctx, c->func,
-                      MIR_new_insn(c->ctx, MIR_DMOV, MIR_new_reg_op(c->ctx, res),
-                                   MIR_new_mem_op(c->ctx, MIR_T_D, 0, ptr_reg, 0, 1)));
-      return res;
-    }
-
-    MIR_reg_t res = ts_mir_new_temp_reg(c);
-    MIR_append_insn(c->ctx, c->func,
-                    MIR_new_call_insn(c->ctx, 6, MIR_new_ref_op(c->ctx, c->ext.map_get_key_proto),
-                                      MIR_new_ref_op(c->ctx, c->ext.map_get_key_import),
-                                      MIR_new_reg_op(c->ctx, res),
-                                      MIR_new_reg_op(c->ctx, c->ctx_reg),
-                                      MIR_new_uint_op(c->ctx, (uint64_t)(uintptr_t)obj_name),
-                                      MIR_new_uint_op(c->ctx, (uint64_t)(uintptr_t)member)));
-    return res;
-  }
-
-  toad_oop_field_cache_t *cache =
-      (toad_oop_field_cache_t *)calloc(1, sizeof(toad_oop_field_cache_t));
   MIR_reg_t res = ts_mir_new_temp_reg(c);
   MIR_append_insn(c->ctx, c->func,
                   MIR_new_call_insn(c->ctx, 8, MIR_new_ref_op(c->ctx, c->ext.member_get_proto),
@@ -338,27 +312,6 @@ MIR_reg_t ts_emit_index_access(ts_mir_compiler_t *c, const char *name,
                                       toad_node_t *index_node) {
   MIR_reg_t idx_reg = ts_compile_expr(c, index_node);
 
-  /* Native fast path for vectors pre-bound in env at compile time. */
-  toad_value_t existing = toad_env_get(&c->ts_ctx->env, name);
-  int is_prebound = (existing.type == TOAD_VAL_VECTOR && existing.data.vector.data != NULL);
-  if (is_prebound) {
-    MIR_reg_t ptr_reg = ts_mir_get_or_add_vec_ptr(c, name);
-
-    if (ptr_reg) {
-      MIR_reg_t idx_i = ts_mir_new_temp_ireg(c);
-      MIR_append_insn(c->ctx, c->func,
-                      MIR_new_insn(c->ctx, MIR_D2I, MIR_new_reg_op(c->ctx, idx_i),
-                                   MIR_new_reg_op(c->ctx, idx_reg)));
-
-      MIR_reg_t res = ts_mir_new_temp_reg(c);
-      MIR_append_insn(c->ctx, c->func,
-                      MIR_new_insn(c->ctx, MIR_DMOV, MIR_new_reg_op(c->ctx, res),
-                                   MIR_new_mem_op(c->ctx, MIR_T_D, 0, ptr_reg, idx_i, 8)));
-      return res;
-    }
-  }
-
-  /* Runtime helper for env-owned vectors. */
   MIR_reg_t res = ts_mir_new_temp_reg(c);
 
   /*

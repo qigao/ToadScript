@@ -418,13 +418,6 @@ def restore(rid, package_root):
         ),
         ("CHTTP_ROOT", "CHTTP_SDK_RELEASE", "CHttp.Native", "Chttp", False),
     ]
-    if rid != "macos-arm64":
-        dependencies.append(
-            (
-                "TURBODB_ROOT", "TURBODB_SDK_RELEASE",
-                "TurboDB.Native", "TurboDB", True,
-            )
-        )
 
     values = {}
     for root_var, version_var, package, cmake_name, stable in dependencies:
@@ -455,9 +448,6 @@ def restore(rid, package_root):
 
     values["RE2C_ROOT"] = re2c_root.resolve()
     values["RE2C_PACKAGE_VERSION"] = re2c_version
-    if rid == "macos-arm64":
-        values["TURBODB_ROOT"] = ""
-        values["TURBODB_SDK_RELEASE"] = ""
 
     # Fail closed: publish roots only after every selected RID payload validates.
     export(values, re2c_root.resolve() / "bin")

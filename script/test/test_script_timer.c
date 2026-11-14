@@ -8,6 +8,15 @@ static void wait_for_timers(toad_script_ctx_t *ctx) {
 }
 
 suite("Toad Executor timers") {
+  it("rejects the removed cron API") {
+    toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
+    check_not_null(ctx);
+    if (!ctx) return;
+    check_not_equal(toad_script_run(ctx, "timer.cron(\"* * * * *\", () => 1);"), 0);
+    check_equal(toad_script_timer_active_count(ctx), (size_t)0);
+    toad_script_free(ctx);
+  }
+
   it("fires after without a host coroutine context") {
     toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_BARE);
     check_not_null(ctx);

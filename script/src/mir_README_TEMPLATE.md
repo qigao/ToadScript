@@ -174,7 +174,7 @@ sum = p.x + p.y;
 
 The compiler may lower a public, CMeta-validated `number` field to a direct MIR load/store. At each access, the runtime bridge resolves the **current** receiver from the environment, validates the canonical `DataDesc` field contract, and returns that instance's field-slot address. MIR immediately reads or writes the numeric payload through that pointer.
 
-Do not retain an `exprtk_instance_t *` in a compiled callsite cache: script variables can be reassigned, and the old instance may be destroyed. A cached raw instance pointer can therefore become stale or refer to a different class's field layout. Method callsite caches remain a separate optimization.
+Do not retain a `toad_instance_t *` in a compiled callsite cache: script variables can be reassigned, and the old instance may be destroyed. A cached raw instance pointer can therefore become stale or refer to a different class's field layout. Method callsite caches remain a separate optimization.
 
 ---
 

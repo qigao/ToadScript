@@ -136,15 +136,15 @@ int64_t ts_mir_host_export_call(void *ctx_ptr, size_t export_index, const toad_v
       cmeta_data_value_destroy(toad_value_cmeta_data(), &ctx->env.error_value);
       ctx->env.error_value = copied_error;
     }
-    cmeta_data_value_destroy(exprtk_value_cmeta_data(), out_value);
-    cmeta_data_value_destroy(exprtk_value_cmeta_data(), &value);
-    exprtk_env_free(&local_env);
+    cmeta_data_value_destroy(toad_value_cmeta_data(), out_value);
+    cmeta_data_value_destroy(toad_value_cmeta_data(), &value);
+    toad_env_free(&local_env);
     return -1;
   }
   /* The published result/error owns its copy. Release a literal container
    * before the local arena; borrowed local values remain owned by the env. */
-  cmeta_data_value_destroy(exprtk_value_cmeta_data(), &value);
-  exprtk_env_free(&local_env);
+  cmeta_data_value_destroy(toad_value_cmeta_data(), &value);
+  toad_env_free(&local_env);
   return 0;
 }
 
@@ -1526,9 +1526,9 @@ static int ts_mir_runtime_value_arg(toad_node_t *node, toad_env_t *env, toad_val
     }
     /* Borrow into the destination so same-arena payloads are retained,
      * then release the evaluated owner regardless of the destination scope. */
-    exprtk_env_set(env, node->data.assignment.name, exprtk_value_borrow(*out));
-    cmeta_data_value_destroy(exprtk_value_cmeta_data(), out);
-    *out = exprtk_env_get(env, node->data.assignment.name);
+    toad_env_set(env, node->data.assignment.name, toad_value_borrow(*out));
+    cmeta_data_value_destroy(toad_value_cmeta_data(), out);
+    *out = toad_env_get(env, node->data.assignment.name);
     return 1;
 
   case TOAD_NODE_CONSTANT_DECL:
@@ -1538,9 +1538,9 @@ static int ts_mir_runtime_value_arg(toad_node_t *node, toad_env_t *env, toad_val
     }
     /* Borrow into the destination so same-arena payloads are retained,
      * then release the evaluated owner regardless of the destination scope. */
-    exprtk_env_set_constant(env, node->data.assignment.name, exprtk_value_borrow(*out));
-    cmeta_data_value_destroy(exprtk_value_cmeta_data(), out);
-    *out = exprtk_env_get(env, node->data.assignment.name);
+    toad_env_set_constant(env, node->data.assignment.name, toad_value_borrow(*out));
+    cmeta_data_value_destroy(toad_value_cmeta_data(), out);
+    *out = toad_env_get(env, node->data.assignment.name);
     return 1;
 
   case TOAD_NODE_DESTRUCTURING_ASSIGNMENT:
@@ -2199,11 +2199,11 @@ double ts_mir_value_expr_assign(void *ctx_ptr, const char *target_name, void *no
   return ts_mir_numeric_value(result);
 }
 
-double ts_mir_value_expr(void *ctx_ptr, void *node_ptr, exprtk_value_t *out_value) {
-  turbo_script_ctx_t *ctx = (turbo_script_ctx_t *)ctx_ptr;
-  exprtk_node_t *node = (exprtk_node_t *)node_ptr;
-  const cmeta_data_desc *value_data = exprtk_value_cmeta_data();
-  exprtk_value_t result = {.type = EXPRTK_VAL_NULL};
+double ts_mir_value_expr(void *ctx_ptr, void *node_ptr, toad_value_t *out_value) {
+  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
+  toad_node_t *node = (toad_node_t *)node_ptr;
+  const cmeta_data_desc *value_data = toad_value_cmeta_data();
+  toad_value_t result = {.type = TOAD_VAL_NULL};
   double numeric_result;
 
   if (!ctx || !node || !out_value) return 0.0;
@@ -2245,7 +2245,7 @@ double ts_mir_value_expr(void *ctx_ptr, void *node_ptr, exprtk_value_t *out_valu
     }
   }
 
-  if (ctx->env.flow != exprtk_FLOW_NORMAL || ctx->env.aborted)
+  if (ctx->env.flow != toad_FLOW_NORMAL || ctx->env.aborted)
     ts_mir_promote_env_error(ctx);
   numeric_result = ts_mir_numeric_value(result);
   if (cmeta_data_value_move(value_data, out_value, &result) != CMETA_OK) {
@@ -2262,11 +2262,11 @@ double ts_mir_value_expr(void *ctx_ptr, void *node_ptr, exprtk_value_t *out_valu
 
 void ts_mir_value_slot_destroy(void *value) {
   if (value == NULL) return;
-  cmeta_data_value_destroy(exprtk_value_cmeta_data(), value);
+  cmeta_data_value_destroy(toad_value_cmeta_data(), value);
 }
 
-exprtk_value_t turbo_script_mir_eval_node(const exprtk_node_t *node, exprtk_env_t *env) {
-  exprtk_value_t result = exprtk_val_num(0.0);
+toad_value_t toad_script_mir_eval_node(const toad_node_t *node, toad_env_t *env) {
+  toad_value_t result = toad_val_num(0.0);
 
   if (!node || !env) return result;
   if (!ts_mir_runtime_value_arg((toad_node_t *)node, env, &result)) {

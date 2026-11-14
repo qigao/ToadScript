@@ -94,7 +94,7 @@ MIR_reg_t ts_emit_value_expr_assign(ts_mir_compiler_t *c, const char *target_nam
 static MIR_reg_t ts_emit_value_expr(ts_mir_compiler_t *c, toad_node_t *expr_node) {
   MIR_reg_t res = ts_mir_new_temp_reg(c);
   MIR_reg_t slot =
-      ts_mir_new_managed_slot(c, exprtk_value_cmeta_data());
+      ts_mir_new_managed_slot(c, toad_value_cmeta_data());
 
   /*
    * Register the canonical lifecycle during lowering, then allocate its

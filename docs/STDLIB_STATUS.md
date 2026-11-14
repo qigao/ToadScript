@@ -7,7 +7,8 @@
 
 - `core`：表达式、字符串、集合、函数和运行时类型。
 - `mapper`：基于 Toad class 的 JSON/YAML/XML 映射。
-- `os`：进程、服务、日志、电源和 Cron 能力。
+- `os`：进程、服务、日志和电源能力。
+- `timer`：一次性定时与固定延迟调度。
 - `io`、`net`、`db`、`ta`、`fin`、`strategy`、`vec`：按各模块文档提供能力。`db` 仅通过 TurboDB::Orm 工作，数据库 driver/module 由用户显式配置。
 
 ## Mapper

@@ -1,19 +1,19 @@
 #include "tinytest.h"
 
-#include "../src/mir/turbo_script_mir_internal.h"
+#include "../src/mir/internal.h"
 
 #include <stdbool.h>
 #include <string.h>
 
 static void state_fixture(
     ts_mir_compiler_t *compiler,
-    turbo_script_ctx_t *runtime,
+    toad_script_ctx_t *runtime,
     ts_mir_managed_slot_entry_t *entry) {
   memset(compiler, 0, sizeof(*compiler));
   memset(runtime, 0, sizeof(*runtime));
   memset(entry, 0, sizeof(*entry));
   entry->ptr_reg = (MIR_reg_t)17;
-  entry->data = exprtk_value_cmeta_data();
+  entry->data = toad_value_cmeta_data();
   entry->size = entry->data->storage_type->size;
   entry->state = TS_MIR_MANAGED_SLOT_ZERO;
   compiler->managed_slots = entry;
@@ -22,16 +22,16 @@ static void state_fixture(
   compiler->ts_ctx = runtime;
 }
 
-static void reset_failure(ts_mir_compiler_t *compiler, turbo_script_ctx_t *runtime) {
+static void reset_failure(ts_mir_compiler_t *compiler, toad_script_ctx_t *runtime) {
   compiler->failed = 0;
-  runtime->error_code = TURBO_SCRIPT_ERROR_NONE;
+  runtime->error_code = TOAD_SCRIPT_ERROR_NONE;
   runtime->error_msg[0] = '\0';
 }
 
-spec("TurboScript MIR managed slot ownership state") {
+spec("Toad MIR managed slot ownership state") {
   it("tracks ZERO to LIVE to CLEANED") {
     ts_mir_compiler_t compiler;
-    turbo_script_ctx_t runtime;
+    toad_script_ctx_t runtime;
     ts_mir_managed_slot_entry_t entry;
     state_fixture(&compiler, &runtime, &entry);
 
@@ -45,11 +45,11 @@ spec("TurboScript MIR managed slot ownership state") {
 
   it("moves through canonical CMeta and rejects source cleanup") {
     ts_mir_compiler_t compiler;
-    turbo_script_ctx_t runtime;
+    toad_script_ctx_t runtime;
     ts_mir_managed_slot_entry_t entry;
-    const cmeta_data_desc *data = exprtk_value_cmeta_data();
-    exprtk_value_t source = exprtk_val_num(42.0);
-    exprtk_value_t destination;
+    const cmeta_data_desc *data = toad_value_cmeta_data();
+    toad_value_t source = toad_val_num(42.0);
+    toad_value_t destination;
 
     state_fixture(&compiler, &runtime, &entry);
     check_equal(cmeta_data_value_init_zero(data, &destination), CMETA_OK);
@@ -59,10 +59,10 @@ spec("TurboScript MIR managed slot ownership state") {
     check_equal(cmeta_data_value_move(data, &destination, &source), CMETA_OK);
     check(ts_mir_managed_slot_move(&compiler, entry.ptr_reg));
     check_equal(entry.state, TS_MIR_MANAGED_SLOT_MOVED);
-    /* exprtk_value_cmeta_data intentionally does not advertise a generic
+    /* toad_value_cmeta_data intentionally does not advertise a generic
      * is_zero query; semantic zero after move is the canonical NULL value. */
-    check_equal(source.type, EXPRTK_VAL_NULL);
-    check_equal(destination.type, EXPRTK_VAL_NUMBER);
+    check_equal(source.type, TOAD_VAL_NULL);
+    check_equal(destination.type, TOAD_VAL_NUMBER);
     check_equal(destination.data.number, 42.0);
 
     check_false(ts_mir_managed_slot_require_readable(&compiler, entry.ptr_reg));
@@ -78,7 +78,7 @@ spec("TurboScript MIR managed slot ownership state") {
 
   it("rejects double publication") {
     ts_mir_compiler_t compiler;
-    turbo_script_ctx_t runtime;
+    toad_script_ctx_t runtime;
     ts_mir_managed_slot_entry_t entry;
     state_fixture(&compiler, &runtime, &entry);
 
@@ -90,7 +90,7 @@ spec("TurboScript MIR managed slot ownership state") {
 
   it("rejects double cleanup") {
     ts_mir_compiler_t compiler;
-    turbo_script_ctx_t runtime;
+    toad_script_ctx_t runtime;
     ts_mir_managed_slot_entry_t entry;
     state_fixture(&compiler, &runtime, &entry);
 
@@ -104,7 +104,7 @@ spec("TurboScript MIR managed slot ownership state") {
 
   it("accepts equal ownership states at a branch join") {
     ts_mir_compiler_t compiler;
-    turbo_script_ctx_t runtime;
+    toad_script_ctx_t runtime;
     ts_mir_managed_slot_entry_t entry;
     ts_mir_managed_slot_snapshot_t baseline = {0};
     ts_mir_managed_slot_snapshot_t then_state = {0};
@@ -129,7 +129,7 @@ spec("TurboScript MIR managed slot ownership state") {
 
   it("rejects incompatible ownership states at a branch join") {
     ts_mir_compiler_t compiler;
-    turbo_script_ctx_t runtime;
+    toad_script_ctx_t runtime;
     ts_mir_managed_slot_entry_t entry;
     ts_mir_managed_slot_snapshot_t baseline = {0};
     ts_mir_managed_slot_snapshot_t then_state = {0};
@@ -155,7 +155,7 @@ spec("TurboScript MIR managed slot ownership state") {
 
   it("accepts an unchanged managed slot state at a loop backedge") {
     ts_mir_compiler_t compiler;
-    turbo_script_ctx_t runtime;
+    toad_script_ctx_t runtime;
     ts_mir_managed_slot_entry_t entry;
     ts_mir_managed_slot_snapshot_t entry_state = {0};
     ts_mir_managed_slot_snapshot_t backedge_state = {0};
@@ -173,7 +173,7 @@ spec("TurboScript MIR managed slot ownership state") {
 
   it("rejects a changed managed slot state at a loop backedge") {
     ts_mir_compiler_t compiler;
-    turbo_script_ctx_t runtime;
+    toad_script_ctx_t runtime;
     ts_mir_managed_slot_entry_t entry;
     ts_mir_managed_slot_snapshot_t entry_state = {0};
     ts_mir_managed_slot_snapshot_t backedge_state = {0};
@@ -194,7 +194,7 @@ spec("TurboScript MIR managed slot ownership state") {
 
   it("accepts break and continue edges that preserve loop-entry state") {
     ts_mir_compiler_t compiler;
-    turbo_script_ctx_t runtime;
+    toad_script_ctx_t runtime;
     ts_mir_managed_slot_entry_t entry;
     ts_mir_managed_slot_snapshot_t entry_state = {0};
     loop_frame_t *frame;
@@ -219,7 +219,7 @@ spec("TurboScript MIR managed slot ownership state") {
 
   it("rejects a loop control edge with a live branch-local slot") {
     ts_mir_compiler_t compiler;
-    turbo_script_ctx_t runtime;
+    toad_script_ctx_t runtime;
     ts_mir_managed_slot_entry_t entry;
     ts_mir_managed_slot_snapshot_t entry_state = {0};
     loop_frame_t *frame;
@@ -242,7 +242,7 @@ spec("TurboScript MIR managed slot ownership state") {
 
   it("rejects a break edge that changes a pre-existing slot state") {
     ts_mir_compiler_t compiler;
-    turbo_script_ctx_t runtime;
+    toad_script_ctx_t runtime;
     ts_mir_managed_slot_entry_t entry;
     ts_mir_managed_slot_snapshot_t entry_state = {0};
     loop_frame_t *frame;
@@ -268,7 +268,7 @@ spec("TurboScript MIR managed slot ownership state") {
 
   it("rejects a continue edge that disagrees with the continue target state") {
     ts_mir_compiler_t compiler;
-    turbo_script_ctx_t runtime;
+    toad_script_ctx_t runtime;
     ts_mir_managed_slot_entry_t entry;
     ts_mir_managed_slot_snapshot_t entry_state = {0};
     ts_mir_managed_slot_snapshot_t continue_state = {0};
@@ -297,7 +297,7 @@ spec("TurboScript MIR managed slot ownership state") {
 
   it("accepts a return when all managed slots are terminal") {
     ts_mir_compiler_t compiler;
-    turbo_script_ctx_t runtime;
+    toad_script_ctx_t runtime;
     ts_mir_managed_slot_entry_t entry;
     state_fixture(&compiler, &runtime, &entry);
 
@@ -309,7 +309,7 @@ spec("TurboScript MIR managed slot ownership state") {
 
   it("rejects a return with a live managed slot obligation") {
     ts_mir_compiler_t compiler;
-    turbo_script_ctx_t runtime;
+    toad_script_ctx_t runtime;
     ts_mir_managed_slot_entry_t entry;
     state_fixture(&compiler, &runtime, &entry);
 
@@ -326,7 +326,7 @@ spec("TurboScript MIR managed slot ownership state") {
 
   it("accepts a throw edge when managed slots are terminal") {
     ts_mir_compiler_t compiler;
-    turbo_script_ctx_t runtime;
+    toad_script_ctx_t runtime;
     ts_mir_managed_slot_entry_t entry;
     state_fixture(&compiler, &runtime, &entry);
 
@@ -338,7 +338,7 @@ spec("TurboScript MIR managed slot ownership state") {
 
   it("rejects a throw edge with a live managed slot obligation") {
     ts_mir_compiler_t compiler;
-    turbo_script_ctx_t runtime;
+    toad_script_ctx_t runtime;
     ts_mir_managed_slot_entry_t entry;
     state_fixture(&compiler, &runtime, &entry);
 
@@ -355,7 +355,7 @@ spec("TurboScript MIR managed slot ownership state") {
 
   it("rejects a branch-local slot that leaves a live cleanup obligation") {
     ts_mir_compiler_t compiler;
-    turbo_script_ctx_t runtime;
+    toad_script_ctx_t runtime;
     ts_mir_managed_slot_entry_t entry;
     state_fixture(&compiler, &runtime, &entry);
 
@@ -368,7 +368,7 @@ spec("TurboScript MIR managed slot ownership state") {
 
   it("rejects cleanup after move") {
     ts_mir_compiler_t compiler;
-    turbo_script_ctx_t runtime;
+    toad_script_ctx_t runtime;
     ts_mir_managed_slot_entry_t entry;
     state_fixture(&compiler, &runtime, &entry);
 

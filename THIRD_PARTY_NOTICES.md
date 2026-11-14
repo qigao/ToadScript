@@ -16,9 +16,6 @@ upstream license terms continue to apply.
 
 External dependencies resolved through vcpkg or system package managers are
 not bundled as Toad source and remain governed by their own licenses.
-TRE 0.9.0 is resolved by the shared `vcpkg-cache` overlay and linked statically
-into the fuzzy plugin. Its BSD-2-Clause notice is installed by vcpkg at
-`share/tre/copyright` and redistributed as `share/Toad/tre-copyright`.
 
 The presence of a third-party component in this repository does not change
 the Apache-2.0 license of Toad first-party code.

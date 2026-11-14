@@ -1,5 +1,188 @@
 # 上游拆分 SDK 迁移记录
 
+## 2026-11-14：按用户授权重启 Toad 0.1.0 发布系列
+
+- **明确授权**：用户要求推送全部改动并发布，随后要求删除本仓库历史 releases/packages，
+  从 v0.1.0 开始。操作范围是 qigao/TurboScript；保留其他项目、共享上游及 Git 提交历史。
+- **发布清单**：GitHub 上有八个历史 Release（3.0.2 至 3.0.10 的实际已发布版本）和
+  关联本仓库的 TurboScript.Native 包（八个版本）。已核对其他 package types，未发现
+  其他关联包；精确 inventory 保存在忽略目录 build/release-0.1.0/retirement-inventory.json。
+  清理安排在新源码资格化后、新版公开发布前，按已核对的 release/package 身份操作。
+- **版本与名称**：CMake、公开 script.h、vcpkg manifest、NuGet 元数据统一到 0.1.0，
+  新包为 Toad.Native；Native ABI epoch 保持现有值，不引入版本分发或兼容别名。
+- **CI 迁移**：旧 workflow 引用已删除的独立 host-abi/sdk-smoke 工程和失效 presets。
+  现在统一使用现有 ci presets、精确发布 SDK 恢复和完整 build graph；Windows
+  LLVM-MinGW x64、Linux Clang x64、macOS Clang arm64 执行完整 CTest，Android
+  arm64 执行交叉构建、安装及 ELF LOAD 16 KiB 对齐检查。没有改 presets 或新增项目
+  开关；旧的不可执行 sanitizer jobs 不作为本次 sanitizer 资格化声明。
+- **产物与不可变性**：CI 生成四个平台 archive、Toad.Native nupkg、SHA256SUMS，
+  每个 SDK 含版本、source commit、producer run、profile、上游版本清单。tag 发布只
+  使用通过本次 CI 的产物；不覆盖旧版本或使用 skip-duplicate/clobber 掩盖冲突。
+- **本地验证**：actionlint 通过，五处版本及 PackageId 一致性检查通过。
+  本机以新版本执行 ci-llvm-mingw-x64-release-user 的 fresh configure、完整 build、
+  59/59 CTest、install 均通过；日志在 build/release-0.1.0/。远端结果发布后另行记录。
+
+## 2026-11-14：Cron 移除后完成 LLVM-MinGW 构建与正式回归
+
+- **用户授权与范围**：TurboDB 暂不启用；删除 fuzzy，取代此前 TRE → PCRE2
+  迁移计划；Lemon/re2c 使用 vcpkg-cache 宿主工具；随后用户移除 Cron 并要求继续。
+  当前 modules 目录只装配 net/fin，不恢复已删除的其他模块。
+- **环境事实**：最初 compiler 展开为 `/bin/...` 是 shell 未加载
+  `LLVM_MINGW_ROOT`。本机 `C:/tools/llvm-mingw` 为 LLVM-MinGW 20261020 / Clang
+  23.1.4，与发布 compiler contract 匹配。`.env` 保留用户 compiler root 和凭据，
+  SDK 与 cache 根统一为 LLVM-MinGW 及 `qigao-x64-windows-llvm-mingw`。
+  `restore-native-sdks.ps1 -Local -Profile windows-llvm-mingw-x64` 只加载构建字段，
+  成功恢复后向同一 shell 导出 SDK 根及运行库 PATH；不让 CMake 隐式读 `.env`。
+  共享 vcpkg-cache helper 要求父环境 token；本地可先执行 `$env:GITHUB_TOKEN = gh auth token`。
+- **发布依赖**：vcpkg-cache 0.1.3 / Base 0.1.8 / CMeta 0.1.7 / Utils 0.1.4 /
+  CNet 0.1.12 / CHttp 0.1.0。原始 TAR/宿主工具均按既有入口恢复，不修改发布 SDK。
+  MIR 已在该 cache 的 `share/MIR` 安装，根 CMake 按 http-services 的契约加入
+  选定 preinstalled triplet prefix；无需重新安装 MIR 或新增配置变量。
+- **删除**：fuzzy 的六个文件、装配、安装 target、TRE 依赖和相关 API 文档已移除；
+  不新增 PCRE2 实现或兼容 API。TurboDB 不参与两个恢复入口及 CI 默认发布依赖。
+  Cron 的 include/link 已由用户删除，本轮移除 timer 中的 Cron kind、表达式、
+  墙钟路径、函数实现和注册；保留 after/every、现有有界槽位、closure retain/release
+  及 executor 取消/关闭协议，并在正式 timer suite 验证删除 API 后的拒绝行为。
+  Base 0.1.8 原 Cron 导出目录错误未修改，现在已无该消费依赖。
+- **生成工具**：`cmake/FindTools.cmake` 从 `RE2C_ROOT/bin`、`LEMON_ROOT/bin`
+  必需查找宿主程序；`LEMPAR` 必需来自 `LEMON_ROOT/share/lemon/lempar.c`。
+  原生/交叉构建不再要求 in-tree lemon target 或旧 template 路径。Engine 的生成
+  规则显式依赖程序、grammar、SDK template；实际 parser/lexer 生成及静态库链接已通过。
+- **fin 合并修复**：补齐 universe bindings 公开声明 include，删除三个对已不存在且
+  无实际用途的 ts_internal.h include，修复 ts.h/fin.h 重复 guard。TA/TS 源码仍归
+  fin；五个测试迁至 fin/test 并正式注册。静态 fin 不再包含测试和多个 DSO 入口，
+  各自入口组成 fin/ta/ts 插件，保留既有脚本模块名及相关测试行为。
+- **MIR 合并修复（HIGH，事实）**：当前合并残留旧 exprtk/turbo_script 标识符、
+  重复函数片段和错误的 managed-value helper 声明，且重新混入已移除的容器裸指针
+  cache。对照仓库 `e2e0aa3` 的原修复，保留当前命名和 SDK API，恢复参数寄存器
+  bound_reg、三参数 value helper 声明、按当前环境值访问容器与索引边界校验。
+  删除无调用的旧指针 helper/结构。已有 MIR/OOP/host 生命周期及 slot 状态回归通过。
+- **Windows 加载（HIGH，事实）**：RPC 的 `interface` 宏在显式 windows.h include
+  后污染 CMeta 字段；仅在 loader 的该平台 include 边界解除宏。net.dll 已存在时，
+  CMeta 的 `LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS`
+  不从 PATH 找 CHttp/CNet DLL；按 `TARGET_RUNTIME_DLLS` 在构建及安装时把确切
+  target 依赖放在插件旁边，保留加载策略，不添加 cwd/PATH 插件搜索。
+- **正式验证**：`cmake --fresh --preset llvm-mingw-x64-release-user` 配置/生成成功；
+  `cmake --build --preset llvm-mingw-x64-release-user --parallel 3` 完整 Release 图通过。
+  `cmake --fresh --preset native-release-user`、完整 build 图通过；
+  `ctest --preset native-release-user --output-on-failure --timeout 45` 为 **59/59 通过**。
+  `cmake --build --preset install-native-release-user --parallel 3` 通过，插件运行库已
+  安装到 stage/bin/plugins。`python cmake/ci/test_github_packages.py` 为 **7/7 通过**。
+  日志在忽略目录 `build/mingw-environment/`：configure-tests.log、build-tests.log、
+  ctest-full.log、install.log、build-release-final.log。CodeGraph sync 成功。
+- **验证边界**：本轮只资格化本机 Windows LLVM-MinGW Release；未重跑其他平台、
+  sanitizer 或远端 CI。未创建独立 consumer/smoke 工程。旧源码字符串扫描测试已移除，
+  managed slot 的正式 C 运行时测试继续执行。未宣称发布了新的 Toad 版本。
+- **工作区边界**：保留用户已有 staged/unstaged 改动；本轮不提交、不覆盖 presets、
+  CMakeOptions、CmakeUtils、Sanitizers、WithVs 或 manifest，不新增项目功能开关。
+
+
+## 2026-11-14：CMeta 0.1.7 正式发布，Toad 已恢复匹配的发布 SDK
+
+- **授权与发布**：用户明确要求发布 CMeta。源提交
+  `7e8740777c0dc6caa6a00c23244520f8e11ab28a` 已推送到 CMeta master，
+  源 tree 为 `00586a9aa0d15a6099c0a317e95792234fe2b63f`。
+  已同步 CMeta 的 Base 0.1.8 / CNet 0.1.12 / 固定 CNet 源码 ref CI 变量。
+  精确源码 CI `43589164253` 的十个平台及聚合结果全部成功。
+- **发布产物**：正式稳定版 https://github.com/qigao/cmeta/releases/tag/v0.1.7
+  已于 `2026-11-14T11:28:19Z` 发布。十个 SDK TAR 均为同一 CI 的原始字节，
+  未重建、未重新打包；另附 release manifest 与 SHA256SUMS，共 12 个资产。
+  发布前逐个核对原始 producer ZIP digest、TAR digest、SDK 版本、Base 依赖记录
+  及原生 JUnit；草稿上传后再次比对全部资产大小/SHA-256，公开后复核 tag
+  指向上述精确源提交。未修改旧的 v0.1.6 标签、资产或安装配置。
+- **测试证据**：八个平台的原生完整 CTest graph 全部通过，包含 Linux TSAN；
+  Windows 两平台各 120 项，Linux/macOS 六平台各 118 项。
+  Android ARM64/x64 为交叉构建及安装验收，无设备运行声明。
+  Android CMeta SDK 仅含静态 archive，没有最终共享 ELF；16 KiB PT_LOAD
+  对齐应由最终消费方链接/安装验收，发布说明未声称这些 archive 具备共享 ELF 对齐。
+- **Toad 接入**：`.env.example`、忽略的 `.env`、现有七个同名 CI 版本变量已
+  同步为 cache 0.1.3、Base 0.1.8、CMeta 0.1.7、Utils 0.1.4、CNet 0.1.12、
+  CHttp 0.1.0、TurboDB 0.1.0。恢复器实际从正式发布资产恢复完整 Windows
+  MSVC SDK 集合，CMeta 的新版本与 Base 精确约束检查通过，CHttp 的同 minor
+  CMeta patch admission 通过。环境根来自本轮恢复结果，未指向本地 CMeta build。
+  证据：`build/chttp-0.1.0-migration/restore-cmeta-0.1.7.log`。
+- **平台名称**：CNet 0.1.12 的 release profile 仍使用 `linux-x64`、
+  `linux-arm64`、`macos-arm64`、`windows-x64`；恢复器显式映射相应的
+  Clang/LLVM-MinGW profile，MSVC/GCC/Android 保持原名，不猜测其他资产。
+- **剩余阻塞（HIGH）**：在新 SDK 恢复后再次执行现有
+  `./cmake/WithVs.cmd cmake --fresh --preset msvc-release-user`，仍在读取
+  presets 时失败于 `Invalid "configurePreset": "ci-linux-sanitizer-user"`。
+  日志为同目录 `configure-cmeta-0.1.7.log`。冻结文件未改；未绕过 preset，
+  未继续 Toad build/CTest/install/package，也未触发或宣称 Toad CI 通过。
+  CMeta/Base 组合和 qjs 的旧阻塞已解除。
+- **范围**：CMeta 工作区在已发布 tag v0.1.7 上保持干净。Toad 的本地迁移改动
+  继续保留，未因 CMeta 发布而提交、推送或发布 Toad。
+
+
+## 2026-11-14：CMeta 0.1.7 已在本地验证 Base 0.1.8
+
+- 用户明确授权升级 CMeta。在相邻 `C:/projects/cpp/turbonet/cmeta` 仓库的
+  `upgrade/base-0.1.8-20261114` 分支准备 0.1.7，选择已发布 Base 0.1.8 与
+  CNet 0.1.12。MSVC x64 的完整 configure/build、120/120 项正式 CTest、
+  install 均通过；安装包精确要求 Base 0.1.8。详见该仓库 `HANDOFF.MD`。
+- 未发布 0.1.7，因此 Toad 的 release-only 版本选择仍为 CMeta 0.1.6，
+  不将 `.env` 指向未发布的本地 SDK，也不篡改旧 CMeta 发布资产。
+- CHttp 0.1.0 的生产者使用 CMeta 0.1.6。恢复器改按 CMeta 既有
+  `SameMinorVersion` 契约接纳用户明确选择的同 minor 新 patch；
+  继续通过 CMeta 自己的发布清单强制 Base 精确一致，其他依赖约束保持。
+  当前旧的 0.1.6/Base 0.1.8 不匹配组合仍会失败，未增加 fallback。
+- 修正上一轮额外添加的 GmSSL 查找：当前项目和 CMeta 测试只消费共享 CNet，
+  没有链接 `Salts::Crypto`，因此不应为未使用的导出目标引入其依赖查找。
+  Toad 的 vcpkg manifest 保持原样。
+- Toad 的完整构建仍受已记录的 preset 无效引用阻塞；新 SDK 的下游验证
+  尚未执行。未更新远端 CI 变量、提交、推送或发布。
+
+
+## 2026-11-14：接入 CHttp 0.1.0 发布 TAR，记录新的发布组合阻塞
+
+- **发布事实**：`qigao/chttp` 的 `v0.1.0` 是重启版本序列的首个稳定版。
+  SDK 为 profile-specific TAR，不再提供新的 `CHttp.Native` NuGet。
+  发布源码为 `d35801162772118e3f9eee6040140c9f892947f1`，生产 CI 为
+  `43581831745`；发布清单声明 Base 0.1.8、CMeta 0.1.6（source SDK）、
+  CNet 0.1.12、Utils 0.1.4、vcpkg-cache 0.1.3。
+  一手依据：https://github.com/qigao/chttp/releases/tag/v0.1.0
+- **实现**：复用 `restore-native-sdks.py` 的 TAR 下载、摘要和回执流程，
+  替换 CHttp 的旧 NuGet 调用，并核对 CHttp manifest、资产大小/SHA-256、
+  对应生产 CI 的成功状态和源码提交、平台与依赖版本。
+  CNet 使用新 `SaltsCNet` 包/资产布局，保留既有 `SALTSCORE_ROOT` 输入名；
+  根 CMake 必需查找 `SaltsCNet`、显式查找其静态 Crypto 所需的 GmSSL。
+  PowerShell 入口调用精确版本 Python 恢复器，支持现有调用方的 HostRid/Profile，
+  本地只加载非密钥构建输入，完整成功后才导出恢复结果；错误保留非零退出码。
+- **配置与环境**：`.env.example` 和忽略的本机 `.env` 已选择上述版本及本轮
+  版本独立的 SDK/cache/tool 路径。未改凭据、vcpkg manifest、presets、
+  CMakeOptions 或公共 CMake helper；28 个冻结文件 hash 与本轮操作前一致。
+  当前版本选择是待验证组合，不能当成已可构建的 SDK 集合。
+  未激活远端 CI 变量、触发 CI、发布包或修改上游 SDK。
+- **已验证的恢复**：更新入口实际恢复了 Windows MSVC 的 Base/CMeta/Utils/CNet/CHttp
+  资产、旧有 TurboDB/host tools 以及锁定的 vcpkg-cache。CHttp TAR 大小为
+  3474944 bytes，SHA-256 为
+  `565a977cd4dfc7b4e33547684338353b0b68afc75541ce85f0588b6dd0de6758`。
+  初次资产恢复日志在 `build/chttp-0.1.0-migration/restore.log`；
+  PowerShell 入口复用验证日志在同目录 `restore-wrapper.log`。
+- **恢复阻塞（HIGH）**：进一步核对发现，已发布 CMeta 0.1.6 的 manifest
+  和安装包要求 Base 0.1.6 EXACT。CHttp/Utils 的生产者使用的是同一 CMeta 源码
+  基于 Base 0.1.8 构建的 source SDK，不等于该已发布二进制组合。
+  已增加 CMeta manifest 约束检查，再次通过正式恢复入口验证会失败于：
+  `CMeta 0.1.6 release requires SaltsBase 0.1.6; selected 0.1.8`。
+  完整恢复结果不再被导出。日志为同目录 `restore-compatibility.log`。
+  最新 CMeta 发布仍为 0.1.6；遵守只使用已发布 SDK 的授权，不构建其源码、
+  不修改 EXACT、不换回旧 Base，也不伪造包/target。需要匹配 Base 0.1.8 的
+  正式 CMeta 二进制发布后才能继续。
+- **配置阻塞（HIGH，独立于依赖）**：实际执行
+  `./cmake/WithVs.cmd cmake --fresh --preset msvc-release-user` 时，
+  CMake 在读取当前 presets 时先失败：`Invalid "configurePreset": "ci-linux-sanitizer-user"`。
+  `cmake --list-presets` 同样失败。原始配置日志为同目录 `configure-msvc.log`。
+  用户要求冻结 presets，因此未改无效引用，也未绕过 presets 创建验证工程。
+- **旧阻塞已过期**：Utils 0.1.4 不再无条件查找无关的 QuickJS/Lua targets；
+  CHttp 0.1.0 不再要求旧聚合 Salts。Toad 未新增、使用或链接 QuickJS。
+- **验证结果与范围**：Python/PowerShell 语法、变更范围的空白检查通过，
+  `python cmake/ci/test_github_packages.py` 的 6 项现有脚本测试通过。
+  这些测试不证明新 SDK 的 C/C++ ABI 或运行时行为；build、CTest、install、
+  package 均未运行。当前 CI 另含历史 NuGet 恢复调用及旧 ci-* preset 引用，
+  本轮没有将这些旧 CI jobs 改写为新的发布流程。源码与证据临时文件仅在忽略的
+  `build/chttp-0.1.0-migration/` 和原有依赖目录。
+
+
 ## 2026-11-13：明确禁止引入 QuickJS
 
 - **用户约束**：本仓库不使用 QuickJS，不为通过配置而添加 qjs、QuickJS

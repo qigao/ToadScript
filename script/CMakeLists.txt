@@ -90,7 +90,7 @@ target_link_libraries(
   ${TARGET_NAME_LIB}
   PRIVATE toad_engine MIR::MIR CMeta::CSTL CMeta::CMeta CMeta::CFlow ${TARGET_NAME_PLUGIN_LOADER}
   PUBLIC Salts::Core Salts::DataBind
-  PRIVATE Salts::Cron Salts::Coroutine)
+  PRIVATE  Salts::Coroutine)
 
 # Enable strict warnings for modularized code
 if(MSVC)
@@ -156,7 +156,7 @@ target_link_libraries(
   ${TARGET_NAME}
   PRIVATE toad_engine MIR::MIR CMeta::CSTL CMeta::CMeta CMeta::CFlow ${TARGET_NAME_PLUGIN_LOADER}
   PUBLIC Salts::Core
-  PRIVATE Salts::Cron Salts::Coroutine)
+  PRIVATE Salts::Coroutine)
 
 cmake_install_headers(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/)
 

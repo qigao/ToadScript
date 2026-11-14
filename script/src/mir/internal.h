@@ -176,6 +176,7 @@ struct ts_mir_var_entry_s {
   MIR_reg_t reg;     // MIR register
   int dirty;         // Dirty flag: 1 = needs sync to environment
   int dynamic_value; // 1 = holds dynamic value (not numeric)
+  int bound_reg;     // 1 = parameter register; do not reload it from the environment
   int stream_value;  // 1 = compile-time known Toad Stream value
 };
 
@@ -199,41 +200,6 @@ typedef struct {
   size_t arg_count;
   int has_closure_env;
 } ts_compiled_func_t;
-
-/* =========================================================================
- * Cached vector data pointer
- * ========================================================================= */
-
-typedef struct {
-  const char *name;  // Vector variable name
-  MIR_reg_t ptr_reg; // Cached pointer register
-} ts_mir_vec_ptr_entry_t;
-
-/* =========================================================================
- * Cached map field pointer
- * ========================================================================= */
-
-typedef struct {
-  const char *obj_name; // Map variable name
-  const char *key_name; // Field key
-  MIR_reg_t ptr_reg;    // Cached pointer register
-} ts_mir_map_ptr_entry_t;
-
-/* =========================================================================
- * OOP slot cache
- * ========================================================================= */
-
-typedef struct {
-  exprtk_instance_t *instance;
-  size_t index;
-} ts_mir_oop_slot_cache_t;
-
-typedef struct {
-  const char *obj_name;
-  const char *member_name;
-  MIR_reg_t ptr_reg;
-  void *cache; // ts_mir_oop_slot_cache_t*
-} ts_mir_oop_ptr_entry_t;
 
 /* =========================================================================
  * Class type tracking for monomorphic OOP calls
@@ -527,7 +493,6 @@ void ts_emit_runtime_call(ts_mir_compiler_t *c, const char *name, size_t argc,
 MIR_reg_t ts_emit_runtime_call_assign(ts_mir_compiler_t *c, const char *target_name,
                                       const char *name, size_t argc, toad_node_t **arg_nodes);
 
-MIR_reg_t ts_mir_get_or_add_vec_ptr(ts_mir_compiler_t *c, const char *name);
 MIR_reg_t ts_emit_index_access(ts_mir_compiler_t *c, const char *name, toad_node_t *index_node);
 
 MIR_reg_t ts_try_emit_oop_member_get_slot(ts_mir_compiler_t *c, const char *object_name,
@@ -608,7 +573,8 @@ double ts_mir_call_value_assign(void *ctx_ptr, const char *target, const char *n
                                 void *call_node);
 int64_t ts_mir_host_export_call(void *ctx_ptr, size_t export_index, const toad_value_t *args,
                                 size_t arg_count, toad_value_t *out_value);
-double ts_mir_value_expr(void *ctx_ptr, void *node);
+double ts_mir_value_expr(void *ctx_ptr, void *node, toad_value_t *out_value);
+void ts_mir_value_slot_destroy(void *value);
 double ts_mir_value_expr_assign(void *ctx_ptr, const char *target, void *node);
 double ts_mir_await_value(void *ctx_ptr, void *arg_node);
 double ts_mir_await_assign(void *ctx_ptr, const char *target, void *arg_node);

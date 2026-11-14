@@ -76,7 +76,7 @@ Internal implementation details of graph data structures.
 ### OS Module
 See [OS module README](../../modules/os/README.md) for platform queries,
 shell-free child process management, default logger access, service controls,
-power controls, and in-process Cron schedules.
+and power controls. See [Timers](../advanced/timers.md) for in-process scheduling.
 
 ### Mapper / Datetime Modules
 See [Mapper README](../../modules/mapper/README.md) for class-first JSON/YAML/XML

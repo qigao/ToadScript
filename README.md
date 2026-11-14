@@ -10,7 +10,7 @@ The current practical focus is host-driven automation and data processing:
 - cooperative tasks and timers;
 - HTTP/1, HTTP/2 and WebSocket clients;
 - technical analysis, strategy, risk and time-series modules;
-- SQLite, structured-data mapping, cryptography, rules and OS integration;
+- structured-data mapping, cryptography, rules and OS integration;
 - a C API for compiling scripts, binding host values and registering native
   functions.
 
@@ -42,105 +42,121 @@ repository address is unchanged. See the [migration details](docs/architecture/e
 ## Upstream dependency versions
 
 The build consumes separately published SaltsBase, CMeta, SaltsUtils, CNet,
-CHttp and TurboDB SDKs. Select exact releases in the parent environment or
+and CHttp SDKs. Select exact releases in the parent environment or
 local `.env`; CMake does not load dotenv files or restore SDKs implicitly.
 Use the same clean release checkout for `VCPKG_CACHE_REPOSITORY_ROOT` and
 `VCPKG_CACHE_VERSION`. CI reads repository variables with the same names.
 
-The selected published set is [vcpkg-cache 0.1.3](https://github.com/qigao/vcpkg-cache/releases/tag/v0.1.3),
-[SaltsBase 0.1.5](https://github.com/qigao/salts-base/releases/tag/v0.1.5),
-[CMeta 0.1.5](https://github.com/qigao/cmeta/releases/tag/v0.1.5),
-[SaltsUtils 0.1.2](https://github.com/qigao/salts-utils/releases/tag/v0.1.2),
-[CNet 0.1.11](https://github.com/qigao/salts-cnet/releases/tag/v0.1.11), and
-[TurboDB 0.1.0](https://github.com/qigao/turbodb/releases/tag/v0.1.0).
-`.env.example` documents every version selector and local toolchain input.
+The release selectors follow [CHttp 0.1.0](https://github.com/qigao/chttp/releases/tag/v0.1.0),
+the first stable release in its restarted version series:
+[vcpkg-cache 0.1.3](https://github.com/qigao/vcpkg-cache/releases/tag/v0.1.3),
+[SaltsBase 0.1.8](https://github.com/qigao/salts-base/releases/tag/v0.1.8),
+[CMeta 0.1.7](https://github.com/qigao/cmeta/releases/tag/v0.1.7),
+[SaltsUtils 0.1.4](https://github.com/qigao/salts-utils/releases/tag/v0.1.4),
+[CNet 0.1.12](https://github.com/qigao/salts-cnet/releases/tag/v0.1.12).
+`.env.example` documents the selectors and local toolchain inputs. These
+version numbers alone do not establish a compatible binary SDK composition.
 
-**Current blockers (2026-11-13):** configuration first stops because the
-selected SaltsUtils 0.1.2 package unconditionally searches for `qjsConfig.cmake`,
-even though Toad does not use its QuickJS adapter. This is an upstream package
-boundary problem; QuickJS must not be added to this repository to satisfy it.
-[SaltsUtils 0.1.3 still performs the same unconditional lookup](https://github.com/qigao/salts-utils/blob/v0.1.3/cmake/SaltsUtilsConfig.cmake.in).
-The selected CHttp prerelease,
-[2.1.0-rc.6](https://github.com/qigao/chttp/releases/tag/v2.1.0-rc.6), still
-requires the monolithic `Salts` package and `SALTS_ROOT`. Its installed
-`ChttpConfig.cmake` cannot consume this split SDK family. The stable 2.0.0
-package also predates the split. Compatible published CHttp and SaltsUtils SDKs
-that resolve these package-boundary problems are needed before compilation and
-CTest can qualify the migration. No source-build substitution or old Salts
-ABI compatibility layer is used.
+CMeta 0.1.7 now supplies the published binary composition for Base 0.1.8.
+CHttp's producer used CMeta 0.1.6 built against the same Base; admission of the
+explicitly selected patch upgrade follows CMeta's existing `SameMinorVersion`
+contract. The restorer also enforces the selected CMeta release manifest's
+exact Base dependency. The selected Windows LLVM-MinGW SDKs have been restored
+from verified release assets, including CMeta 0.1.7 and CHttp 0.1.0.
+
+**Validated locally (2026-11-14):** LLVM-MinGW configuration, Lemon/re2c code
+generation, the complete build, all 59 formal CTests and preset installation
+pass with this SDK composition. Cron integration has been removed, including
+`timer.cron`; the released Base SDK is unchanged. Other platforms have not
+been requalified by this local run.
+
+The bundled `fuzzy` plugin and its TRE dependency have been removed.
+
+CHttp 0.1.0 uses profile-specific TAR SDKs and the `Chttp` package with
+`CHttp::` targets. It no longer requires the monolithic Salts SDK or the old
+`CHttp.Native` NuGet payload. CNet's package is now `SaltsCNet`; the existing
+`SALTSCORE_ROOT` environment input still selects its prefix. Utils 0.1.4 no
+longer eagerly discovers QuickJS/Lua for unrelated targets, so Toad does not
+need either backend to consume DataBind.
 
 The restore entry point checks the selected GitHub release asset's size and
-SHA-256 before extracting it. SaltsBase is also checked against its public
-manifest's version, platform, triplet, successful producer CI and digest.
+SHA-256 before extracting it. SaltsBase, CMeta and CHttp are also checked
+against their public release manifests, including the selected platform,
+version, producer evidence, digest and dependency constraints.
 vcpkg-cache restoration uses the shared `resolve-release` operation to create
 a literal URL/hash lock under `build/dependencies`, then `locked` to restore
 it. Other SDKs and host generators use versioned destinations and receipts;
 existing installations with different provenance fail instead of being replaced.
 The script exports this round's `SALTS_BASE_ROOT`, `CMETA_ROOT`,
-`SALTS_UTILS_ROOT`, `SALTSCORE_ROOT`, `CHTTP_ROOT`, `TURBODB_ROOT`,
+`SALTS_UTILS_ROOT`, `SALTSCORE_ROOT`, `CHTTP_ROOT`,
 `VCPKG_INSTALLED_DIR`, `RE2C_ROOT` and `LEMON_ROOT`.
 
-Third-party dependencies use `vcpkg.json` and the selected vcpkg-cache
-manifest toolchain, ports and triplets. The canonical manifest installation
-completes the restored third-party tree for Toad, including MIR and
-TRE. The shared NuGet feed is read-only; the local binary cache is writable.
+Third-party dependencies use the selected preinstalled vcpkg-cache triplet,
+including MIR. Current presets do not run the vcpkg manifest toolchain;
+CMake resolves packages from the restored prefix and fails on missing packages.
+The shared NuGet feed is read-only; the local binary cache is writable.
 Supply `GITHUB_TOKEN` in the parent environment for configuration; local SDK
 restoration can use the active `gh` login. Toad uses its own engine and MIR;
-it does not use or link the SaltsUtils QuickJS/Lua adapters. The current
-SaltsUtils package's unconditional backend lookups must be corrected upstream,
-rather than adding those backends to Toad or bypassing the package config.
-JPEG/libyuv are required by Base's exported media targets; GmSSL
+it does not use or link the SaltsUtils QuickJS/Lua adapters. Utils 0.1.4
+leaves discovery of unrelated adapters to their consumers. JPEG/libyuv belong
+to Base's Media target and are not loaded for Core-only consumers. GmSSL
 belongs to CNet's TLS/crypto dependency contract. SDKs and native plugins must
 be rebuilt together when their dependency ABI changes.
 
 ## Build and test
 
-The build consumes the latest published Salts, SaltsUtils, CHttp and TurboDB
-native SDKs, with floating NuGet versions resolved on every restore. Third-party
-libraries, including MIR, come from `vcpkg.json` and the shared
-[vcpkg-cache](https://github.com/qigao/vcpkg-cache) toolchain. TurboScript does not
-require Lua or QuickJS. CNet supplies HTTP TLS through GmSSL; this project no
-longer installs BoringSSL.
+Copy `.env.example` to an ignored `.env` and set the machine paths. Preserve
+existing credentials and unrelated settings. The local restore wrapper loads
+only the documented build/dependency fields; CMake does not read `.env`.
+Use Python 3.12+, GitHub CLI, CMake and Ninja. Supply `GITHUB_TOKEN` in the
+parent environment for shared vcpkg-cache restoration and the read-only NuGet
+binary cache. An active `gh` session can supply it as shown below.
 
-TRE is supplied by the shared `vcpkg-cache` overlay through the `tre` manifest
-dependency and `unofficial::tre::tre` CMake target. It retains the previous
-0.9.0 engine, static linkage, wide-character and approximate matching support;
-the source snapshot and existing Windows alignment patch are maintained in
-the shared port. Update the cache checkout before configuring this migration.
-For local port development, configure with the usual user preset plus
-`-DVCPKG_OVERLAY_PORTS=<vcpkg-cache-checkout>/ports`.
-Native CI checks out the shared cache contract at an immutable revision and
-uses the repository-local curl-only setup action in
-`.github/actions/setup-native-ci`.
-
-The current MIR port supports Linux, macOS and Android. It explicitly rejects
-Windows; the Windows presets retained in this repository cannot currently build
-the latest source tree. Earlier Windows test results do not apply to this tree.
-
-On Linux, install CMake 3.25+, Ninja, Python 3, curl, PowerShell 7 and the
-native C/C++ toolchain. Mono is not required. .NET SDK 8 is needed only when
-packing or publishing the NuGet artifact, not for native dependency restore.
-Set `GITHUB_TOKEN` with `read:packages` access,
-`PROJECT_ROOT` and `VCPKG_ROOT`. Keep the shared cache checkout at
-`$HOME/.cache/qigao/vcpkg-cache`. Credentials remain in the process environment.
-In one PowerShell session:
+In one PowerShell session on Windows:
 
 ```powershell
-./cmake/ci/restore-native-sdks.ps1 -Rid windows-x64 -Local
-./cmake/WithVs.cmd cmake --fresh --preset msvc-release-user
-./cmake/WithVs.cmd cmake --build --preset msvc-release-user
-./cmake/WithVs.cmd ctest --preset msvc-release-user --output-on-failure --no-tests=error
-./cmake/WithVs.cmd cmake --build --preset install-msvc-release-user
+$env:GITHUB_TOKEN = gh auth token
+./cmake/ci/restore-native-sdks.ps1 -Rid windows-x64 -Profile windows-llvm-mingw-x64 -Local
+cmake --fresh --preset native-release-user
+cmake --build --preset native-release-user
+ctest --preset native-release-user --output-on-failure --no-tests=error
+cmake --build --preset install-native-release-user
 ```
 
-The restore wrapper delegates to `cmake/ci/github_packages.py`, which reads
-NuGet v3 metadata but downloads package payloads with curl. It publishes
-`SALTS_ROOT`, `SALTS_UTILS_ROOT`, `CHTTP_ROOT`, `TURBODB_ROOT` and
-`RE2C_ROOT` only after the complete SDK set is validated.
-A separately launched IDE or shell must receive these variables too. Package
-payloads live under ignored `stage/nuget`; installation goes to
-`$PROJECT_ROOT/external/pkgs/turbo_script/release`. Debug profiles require
-explicitly selected matching SDK roots; published packages contain Release SDKs.
+Run each command only after the preceding command succeeds. The existing
+`native-release-user` preset selects LLVM-MinGW and enables the complete formal
+test graph; `llvm-mingw-x64-release-user` builds Release without tests. For MSVC,
+restore its matching SDK profile and use the existing MSVC presets through
+`WithVs.cmd`, which loads `VSDEVCMD_BAT` in the same process.
+
+The restore wrapper adds the selected SDK runtime directories to this shell's
+PATH. Windows net plugins also stage and install their CMake target runtime DLLs
+beside the plugin: CMeta's restricted explicit-path loader does not search PATH
+for plugin dependencies.
+
+`restore-native-sdks.ps1` calls `restore-native-sdks.py`, which restores exact
+release TARs for Base, CMeta, Utils, CNet and CHttp, uses the shared locked
+vcpkg-cache restore, and restores host tools through their existing package
+contracts. Database integration is currently inactive; TurboDB is excluded
+from SDK restoration and CMake assembly. It exports SDK paths only after the complete restore
+succeeds. Keep these variables in the same shell or pass them to the IDE.
+Dependency roots are versioned under ignored `build/dependencies`; synchronize
+`.env` roots and selectors with the successful restoration result.
+
+For LLVM-MinGW, set `LLVM_MINGW_ROOT` in the local `.env` to the installed
+compiler directory, for example `C:/tools/llvm-mingw`, then run in the same
+PowerShell session:
+
+```powershell
+./cmake/ci/restore-native-sdks.ps1 -Rid windows-x64 -Profile windows-llvm-mingw-x64 -Local
+cmake --preset llvm-mingw-x64-release-user --fresh
+```
+
+The restore command loads the compiler setting and exports the matching
+`qigao-x64-windows-llvm-mingw` SDK/cache paths. Starting CMake from another
+shell requires loading those inputs again. Native and cross builds use the
+restored host `RE2C_ROOT/bin/re2c`, `LEMON_ROOT/bin/lemon` and
+`LEMON_ROOT/share/lemon/lempar.c`; the grammar build depends on these files.
 
 Use `llvm-native-release-user` for Linux Clang/macOS with
 `LLVM_NATIVE_TARGET_TRIPLET` set to the matching published triplet. Linux GCC
@@ -151,13 +167,12 @@ For Android use `-Rid android-arm64-v8a -HostRid linux-x64` and
 Android execution requires a separate device runner. Other advertised compiler
 profiles require matching published SDKs; unsupported asset selections fail.
 
-PR checks also build and install the native SDKs with `ci-linux-sdk-user`,
-`ci-macos-sdk-user` and `ci-android-sdk-user`; each has an `install-` build preset.
-All platforms use the same curl-based GitHub Packages restore helper. Android
-uses a native `ci-host-tools-user` build for Lemon and the host re2c package.
-TurboDB is included
-on Linux and Android; its published SDK has no macOS slice, so the existing
-macOS package continues to omit the database module.
+The release workflow uses the current presets and exact published restore entry
+point for Windows LLVM-MinGW x64, Linux Clang x64, macOS Clang arm64 and Android
+arm64-v8a. Native jobs build and test the complete graph; Android jobs cross-build,
+install and check ELF load-segment alignment. SDK archives and `Toad.Native`
+packages record their producer commit and dependency versions. The Toad release
+series starts at [0.1.0](docs/releases/0.1.0.md).
 
 Base owns `Salts::Core`, native file/process/thread/time/UUID APIs, parsers
 and coroutine execution. CMeta owns `CMeta::CMeta`, `CMeta::CFlow`,

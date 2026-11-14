@@ -2,13 +2,10 @@ cmake_minimum_required(VERSION 3.25)
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 include(CMakeOptions.cmake)
 
-# TurboScript Project - A Simple DSL with MIR JIT Backend
-# 3.0.11 Native candidate includes Mapper CSTL and Host value-lifetime fixes.
-# The v3.0.10 release artifact remains immutable.
 # Toad Project - A Simple DSL with MIR JIT Backend
 project(
   Toad
-  VERSION 3.0.10
+  VERSION 0.1.0
   LANGUAGES C CXX)
 
 # Project configuration - output directories
@@ -34,6 +31,9 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 if(MSVC)
   add_compile_options(/experimental:c11atomics)
 endif()
+if(CMAKE_SYSTEM_NAME STREQUAL "Android")
+  add_link_options("-Wl,-z,max-page-size=16384")
+endif()
 # Enable folder organization in IDEs
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "cmake")
@@ -46,6 +46,11 @@ include(Sanitizers)
 include(GNUInstallDirs)
 include(CmakeUtils)
 
+# Presets select a preinstalled triplet without running the vcpkg toolchain.
+list(PREPEND CMAKE_PREFIX_PATH
+  "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/$ENV{VCPKG_CONFIGURATION_SUBDIR}"
+  "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}")
+
 find_package(Threads REQUIRED)
 
 find_package(SaltsBase    CONFIG REQUIRED PATHS "$ENV{SALTS_BASE_ROOT}"
@@ -54,15 +59,12 @@ find_package(CMeta    CONFIG REQUIRED PATHS "$ENV{CMETA_ROOT}"
              NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
 find_package(SaltsUtils     CONFIG REQUIRED PATHS "$ENV{SALTS_UTILS_ROOT}"
              NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
-find_package(SaltsCore     CONFIG REQUIRED PATHS "$ENV{SALTSCORE_ROOT}"
+find_package(SaltsCNet     CONFIG REQUIRED PATHS "$ENV{SALTSCORE_ROOT}"
              NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
 find_package(Chttp CONFIG REQUIRED PATHS "$ENV{CHTTP_ROOT}"
              NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
-find_package(TurboDB CONFIG REQUIRED PATHS "$ENV{TURBODB_ROOT}"
-             NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
 find_package(MIR CONFIG REQUIRED)
 find_package(xxHash CONFIG REQUIRED)
-find_package(unofficial-tre 0.9.0 CONFIG REQUIRED)
 find_package(PkgConfig REQUIRED)
 find_path(SIMDE_INCLUDE_DIRS "simde/arm/neon.h" REQUIRED)
 
@@ -77,9 +79,6 @@ add_subdirectory(modules)
 include(CMakePackageConfigHelpers)
 
 # Project-owned installation policy
-install(FILES "${unofficial-tre_DIR}/../tre/copyright"
-        DESTINATION "${CMAKE_INSTALL_DATADIR}/Toad"
-        RENAME tre-copyright)
 install(
   TARGETS toad_script toad_engine toad_syntax miniblas_linalg
   EXPORT ToadTargets
@@ -90,8 +89,8 @@ install(
 set(_toad_module_targets
     toad_net_plugin
     toad_fin_plugin
-    toad_img_plugin
-    toad_fuzzy_plugin
+    toad_ta_plugin
+    toad_ts_plugin
  )
 install(
   TARGETS ${_toad_module_targets}

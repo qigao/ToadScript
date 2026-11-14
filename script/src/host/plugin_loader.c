@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+
 static int plugin_error_set(toad_plugin_error_t *error, toad_plugin_error_code_t code,
                             toad_plugin_error_stage_t stage, uint32_t native_code,
                             const char *path, const char *format, ...);
@@ -510,6 +511,8 @@ static char *plugin_join_path(const char *directory, const char *leaf) {
 
 #if defined(_WIN32)
 #include <windows.h>
+/* Windows RPC's COM shorthand conflicts with CMeta's interface export field. */
+#undef interface
 
 static int plugin_has_path_separator(const char *path) {
   return path && (strchr(path, '\\') || strchr(path, '/') || strchr(path, ':'));

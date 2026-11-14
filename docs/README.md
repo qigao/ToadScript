@@ -116,7 +116,7 @@ Toad comes with a rich set of optional modules:
 | `net` | HTTP/1, HTTP/2 and WebSocket clients | [task/network guide](advanced/tasks.md) |
 | `db` | TurboDB::Orm connections, CFlow commands and typed queries | [db README](../modules/db/README.md) |
 | `img` | Image handles and pixel/image operations | [image README](../modules/img/README.md) |
-| `crypto`, `hash`, `fuzzy` | Cryptography, hashing and fuzzy matching | [API reference](api/api-reference.md) |
+| `crypto`, `hash` | Cryptography and hashing | [API reference](api/api-reference.md) |
 | `os` | Platform information, shell-free child processes, logging, service and power management | [os README](../modules/os/README.md) |
 
 ---

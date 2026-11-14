@@ -3,7 +3,6 @@
  * @brief Rolling, expanding, EWM window functions and return calculations.
  */
 #include "ts.h"
-#include "ts_internal.h"
 #include <toad/simd.h>
 #include <math.h>
 #include <string.h>

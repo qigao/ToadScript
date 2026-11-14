@@ -304,7 +304,13 @@ double ts_mir_call_builtin(void *ctx_ptr, void *fn_ptr, int64_t argc, double *ar
 
 double ts_mir_vec_get(void *ctx_ptr, const char *name, double index) {
   toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
-  toad_value_t val = toad_env_get(&ctx->env, name);
+  toad_value_t val;
+
+  if (!ctx || !name || !isfinite(index) ||
+      index < (double)INT_MIN || index > (double)INT_MAX)
+    return 0.0;
+
+  val = toad_env_get(&ctx->env, name);
   if (val.type == TOAD_VAL_VECTOR) {
     int idx = (int)index;
     if (idx >= 0 && (size_t)idx < val.data.vector.size)
@@ -389,39 +395,6 @@ double ts_mir_member_get_assign(void *ctx_ptr, const char *target_name, const ch
 
   toad_env_set(&ctx->env, target_name, value);
   return ts_mir_numeric_value(value);
-}
-
-void *ts_mir_vec_data(void *ctx_ptr, const char *name) {
-  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
-  toad_value_t val = toad_env_get(&ctx->env, name);
-  if (val.type == TOAD_VAL_VECTOR && val.data.vector.data) return (void *)val.data.vector.data;
-  return NULL;
-}
-
-double ts_mir_map_get_key(void *ctx_ptr, const char *obj_name, const char *key) {
-  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
-  toad_value_t obj = toad_env_get(&ctx->env, obj_name);
-  if (toad_value_is_object_like(&obj)) {
-    toad_value_t val = toad_map_get(&obj, key);
-    return ts_mir_numeric_value(val);
-  }
-  return 0.0;
-}
-
-void *ts_mir_map_num_ptr(void *ctx_ptr, const char *obj_name, const char *key) {
-  toad_script_ctx_t *ctx = (toad_script_ctx_t *)ctx_ptr;
-  toad_value_t obj = toad_env_get(&ctx->env, obj_name);
-  if (toad_value_is_object_like(&obj)) {
-    toad_value_t *vp = toad_map_get_ptr(&obj, key);
-    if (vp) {
-      if (vp->type == TOAD_VAL_INTEGER) {
-        vp->type = TOAD_VAL_NUMBER;
-        vp->data.number = (double)vp->data.integer;
-      }
-      if (vp->type == TOAD_VAL_NUMBER) return (void *)&vp->data.number;
-    }
-  }
-  return NULL;
 }
 
 void ts_mir_init_externals(ts_mir_compiler_t *c) {
@@ -596,7 +569,7 @@ void ts_mir_init_externals(ts_mir_compiler_t *c) {
         MIR_new_proto_arr(ctx, ts_mir_prefixed_item_name(c, "p_call_value_assign"), 1, &res, 4, args);
     c->ext.call_value_assign_import = MIR_new_import(ctx, "ts_mir_call_value_assign");
   }
-  /* ts_mir_value_expr(void *ctx, void *node, exprtk_value_t *out) -> double */
+  /* ts_mir_value_expr(void *ctx, void *node, toad_value_t *out) -> double */
   {
     MIR_type_t res = MIR_T_D;
     MIR_var_t args[3] = {
@@ -605,7 +578,7 @@ void ts_mir_init_externals(ts_mir_compiler_t *c) {
         MIR_new_proto_arr(ctx, ts_mir_prefixed_item_name(c, "p_value_expr"), 1, &res, 3, args);
     c->ext.value_expr_import = MIR_new_import(ctx, "ts_mir_value_expr");
   }
-  /* ts_mir_value_slot_destroy(exprtk_value_t *value) -> void */
+  /* ts_mir_value_slot_destroy(toad_value_t *value) -> void */
   {
     MIR_var_t args[1] = {{MIR_T_P, "value", 0}};
     c->ext.value_slot_destroy_proto = MIR_new_proto_arr(

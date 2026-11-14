@@ -29,6 +29,19 @@ set_target_properties(
 target_include_directories(
   ${TARGET_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
+# CMeta loads explicit plugin paths with a restricted Windows DLL search.
+# Stage the selected target dependencies beside the plugin for that contract.
+if(WIN32)
+  add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:${TARGET_NAME}>
+            $<TARGET_FILE_DIR:${TARGET_NAME}>
+    COMMAND_EXPAND_LISTS
+    VERBATIM)
+  install(FILES $<TARGET_RUNTIME_DLLS:${TARGET_NAME}>
+    DESTINATION ${CMAKE_INSTALL_BINDIR}/plugins)
+endif()
+
 cmake_install_headers(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/
                       DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/net)
 if(BUILD_TESTS)

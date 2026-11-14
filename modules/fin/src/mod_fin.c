@@ -3,6 +3,7 @@
  * ========================================================================= */
 #include <toad/engine.h>
 #include "universe.h"
+#include "universe_bindings.h"
 #include <toad/module.h>
 #include "mod_strategy.h"
 #include "fin.h"

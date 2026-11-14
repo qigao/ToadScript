@@ -33,7 +33,7 @@ request moves a nonterminal job to `CANCELLING`, publishes a cancelled status to
 its active await when present, and the shard performs the only terminal cleanup.
 No host thread resumes a coroutine directly.
 
-Timers are executor coroutines: `after` and `cron` wait with `await_for`; an
+Timers are executor coroutines: `after` waits with `await_for`; an
 `every` timer repeats that wait while its job remains scheduled. Timer callbacks
 therefore share the same serialized evaluator shard as tasks. There is no
 external timer wheel or CoroNet event loop to outlive context teardown.

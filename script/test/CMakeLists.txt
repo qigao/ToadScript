@@ -101,7 +101,7 @@ set_target_properties(
 
 cmake_add_test(
   TARGET test_ts_plugin_loader
-  SOURCES test_plugin_loader.c
+  SOURCES test_ts_plugin_loader.c
   LIBS toad_script_plugin_loader Salts::TinyTest toad_engine
   INCLUDES ${CMAKE_SOURCE_DIR}/engine/include
   DEPENDS test_plugin_loader_fixture test_plugin_loader_bad_abi
@@ -121,8 +121,8 @@ macro(add_ts_test TARGET_NAME SOURCE_FILE)
   cmake_add_test(
     TARGET ${TARGET_NAME}
     SOURCES ${SOURCE_FILE}
-    LIBS toad_script_lib Salts::TinyTest CMeta::CSTL Salts::Coroutine toad_engine ta MIR::MIR
-    DEPENDS toad_mapper_plugin toad_fin_plugin toad_ta_plugin toad_ts_plugin toad_net_plugin
+    LIBS toad_script_lib Salts::TinyTest CMeta::CSTL Salts::Coroutine toad_engine fin MIR::MIR
+    DEPENDS toad_fin_plugin toad_ta_plugin toad_ts_plugin toad_net_plugin
     FOLDER script)
 endmacro()
 
@@ -168,7 +168,7 @@ endif()
 add_ts_test(test_script_basics     test_script_basics.c)
 add_dependencies(test_script_basics
   test_plugin_loader_fixture test_plugin_loader_prefixed_conflict
-  test_plugin_loader_function toad_crypto_plugin)
+  test_plugin_loader_function)
 add_ts_test(test_script_quant      test_script_quant.c)
 add_ts_test(test_script_scientific test_script_scientific.c)
 add_ts_test(test_script_io         test_script_io.c)
@@ -183,14 +183,6 @@ if(NOT CMAKE_CROSSCOMPILING)
     ${toad_databind_service_fixture_PLUGIN_TARGET}
     ${toad_databind_error_fixture_PLUGIN_TARGET})
 endif()
-if(TARGET toad_db_plugin)
-  add_ts_test(test_script_db test_script_db.c)
-  add_dependencies(test_script_db toad_db_plugin)
-  target_compile_definitions(
-    test_script_db
-    PRIVATE TOAD_TEST_SQLITE_DRIVER_PATH="${TurboDB_DRIVER_DIR}/turbodb_driver_sqlite${CMAKE_SHARED_MODULE_SUFFIX}")
-endif()
-
 cmake_add_test(
   TARGET test_script_cmeta_bridge
   SOURCES test_script_cmeta_bridge.c
@@ -230,21 +222,21 @@ cmake_add_test(
 cmake_add_test(
   TARGET test_script_host_result
   SOURCES test_script_host_result.c
-  LIBS toad_script_lib Salts::TinyTest CMeta::CSTL toad_engine ta MIR::MIR
+  LIBS toad_script_lib Salts::TinyTest CMeta::CSTL toad_engine fin MIR::MIR
   INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../src/host
   FOLDER script)
 
 cmake_add_test(
   TARGET test_script_host_registry
   SOURCES test_script_host_registry.c
-  LIBS toad_script_lib Salts::TinyTest CMeta::CSTL toad_engine ta MIR::MIR
+  LIBS toad_script_lib Salts::TinyTest CMeta::CSTL toad_engine fin MIR::MIR
   INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../src/host
   FOLDER script)
 
 cmake_add_test(
   TARGET test_script_host_module
   SOURCES test_script_host_module.c
-  LIBS toad_script_lib Salts::TinyTest CMeta::CSTL toad_engine ta MIR::MIR
+  LIBS toad_script_lib Salts::TinyTest CMeta::CSTL toad_engine fin MIR::MIR
   INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../src/host
            ${CMAKE_CURRENT_SOURCE_DIR}/../src/mir
   FOLDER script)
@@ -252,7 +244,7 @@ cmake_add_test(
 cmake_add_test(
   TARGET test_script_host_instance
   SOURCES test_script_host_instance.c
-  LIBS toad_script_lib Salts::TinyTest CMeta::CSTL toad_engine ta MIR::MIR
+  LIBS toad_script_lib Salts::TinyTest CMeta::CSTL toad_engine fin MIR::MIR
   INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../src/host
            ${CMAKE_CURRENT_SOURCE_DIR}/../src/mir
   FOLDER script)
@@ -260,7 +252,7 @@ cmake_add_test(
 cmake_add_test(
   TARGET test_script_host_call
   SOURCES test_script_host_call.c
-  LIBS toad_script_lib Salts::TinyTest toad_engine ta MIR::MIR
+  LIBS toad_script_lib Salts::TinyTest toad_engine fin MIR::MIR
   INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../src/host
            ${CMAKE_CURRENT_SOURCE_DIR}/../src/mir
   FOLDER script)
@@ -268,7 +260,7 @@ cmake_add_test(
 cmake_add_test(
   TARGET test_script_host_state
   SOURCES test_script_host_state.c
-  LIBS toad_script_lib Salts::TinyTest toad_engine ta MIR::MIR
+  LIBS toad_script_lib Salts::TinyTest toad_engine fin MIR::MIR
   INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../src/host
            ${CMAKE_CURRENT_SOURCE_DIR}/../src/mir
   FOLDER script)
@@ -276,24 +268,18 @@ cmake_add_test(
 cmake_add_test(
   TARGET test_script_host_limits
   SOURCES test_script_host_limits.c
-  LIBS toad_script_lib Salts::TinyTest toad_engine ta MIR::MIR
+  LIBS toad_script_lib Salts::TinyTest toad_engine fin MIR::MIR
   INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../src/host
            ${CMAKE_CURRENT_SOURCE_DIR}/../src/mir
   FOLDER script)
 
 
-add_test(
-  NAME test_turbo_script_mir_managed_value_slot_contract
-  COMMAND ${CMAKE_COMMAND}
-          -DTURBOSCRIPT_SOURCE_ROOT=${CMAKE_SOURCE_DIR}
-          -P ${CMAKE_CURRENT_SOURCE_DIR}/test_mir_managed_value_slot_contract.cmake)
-
 cmake_add_test(
-  TARGET test_turbo_script_mir_managed_slot_state
+  TARGET test_script_mir_managed_slot_state
   SOURCES test_mir_managed_slot_state.c
-  LIBS turbo_script_lib Salts::TinyTest Salts::CSTL exprtk MIR::MIR
+  LIBS toad_script_lib Salts::TinyTest CMeta::CSTL toad_engine MIR::MIR
   INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../src/mir
-  FOLDER turbo_script)
+  FOLDER script)
 
 # MIR / JIT test suites (split by module)
 macro(add_mir_test TARGET_NAME SOURCE_FILE)
@@ -301,7 +287,6 @@ macro(add_mir_test TARGET_NAME SOURCE_FILE)
     TARGET ${TARGET_NAME}
     SOURCES ${SOURCE_FILE}
     LIBS toad_script_lib Salts::TinyTest CMeta::CSTL toad_engine MIR::MIR
-    DEPENDS toad_mapper_plugin
     FOLDER script)
 endmacro()
 

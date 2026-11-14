@@ -192,7 +192,6 @@ class PackagesTests(unittest.TestCase):
             ("Salts.Native", "Salts", "2.3.0-rc.17"),
             ("SaltsUtils.Native", "SaltsUtils", "4.3.0-rc.11"),
             ("CHttp.Native", "Chttp", "2.1.0-rc.6"),
-            ("TurboDB.Native", "TurboDB", "4.1.18"),
         )
         for package, cmake, version in dependencies:
             self.feed.add(
@@ -225,6 +224,41 @@ class PackagesTests(unittest.TestCase):
                     "android-arm64-v8a", self.root / "restore"
                 )
         self.assertFalse(environment.exists())
+
+    def test_restore_does_not_require_disabled_database_sdk(self):
+        versions = {
+            "Salts.Native": "2.3.0",
+            "SaltsUtils.Native": "4.3.0",
+            "CHttp.Native": "2.1.0",
+            "Qigao.Re2c.Binary": "4.6.7",
+        }
+        roots = {name: self.root / name for name in versions}
+        for name, cmake in (
+            ("Salts.Native", "Salts"),
+            ("SaltsUtils.Native", "SaltsUtils"),
+            ("CHttp.Native", "Chttp"),
+        ):
+            config = roots[name] / "sdk/linux-x64/lib/cmake" / cmake / (cmake + "Config.cmake")
+            config.parent.mkdir(parents=True)
+            config.write_text("", encoding="utf-8")
+        host = "windows-x64" if os.name == "nt" else "linux-x64"
+        executable = roots["Qigao.Re2c.Binary"] / "tools" / host / "bin" / (
+            "re2c.exe" if os.name == "nt" else "re2c"
+        )
+        executable.parent.mkdir(parents=True)
+        executable.write_text("", encoding="utf-8")
+        environment = self.root / "restored-env"
+        with patch.object(packages, "Packages") as constructor, patch.object(
+            packages, "host_rid", return_value=host
+        ), patch.object(packages.subprocess, "run"), patch.dict(
+            os.environ, {"GITHUB_ENV": str(environment)}, clear=False
+        ):
+            feed = constructor.return_value
+            feed.select.side_effect = lambda name, stable=False: versions[name]
+            feed.extract.side_effect = lambda name, version, destination: roots[name]
+            packages.restore("linux-x64", self.root / "restore")
+        self.assertIn("SALTS_ROOT=", environment.read_text())
+        self.assertNotIn("TURBODB", environment.read_text())
 
 
 if __name__ == "__main__":

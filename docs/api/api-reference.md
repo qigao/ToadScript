@@ -16,7 +16,7 @@ Complete reference for all built-in functions and standard library.
 8. [Date and Time](#date-and-time)
 9. [Type Conversion](#type-conversion)
 10. [Platform Functions](#platform-functions)
-11. [Timer and Cron](../advanced/timers.md)
+11. [Timers](../advanced/timers.md)
 12. [Managed Tasks](../advanced/tasks.md)
 
 For module-specific functions (CSV, JSON, TA, etc.), see [Module Documentation](modules/).
@@ -309,36 +309,6 @@ Load with `import("hash")`.
 | `hash.xxh64_hex(s, seed)` | Seeded xxHash64 hex | `hash.xxh64_hex("abc", 7)` |
 | `hash.xxh3_64_hex(s)` | XXH3 64-bit hash as 16 lowercase hex bytes | `hash.xxh3_64_hex("abc")` |
 | `hash.xxh3_64_hex(s, seed)` | Seeded XXH3 64-bit hash hex | `hash.xxh3_64_hex("abc", 7)` |
-
-### Fuzzy Plugin
-
-Load with `import("fuzzy")`. Search functions return a map with
-`matched`, `start`, `end`, `utf8_start`, `utf8_end`, and `text`; fuzzy
-functions also return `cost`, `insertions`, `deletions`, and `substitutions`.
-Offsets `start`/`end` are byte offsets; `utf8_start`/`utf8_end` are UTF-8
-codepoint offsets.
-
-Automaton helpers return a list of match maps. `fuzzy.levenshtein` and
-`fuzzy.agrep` use Salts Levenshtein automata. `fuzzy.ac` uses
-Salts Aho-Corasick multi-pattern matching. Their optional `mode` is
-`"utf8"` by default or `"byte"` for raw byte matching.
-
-Flags are a string: `i` case-insensitive, `n` newline mode, `l` literal mode,
-and `r` regex mode. `fuzzy.search` is literal by default; use
-`fuzzy.fuzzy_regex_search` for approximate regex matching.
-
-| Function | Description | Example |
-|----------|-------------|---------|
-| `fuzzy.search(pattern, text [, max_cost [, flags]])` | UTF-8 fuzzy literal search | `fuzzy.search("cafe", "xx cafe yy", 1)` |
-| `fuzzy.fuzzy_search(pattern, text [, max_cost [, flags]])` | Alias for `fuzzy.search` | `fuzzy.fuzzy_search("cafe", "xx cafe yy", 1)` |
-| `fuzzy.regex(pattern, text [, flags])` | UTF-8 exact regex search | `fuzzy.regex("caf.", "xx cafe yy")` |
-| `fuzzy.regex_search(pattern, text [, flags])` | Alias for `fuzzy.regex` | `fuzzy.regex_search("caf.", "xx cafe yy")` |
-| `fuzzy.fuzzy_regex_search(pattern, text [, max_cost [, flags]])` | UTF-8 fuzzy regex search | `fuzzy.fuzzy_regex_search("br.ve", "brave", 0)` |
-| `fuzzy.levenshtein(pattern, text, max_distance [, mode])` | List all Levenshtein automaton matches | `fuzzy.levenshtein("cafe", text, 1)` |
-| `fuzzy.lev(...)` / `fuzzy.agrep(...)` | Aliases for `fuzzy.levenshtein` | `fuzzy.agrep("optimise", text, 2)` |
-| `fuzzy.ac(patterns, text [, mode])` | Aho-Corasick multi-pattern search; `patterns` is a string or list of strings | `fuzzy.ac(["err","warn"], log)` |
-| `fuzzy.multi_search(...)` | Alias for `fuzzy.ac` | `fuzzy.multi_search(["foo","bar"], text)` |
-| `fuzzy.tre_version()` | TRE runtime version | `fuzzy.tre_version()` |
 
 ### Crypto Plugin
 
