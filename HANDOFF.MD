@@ -25,6 +25,16 @@
   compiler root 为 `D:\a\_temp\...`，当前 runner CMake 4.4 写 RC compiler 文件时
   把 `\a` 当作非法转义。仅在 workflow 的 compiler 环境输入边界统一为 `/`，
   不改 presets、编译器或发布 SDK。修复后重新执行完整平台矩阵。
+- **正式发布结果**：master 资格化运行 `43600628510` 全部成功后，annotated tag
+  `v0.1.0` 指向 `6968c876b62005d64cb1225295ac9b5faa06ddcd`。tag producer
+  [43600948801](https://github.com/qigao/TurboScript/actions/runs/43600948801)
+  的四个平台、pack、publish 全部成功。历史八个 Releases/附件及 TurboScript.Native
+  的八个版本已删除并复查为空；其后仅发布
+  [Toad 0.1.0](https://github.com/qigao/TurboScript/releases/tag/v0.1.0) 和 public
+  [Toad.Native 0.1.0](https://github.com/users/qigao/packages/nuget/package/Toad.Native)。
+  下载公开资产后核对全部六个文件的大小、GitHub SHA-256、SHA256SUMS，四个平台
+  archive 的版本/源码/producer/profile、公开头文件，以及 nupkg 内相同 SDK manifest
+  均一致。核验回执在忽略目录 build/release-0.1.0/publish-result.json。
 
 ## 2026-11-14：Cron 移除后完成 LLVM-MinGW 构建与正式回归
 
