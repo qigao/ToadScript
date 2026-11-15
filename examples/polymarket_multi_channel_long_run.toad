@@ -1,6 +1,6 @@
 // Bounded multi-message Polymarket example. WebSocket frames are processed in
 // ws.consume callbacks, so increasing duration does not retain every frame.
-import("./polymarket_patterns.tbs");
+import("./polymarket_patterns.toad");
 
 class SamplingPreviewObserver implements EventObserver {
     every_n = 10;

@@ -212,6 +212,8 @@ int ts_emit_direct_resolved_call(ts_mir_compiler_t *c, const char *name, size_t 
       ts_mir_fail(c, "Host function '%s' arity mismatch", name);
       return 1;
     }
+    /* CMeta scalar contracts require exact value tags before conversion. */
+    if ((entry->native_flags & TOAD_NATIVE_PRESERVE_VALUE_TYPES) != 0u) return 0;
     MIR_reg_t arr_reg = ts_emit_packed_args(c, argc, arg_regs);
     MIR_append_insn(c->ctx, c->func,
                     MIR_new_call_insn(

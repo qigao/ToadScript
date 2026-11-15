@@ -119,6 +119,8 @@ struct toad_script_ctx_s {
   toad_plugin_handle_t *plugins[TS_MAX_PLUGINS];
   char *loaded_names[TS_MAX_PLUGINS];
   size_t plugin_count;
+  struct ts_host_plugin_registration_s *host_plugins[TS_MAX_PLUGINS];
+  size_t host_plugin_count;
 
   /* MIR JIT compiler context */
   MIR_context_t mir_ctx;

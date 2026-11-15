@@ -1,8 +1,8 @@
 // One-message Polymarket smoke test. For repeated receives, use
-// polymarket_multi_channel_long_run.tbs.
+// polymarket_multi_channel_long_run.toad.
 // Refresh market token IDs from:
 // https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=3
-import("./polymarket_patterns.tbs");
+import("./polymarket_patterns.toad");
 
 var market_task = task.spawn(() => {
     var metrics = MetricsObserver();

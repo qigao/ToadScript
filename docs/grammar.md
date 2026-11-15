@@ -326,7 +326,7 @@ prices |> ta.sma(14) |> ta.rsi(14);
 ### Import
 Load and execute external script files.
 ```js
-import("utils.tbs");
+import("utils.toad");
 ```
 
 ---

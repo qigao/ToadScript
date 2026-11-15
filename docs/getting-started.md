@@ -8,7 +8,7 @@ Toad is a TypeScript/JavaScript-like embeddable scripting engine. It lowers scri
 
 ## Hello World
 
-Create a file `hello.tbs`:
+Create a file `hello.toad`:
 
 ```javascript
 var name = "World";
@@ -17,7 +17,7 @@ print("Hello, " + name + "!");
 
 Run it:
 ```bash
-toad --file hello.tbs
+toad --file hello.toad
 ```
 
 Output:
@@ -209,7 +209,7 @@ file_truncate("backup.txt", 5);
 
 // Directory listing and recursive directories
 var files = listdir(".");
-var scripts = glob("*.tbs");
+var scripts = glob("*.toad");
 mkdir_recursive("data/tmp/cache");
 rmdir_recursive("data/tmp");
 ```
@@ -284,7 +284,7 @@ print("RSI: " + latest_rsi);
 print("Signal: " + signal);
 ```
 
-The checked-in version is [examples/getting_started.tbs](../examples/getting_started.tbs)
+The checked-in version is [examples/getting_started.toad](../examples/getting_started.toad)
 and is executed by the test suite.
 
 ---

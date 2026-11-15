@@ -1,0 +1,12 @@
+add_library(example_calibration MODULE calibration.c)
+target_link_libraries(example_calibration PRIVATE Toad::PluginABI)
+cmake_config_target(example_calibration FOLDER examples/native_modules)
+
+add_library(example_maintenance MODULE maintenance.cpp)
+target_link_libraries(example_maintenance PRIVATE Toad::PluginABI)
+cmake_config_target(example_maintenance FOLDER examples/native_modules)
+
+add_executable(example_native_modules host.c)
+target_link_libraries(example_native_modules PRIVATE toad_script CMeta::Plugin)
+cmake_config_target(example_native_modules FOLDER examples/native_modules)
+add_dependencies(example_native_modules example_calibration example_maintenance)

@@ -4,16 +4,16 @@
 
 | 示例 | 模式 | 适用边界 |
 |------|------|----------|
-| `factory_builder.tbs` | Factory、Builder | 创建实现需要按配置选择；复杂对象需要分步校验 |
-| `adapter_decorator.tbs` | Adapter、Decorator | 隔离旧接口；按需组合输出职责 |
-| `composite_visitor.tbs` | Composite、Visitor | 递归树结构稳定，而统计操作需要独立扩展 |
-| `command_memento.tbs` | Command、Memento | 操作需要记录、撤销和重做 |
-| `state_chain.tbs` | State、Chain of Responsibility | 状态转换与输入校验链分别变化 |
+| `factory_builder.toad` | Factory、Builder | 创建实现需要按配置选择；复杂对象需要分步校验 |
+| `adapter_decorator.toad` | Adapter、Decorator | 隔离旧接口；按需组合输出职责 |
+| `composite_visitor.toad` | Composite、Visitor | 递归树结构稳定，而统计操作需要独立扩展 |
+| `command_memento.toad` | Command、Memento | 操作需要记录、撤销和重做 |
+| `state_chain.toad` | State、Chain of Responsibility | 状态转换与输入校验链分别变化 |
 
 运行单个示例：
 
 ```powershell
-.\build\Msvc\bin\toad.exe --file .\examples\gof\factory_builder.tbs
+.\build\Msvc\bin\toad.exe --file .\examples\gof\factory_builder.toad
 ```
 
 设计约束：

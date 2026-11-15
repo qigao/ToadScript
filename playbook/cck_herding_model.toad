@@ -1,5 +1,5 @@
 /**
- * @strategy cck_herding_model.tbs
+ * @strategy cck_herding_model.toad
  *
  * Implements the Chang, Cheng, and Khorana (2000) Herding Model.
  * Adapted from QuantsPlaybook Category C (Timing).

@@ -891,14 +891,17 @@ os_name(), pid(), uptime_ms(), monotonic_ms()
 
 加载其他 Toad 文件：
 
+脚本导入路径统一使用区分大小写的 `.toad` 后缀。迁移时请重命名旧 `.tbs`
+文件并更新导入路径；`import()` 和 `import_module()` 不再将旧后缀识别为脚本。
+
 ```javascript
-// utils.tbs
+// utils.toad
 func helper(x) {
     return x * 2;
 }
 
-// main.tbs
-import("utils.tbs");
+// main.toad
+import("utils.toad");
 var result = helper(5);  // 10
 ```
 

@@ -17,6 +17,7 @@ It is not a full TypeScript implementation and does not try to replace Pandas/Nu
 
 ### For Developers
 - **[Plugin Development](PLUGIN_SYSTEM.md)** - Extend Toad with C/C++ plugins
+- **[Native Module Example](../examples/native_modules/README.md)** - Compose C/C++ CMeta plugins in a closed Host module
 - **[Module Documentation](modules/)** - Domain-specific module guides
 - **[Architecture](advanced/architecture.md)** - Internal design and implementation
 - **[DSL Charter](DSL_CHARTER.md)** - Language scope, semantic contracts, and roadmap

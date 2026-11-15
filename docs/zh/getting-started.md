@@ -8,7 +8,7 @@ Toad 是一个 TypeScript/JavaScript-like 语法的嵌入式脚本引擎。脚�
 
 ## Hello World
 
-创建文件 `hello.tbs`：
+创建文件 `hello.toad`：
 
 ```javascript
 var name = "World";
@@ -17,7 +17,7 @@ print("Hello, " + name + "!");
 
 运行：
 ```bash
-toad --file hello.tbs
+toad --file hello.toad
 ```
 
 输出：
@@ -209,7 +209,7 @@ file_truncate("backup.txt", 5);
 
 // 目录列举
 var files = listdir(".");
-var scripts = glob("*.tbs");
+var scripts = glob("*.toad");
 
 // 递归目录
 mkdir_recursive("data/tmp/cache");
@@ -286,7 +286,7 @@ print("RSI: " + latest_rsi);
 print("信号: " + signal);
 ```
 
-仓库版本见 [examples/getting_started.tbs](../../examples/getting_started.tbs)，并由
+仓库版本见 [examples/getting_started.toad](../../examples/getting_started.toad)，并由
 测试套件实际执行。
 
 ---

@@ -5,7 +5,7 @@ include(CMakeOptions.cmake)
 # Toad Project - A Simple DSL with MIR JIT Backend
 project(
   Toad
-  VERSION 0.1.2
+  VERSION 0.1.3
   LANGUAGES C CXX)
 
 # Project configuration - output directories
@@ -80,7 +80,7 @@ include(CMakePackageConfigHelpers)
 
 # Project-owned installation policy
 install(
-  TARGETS toad_script toad_engine toad_syntax miniblas_linalg
+  TARGETS toad_script toad_engine toad_syntax toad_plugin_abi miniblas_linalg
   EXPORT ToadTargets
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

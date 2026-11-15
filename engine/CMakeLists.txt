@@ -1,5 +1,13 @@
 set(TARGET_NAME toad_engine)
 
+# Native function producers need publication headers, not the Engine runtime.
+add_library(toad_plugin_abi INTERFACE)
+cmake_config_target(toad_plugin_abi ALIAS Toad::PluginABI EXPORT_NAME PluginABI FOLDER engine)
+target_include_directories(toad_plugin_abi INTERFACE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_link_libraries(toad_plugin_abi INTERFACE CMeta::PluginABI)
+
 # =============================================================================
 # re2c Generated Files
 # =============================================================================

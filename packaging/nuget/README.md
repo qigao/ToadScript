@@ -17,16 +17,17 @@
 `find_package(Toad CONFIG REQUIRED)` 并链接 `Toad::Script`。
 宿主入口为 `<toad/script.h>` 和 `toad_script_*`；独立引擎入口为
 `<toad/engine.h>` 和 `Toad::Engine`。更名前的宿主及原生插件需要更新
-include、符号和 CMake 引用后一起重编译。`.tbs` 文件保留，CMeta 和插件
+include、符号和 CMake 引用后一起重编译。脚本统一使用 `.toad` 扩展名，
+请同步重命名文件和更新导入路径。CMeta 和插件
 协议身份统一到 `toad.*`，旧身份不提供兼容别名。
 插件使用者还需部署所需的匹配依赖动态库；Android 应用需部署 `libc++_shared.so`。
 
 ## 打包与验证
 
 正式版本由 `CMakeLists.txt`、根 `vcpkg.json`、公开头文件、Git tag 和
-`Toad.Native.csproj` 共同约束，当前源码版本为 `0.1.0`。
-发布 workflow 要求对应 `v0.1.0` tag；普通 CI 的
-`0.1.0-ci.<run>.<attempt>` 包只作为 artifact。每个 SDK 的
+`Toad.Native.csproj` 共同约束，当前源码版本为 `0.1.3`。
+发布 workflow 要求对应 `v0.1.3` tag；普通 CI 的
+`0.1.3-ci.<run>.<attempt>` 包只作为 artifact。每个 SDK 的
 `toad-sdk-manifest.json` 记录实际源码提交、依赖版本和平台。
 
 验证使用本项目现有 presets、完整 build graph、正式 CTest 和 install/package

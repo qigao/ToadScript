@@ -5,7 +5,7 @@
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <PackageId>Toad.Native</PackageId>
-    <PackageVersion Condition="'$(PackageVersion)' == ''">0.1.2</PackageVersion>
+    <PackageVersion Condition="'$(PackageVersion)' == ''">0.1.3</PackageVersion>
     <Authors>qigao</Authors>
     <Description>Toad MIR interpreter/JIT and native module SDK for Windows LLVM-MinGW x64, Linux x64, macOS arm64 and Android arm64-v8a. Bundled native modules are included; CLI is excluded.</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>

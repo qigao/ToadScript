@@ -918,21 +918,23 @@ var filtered = csv.filter(data, "price > 100");
 Script imports now support an explicit export surface:
 
 ```javascript
-// math_utils.tbs
+// math_utils.toad
 func add1(x) { return x + 1; };
 export("add1");
 export("answer", 41);
 
-// main.tbs
-var mod = import("./math_utils.tbs");
+// main.toad
+var mod = import("./math_utils.toad");
 var f = mod.add1;
 var result = f(4) + mod.answer;   // 46
 ```
 
 Current contract:
 
-- `import("./file.tbs")` executes the script once.
-- Script import paths must end with `.tbs`; `.ts` is not recognized as a Toad source extension.
+- `import("./file.toad")` executes the script once.
+- Script import paths must end with the case-sensitive `.toad` suffix. Rename
+  legacy `.tbs` files and update their import paths; `.tbs` and `.ts` are no
+  longer recognized as Toad source extensions.
 - If the script calls `export(...)`, `import()` returns a `map` of exported names.
 - Re-importing the same resolved script path uses the cached module result and does not re-execute the file.
 - Scripts that rely on global side effects still work, but new scripts should prefer explicit exports.
@@ -942,24 +944,24 @@ Current contract:
 When you want module exports without global leakage, use `import_module()`:
 
 ```javascript
-// scoped_math.tbs
+// scoped_math.toad
 shared = 99;
 secret = 5;
 func add_secret(x) { return x + secret; };
 export("add_secret");
 export("shared");
 
-// caller.tbs
+// caller.toad
 shared = 7;
-var mod = import_module("./scoped_math.tbs");
+var mod = import_module("./scoped_math.toad");
 var out = mod.add_secret(3);   // 8
 var keep = shared;             // still 7
 ```
 
 Current contract:
 
-- `import_module("./file.tbs")` only accepts script paths.
-- Module script paths must end with `.tbs`.
+- `import_module("./file.toad")` only accepts script paths.
+- Module script paths must end with `.toad`.
 - The imported script runs against an isolated variable snapshot, not the caller's global scope.
 - Explicit exports remain available through the returned `map`.
 - Re-importing the same resolved script path reuses the cached isolated module result.
@@ -1003,13 +1005,13 @@ are available through `datetime.parse()`, `date.parse()`, `time.parse()`, and
 Load other Toad files:
 
 ```javascript
-// utils.tbs
+// utils.toad
 func helper(x) {
     return x * 2;
 }
 
-// main.tbs
-import("utils.tbs");
+// main.toad
+import("utils.toad");
 var result = helper(5);  // 10
 ```
 

@@ -10,6 +10,7 @@ add_library(
   ${TARGET_NAME_PLUGIN_LOADER}
   STATIC
   src/host/plugin_loader.c
+  src/host/plugin_function.c
   src/host/plugin_databind.c
   src/host/plugin_databind.h)
 cmake_config_target(${TARGET_NAME_PLUGIN_LOADER} FOLDER script)
@@ -41,6 +42,7 @@ set(SOURCE_FILES
   src/host/limits.c
   src/host/module.c
   src/host/registry.c
+  src/host/plugin.c
   src/host/result.c
   src/mir_mod.c
   src/script.c
@@ -89,7 +91,7 @@ target_include_directories(
 target_link_libraries(
   ${TARGET_NAME_LIB}
   PRIVATE toad_engine MIR::MIR CMeta::CSTL CMeta::CMeta CMeta::CFlow ${TARGET_NAME_PLUGIN_LOADER}
-  PUBLIC Salts::Core Salts::DataBind
+  PUBLIC Salts::Core Salts::DataBind CMeta::Plugin
   PRIVATE  Salts::Coroutine)
 
 # Enable strict warnings for modularized code
@@ -155,7 +157,7 @@ endif()
 target_link_libraries(
   ${TARGET_NAME}
   PRIVATE toad_engine MIR::MIR CMeta::CSTL CMeta::CMeta CMeta::CFlow ${TARGET_NAME_PLUGIN_LOADER}
-  PUBLIC Salts::Core
+  PUBLIC Salts::Core CMeta::Plugin
   PRIVATE Salts::Coroutine)
 
 cmake_install_headers(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/)
@@ -165,3 +167,4 @@ if(BUILD_TESTS OR BUILD_BENCHMARK)
   add_subdirectory(test)
 endif()
 add_subdirectory(app)
+add_subdirectory(${CMAKE_SOURCE_DIR}/examples/native_modules ${CMAKE_CURRENT_BINARY_DIR}/native_modules)

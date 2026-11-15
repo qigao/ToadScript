@@ -423,3 +423,58 @@
   LLVM-MinGW Release suite is 43/43; the real Program regression (including
   owner concurrency and generation publication) also passed 20 repeated runs.
   No unqualified local Toad SDK was substituted for this consumer verification.
+
+## 2026-11-15: CMeta native module authoring and explicit Host attachment
+
+- Existing DSO discovery already used CMeta::Plugin, but the legacy module macro
+  duplicated manifest/query publication and closed Host modules could only call
+  manually registered Host callbacks. Module publication now delegates to
+  CMETA_PLUGIN_DECLARE. TOAD_PLUGIN_FUNCTION/FUNCTION0 reuse CMeta exact invoke
+  and value-result declarations; old interface layouts and imports remain intact.
+- The exported header-only Toad::PluginABI target supplies producer headers and
+  CMeta::PluginABI without an Engine/Script runtime dependency. The new
+  toad_script_context_register_plugin explicitly attaches a STARTED passive
+  Function plugin from a caller-owned address-stable registry. It validates all
+  signatures/collisions/capacity and rolls back failed registration; it performs
+  no alternate loading or implicit start. Existing dependency versions, presets
+  and feature options are unchanged.
+- HIGH / fact: initial typed Host regressions exposed Engine callback and MIR
+  numeric-slot conversion of INT64 to double before CMeta admission. Attached
+  plugin rows now use the existing PRESERVE_VALUE_TYPES contract and value call
+  bridge. Integer/bool tags and native int/long bounds are checked before invoke;
+  floating arguments reject lossy large-integer promotion and non-finite values.
+  Ordinary Host callbacks retain their prior conversion behavior. HOST_ERROR
+  faults the instance under the existing contract; recreate it after destruction.
+- Each attachment owns a lease until final context cleanup, including retained
+  module/instance/result references after early context close. Callback borrows
+  end before lease release. Unregistering a callback does not detach its provider.
+  The caller must keep the registry alive and stationary through that interval.
+  Native code remains trusted; scalar attachment does not prove purity/isolation.
+- examples/native_modules contains independent C11/C++17 producers and a Host
+  composing them in both interpreter/JIT, checking cost=132. The Script-owned
+  test_script_host_plugin suite has 11 cases covering composition, scalar tags,
+  nested helpers, void side effects, conversion failures, collisions, capacity,
+  unsupported result/interface manifests, owner/state gates and lease retention.
+- Validation: cmake --preset native-release-user; cmake --build --preset
+  native-release-user; ctest --preset native-release-user --output-on-failure:
+  63/63 passed with released CMeta 0.1.7/Base 0.1.8 on LLVM-MinGW x64 Release.
+  cmake --build --preset install-native-release-user also passed. No sanitizer
+  or other-platform result is claimed; no independent consumer project was added.
+  The additive API is local source newer than released 0.1.2. No release was
+  published and RulesForge's released SDK selection was not changed by this task.
+
+## 2026-11-15: Script extension migration to .toad
+
+- Renamed all 21 repository scripts to .toad, including the CLI failure fixture.
+  Updated imports, CTest paths, playbook annotations and current documentation.
+  Earlier release notes and historical entries describe their original releases.
+- The import classifier previously hardcoded a four-byte suffix. It now derives
+  the suffix length from the .toad literal, covering both import/import_module.
+  This intentionally replaces .tbs admission: consumers must rename scripts and
+  update their import paths together. Native plugin names are unaffected.
+- The formal quant/IO suites cover nested relative imports, cached exports and
+  isolated modules using .toad. Negative cases reject .tbs, .ts, .toad.bak and
+  uppercase .TOAD without executing their contents through either import API.
+- native-release-user configure/full build and CTest passed 63/63; the install
+  preset passed on LLVM-MinGW x64 Release. Presets/options and released SDKs were
+  not changed. Ignored editor/session history was not rewritten.

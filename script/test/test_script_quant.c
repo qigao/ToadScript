@@ -314,11 +314,11 @@ spec("toad_script_quant") {
 
       // Write it using native file_write (or just setup beforehand? native is easier if we have
       // ctx) But we can use toad_script_run to write it!
-      toad_script_run(ctx, "write_file(\"utils.tbs\", "
+      toad_script_run(ctx, "write_file(\"utils.toad\", "
                             "\"var MODULE_VERSION = 2.0; func square(x) { return x * x; };\");");
 
       // Main script
-      const char *script = "import(\"utils.tbs\"); "
+      const char *script = "import(\"utils.toad\"); "
                            "res = square(5); "
                            "ver = MODULE_VERSION;";
 
@@ -327,15 +327,15 @@ spec("toad_script_quant") {
       check(fabs((double)(toad_script_get_num(ctx, "ver")) - (double)(2.0)) <= (double)(0.1));
 
       // Clean up
-      toad_script_run(ctx, "file_remove(\"utils.tbs\");");
+      toad_script_run(ctx, "file_remove(\"utils.toad\");");
       toad_script_free(ctx);
     }
 
     it("should resolve nested relative script imports from run_file") {
       toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
       const char *util_src = "func helper(x) { return x + 1; };";
-      const char *child_src = "import(\"./utils.tbs\");";
-      const char *main_src = "import(\"sub/child.tbs\"); res = helper(7);";
+      const char *child_src = "import(\"./utils.toad\");";
+      const char *main_src = "import(\"sub/child.toad\"); res = helper(7);";
       char root_dir[SALTS_FS_MAX_PATH];
       char sub_dir[SALTS_FS_MAX_PATH];
       char main_path[SALTS_FS_MAX_PATH];
@@ -347,9 +347,9 @@ spec("toad_script_quant") {
       check((fs_mkdir(root_dir, 0755)) == (0));
       check((fs_path_join(sub_dir, sizeof(sub_dir), root_dir, "sub")) == (0));
       check((fs_mkdir(sub_dir, 0755)) == (0));
-      check((fs_path_join(main_path, sizeof(main_path), root_dir, "main.tbs")) == (0));
-      check((fs_path_join(child_path, sizeof(child_path), sub_dir, "child.tbs")) == (0));
-      check((fs_path_join(util_path, sizeof(util_path), sub_dir, "utils.tbs")) == (0));
+      check((fs_path_join(main_path, sizeof(main_path), root_dir, "main.toad")) == (0));
+      check((fs_path_join(child_path, sizeof(child_path), sub_dir, "child.toad")) == (0));
+      check((fs_path_join(util_path, sizeof(util_path), sub_dir, "utils.toad")) == (0));
 
       buf = fs_buf_init((char *)util_src, strlen(util_src));
       check((fs_write_file(util_path, &buf)) == (0));
@@ -369,16 +369,25 @@ spec("toad_script_quant") {
       toad_script_free(ctx);
     }
 
-    it("should only treat .tbs files as script imports") {
-      toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
-
-      toad_script_run(ctx, "write_file(\"legacy.ts\", \"legacy_value = 7;\");");
-
-      check((toad_script_run(ctx, "import(\"legacy.ts\");")) == (-1));
-      check(fabs((double)(toad_script_get_num(ctx, "legacy_value")) - (double)(0.0)) <= (double)(0.001));
-
-      toad_script_run(ctx, "file_remove(\"legacy.ts\");");
-      toad_script_free(ctx);
+    it("should only treat .toad files as script imports") {
+      const char *suffixes[] = {".tbs", ".ts", ".toad.bak", ".TOAD"};
+      const char *imports[] = {"import", "import_module"};
+      const char *source = "legacy_value = 7;";
+      for (size_t i = 0; i < sizeof(suffixes) / sizeof(suffixes[0]); ++i) {
+        char path[SALTS_FS_MAX_PATH], script[SALTS_FS_MAX_PATH + 64];
+        ts_test_make_name(path, sizeof(path), "_unsupported_script", suffixes[i]);
+        fs_buf_t buf = fs_buf_init((char *)source, strlen(source));
+        check_equal(fs_write_file(path, &buf), 0);
+        for (size_t j = 0; j < sizeof(imports) / sizeof(imports[0]); ++j) {
+          toad_script_ctx_t *ctx = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
+          check_not_null(ctx);
+          snprintf(script, sizeof(script), "%s(\"%s\");", imports[j], path);
+          check_equal(toad_script_run(ctx, script), -1);
+          check_equal(toad_script_get_num(ctx, "legacy_value"), 0.0);
+          toad_script_free(ctx);
+        }
+        check_equal(fs_unlink(path), 0);
+      }
     }
 
     it("should return explicit script exports as a module map") {
@@ -392,7 +401,7 @@ spec("toad_script_quant") {
       char script[512];
       fs_buf_t buf;
 
-      ts_test_make_name(module_path, sizeof(module_path), "_ts_export_mod", ".tbs");
+      ts_test_make_name(module_path, sizeof(module_path), "_ts_export_mod", ".toad");
       buf = fs_buf_init((char *)module_src, strlen(module_src));
       check((fs_write_file(module_path, &buf)) == (0));
 
@@ -423,7 +432,7 @@ spec("toad_script_quant") {
       char script[640];
       fs_buf_t buf;
 
-      ts_test_make_name(module_path, sizeof(module_path), "_ts_isolated_mod", ".tbs");
+      ts_test_make_name(module_path, sizeof(module_path), "_ts_isolated_mod", ".toad");
       buf = fs_buf_init((char *)module_src, strlen(module_src));
       check((fs_write_file(module_path, &buf)) == (0));
 

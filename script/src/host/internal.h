@@ -8,6 +8,7 @@
 #include <cstl.h>
 
 typedef struct ts_mir_artifact_s ts_mir_artifact_t;
+enum { TS_HOST_REGISTRY_CAPACITY = 256 };
 #ifndef TS_HOST_CALL_BUDGET_T_DEFINED
 #define TS_HOST_CALL_BUDGET_T_DEFINED
 typedef struct ts_host_call_budget_s ts_host_call_budget_t;
@@ -94,6 +95,7 @@ typedef struct ts_host_function_entry_s {
   tstr name;
   uint32_t min_arity;
   uint32_t max_arity;
+  uint32_t native_flags; /* Internal adapter contract; ordinary Host callbacks retain their behavior. */
   toad_script_host_function_t callback;
   void *user_data;
 } ts_host_function_entry_t;
@@ -137,6 +139,8 @@ toad_script_status_t ts_host_context_check_thread(const toad_script_ctx_t *ctx);
  * Module acquisition freezes mutation until the matching final release. */
 toad_script_status_t ts_host_registry_init(toad_script_ctx_t *ctx);
 void ts_host_registry_destroy(toad_script_ctx_t *ctx);
+void ts_host_registry_truncate(toad_script_ctx_t *ctx, size_t count);
+void ts_host_plugins_destroy(toad_script_ctx_t *ctx);
 toad_script_status_t ts_host_check_owner_thread(const toad_script_ctx_t *ctx);
 toad_script_status_t ts_host_registry_acquire_module(toad_script_ctx_t *ctx);
 toad_script_status_t ts_host_registry_release_module(toad_script_ctx_t *ctx);

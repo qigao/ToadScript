@@ -12,7 +12,6 @@
 #include <string.h>
 
 enum {
-  TS_HOST_REGISTRY_CAPACITY = 256,
   TS_HOST_MAX_VALUE_DEPTH = 64,
   TS_HOST_MAX_VALUE_NODES = 65536,
   TS_HOST_MAX_STRING_BYTES = 4 * 1024 * 1024,
@@ -123,6 +122,16 @@ void ts_host_registry_destroy(toad_script_ctx_t *ctx) {
   ctx->active_host_modules = 0;
   ctx->host_callback_depth = 0;
   ctx->active_host_instance = NULL;
+}
+
+/* Roll back only unpublished tail rows, preserving the original result error. */
+void ts_host_registry_truncate(toad_script_ctx_t *ctx, size_t count) {
+  while (vec_size(&ctx->host_functions) > count) {
+    ts_host_function_entry_t entry = {0};
+    if (vec_erase(&ctx->host_functions, vec_size(&ctx->host_functions) - 1, &entry) != STL_OK)
+      abort(); /* An owned, valid tail cannot fail erasure. */
+    tstr_free(entry.name);
+  }
 }
 
 toad_script_status_t ts_host_check_owner_thread(const toad_script_ctx_t *ctx) {
@@ -633,7 +642,7 @@ ts_host_registry_bind_runtime_impl(toad_script_ctx_t *ctx, toad_env_t *runtime_c
     registrations[i].name = entry->name;
     registrations[i].fn = ts_host_registry_callback_adapter;
     registrations[i].user_data = entry;
-    registrations[i].flags = TOAD_NATIVE_FLAG_NONE;
+    registrations[i].flags = entry->native_flags;
   }
   registration_status = toad_env_register_funcs_checked_with_fault(
       runtime_ctx, registrations, vec_size(&ctx->host_functions), should_fail, fault_user_data);

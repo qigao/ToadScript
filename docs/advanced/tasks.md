@@ -48,7 +48,7 @@ var report = task.spawn(() => {
 });
 ```
 
-仓库内版本见 [task_parallel_http.tbs](../../examples/task_parallel_http.tbs)。`http.get()` 对当前脚本 task 仍是同步调用：函数返回后下一行才执行；底层连接、发送和接收等待会挂起当前 coroutine，因此其他 task 可以继续运行。这是协作式并发，不是多线程并行，CPU 密集代码必须显式 `task.yield()` 才会让出执行权。
+仓库内版本见 [task_parallel_http.toad](../../examples/task_parallel_http.toad)。`http.get()` 对当前脚本 task 仍是同步调用：函数返回后下一行才执行；底层连接、发送和接收等待会挂起当前 coroutine，因此其他 task 可以继续运行。这是协作式并发，不是多线程并行，CPU 密集代码必须显式 `task.yield()` 才会让出执行权。
 
 `http.get()` 与 `http.post()` 通过 `CHttp::Client` facade 发起请求。options 中的 `transport` 可取 `"auto"`、`"h1"` 或 `"h2"`；默认 `"auto"` 会先尝试 HTTP/2，只在连接阶段、尚未发送请求数据时回退到 HTTP/1。显式 `"h2"` 不执行 H1 fallback。`ws.*` 继续使用 CoroNet 的 `ws://` / `wss://` 客户端，因为当前 Salts facade 未公开 WebSocket 客户端句柄；现有 task 连接隔离和取消语义不变。
 
@@ -74,7 +74,7 @@ coro_context_t *coro = coro_context_create(NULL);
 toad_script_ctx_t *script = toad_script_init(TOAD_SCRIPT_INIT_DEFAULT);
 
 toad_script_set_coro_context(script, coro);
-if (toad_script_run_file(script, "parallel.tbs") == 0 &&
+if (toad_script_run_file(script, "parallel.toad") == 0 &&
     toad_script_task_active_count(script) > 0) {
   coro_context_run(coro, TURBO_RUN_DEFAULT);
 }
@@ -112,7 +112,7 @@ coro_context_destroy(coro);
   `task.cancel()` 可中断等待中的 WebSocket connect/send/consume。
 - `ws.consume(timeout, callback)` 将帧限制在 callback 生命周期内；只有 callback
   明确返回的值才逃逸到 task 环境并计入 task 配额。仓库中的
-  [Polymarket long-run 示例](../../examples/polymarket_multi_channel_long_run.tbs)
+  [Polymarket long-run 示例](../../examples/polymarket_multi_channel_long_run.toad)
   展示了有界接收、有限重连、同步 Observer 背压与采样输出。
 - 迁移成本集中在需要后台任务的宿主：绑定并驱动 CoroNet context，并在消费结果后 release。
 - 回滚时可移除 `task.*` 注册、task scheduler 生命周期和 CLI task 计数检查；不涉及脚本数据格式迁移，timer 与手动 coro 模块仍可独立工作。

@@ -10,7 +10,7 @@
 #ifndef TOAD_PLUGIN_H
 #define TOAD_PLUGIN_H
 
-#include <cmeta/plugin.h>
+#include <cmeta/plugin_decl.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -43,49 +43,32 @@ TOAD_C_API void toad_env_add_module(toad_env_t *env,
 
 CMETA_INTERFACE(toad_plugin_module, TOAD_PLUGIN_MODULE_METHODS);
 
-#define TOAD_PLUGIN_DETAIL_EXPORT(plugin_name, load_fn, unload_fn)                 \
-    static char toad__##plugin_name##_adapter_token;                              \
-    static const toad_plugin_module_vtable toad__##plugin_name##_adapter_vtable = { \
-        .implementation = #plugin_name,                                         \
-        .capabilities = 0u,                                                     \
-        .load = (load_fn),                                                      \
-        .unload = (unload_fn),                                                  \
-    };                                                                          \
-    static toad_plugin_module toad__##plugin_name##_adapter = {                     \
-        &toad__##plugin_name##_adapter_token,                                     \
-        &toad__##plugin_name##_adapter_vtable                                     \
-    };                                                                          \
-    static const cmeta_plugin_export toad__##plugin_name##_export = {             \
-        .struct_size = CMETA_PLUGIN_EXPORT_SIZE,                                \
-        .kind = CMETA_PLUGIN_EXPORT_INTERFACE,                                  \
-        .contract_version = TOAD_PLUGIN_MODULE_CONTRACT_VERSION,                  \
-        .capabilities = 0u,                                                     \
-        .export_id = TOAD_PLUGIN_MODULE_EXPORT_ID,                                \
-        .contract_id = TOAD_PLUGIN_MODULE_CONTRACT_ID,                            \
-        .value.interface = {                                                    \
-            .desc = &toad_plugin_module_interface_meta,                           \
-            .value = &toad__##plugin_name##_adapter,                             \
-        },                                                                      \
-    };                                                                          \
-    static const cmeta_plugin_manifest toad__##plugin_name##_manifest = {         \
-        .struct_size = CMETA_PLUGIN_MANIFEST_SIZE,                              \
-        .abi_version = CMETA_PLUGIN_ABI_VERSION,                                \
-        .plugin_id = #plugin_name,                                              \
-        .version = {1u, 0u, 0u},                                               \
-        .exports = &toad__##plugin_name##_export,                                \
-        .export_count = 1u,                                                     \
-        .self = NULL,                                                           \
-        .start = NULL,                                                          \
-        .request_stop = NULL,                                                   \
-        .is_quiescent = NULL,                                                   \
-        .destroy = NULL,                                                        \
-    };                                                                          \
-    CMETA_PLUGIN_QUERY_EXPORT const cmeta_plugin_manifest *CMETA_PLUGIN_CALL    \
-    cmeta_plugin_query(uint32_t host_abi) {                                     \
-        return host_abi == CMETA_PLUGIN_ABI_VERSION                            \
-                   ? &toad__##plugin_name##_manifest                             \
-                   : NULL;                                                      \
-    }
+/* Value-returning scalar authoring convenience. CMeta remains the signature,
+ * carrier, result-ownership and exact-invoke fact source. Void/advanced native
+ * contracts can use the canonical CMeta declarations directly. */
+#define TOAD_PLUGIN_FUNCTION(type, name, ...) \
+    FunctionInvokeDeclAsAbiResult(value, type, CMETA_FUNCTION_RETURN_TYPEOF(type), \
+        CMETA_FUNCTION_RETURN_ABI(type), CMETA_RESULT_VALUE, name, __VA_ARGS__)
+#define TOAD_PLUGIN_FUNCTION0(type, name) \
+    Function0InvokeDeclAsAbiResult(value, type, CMETA_FUNCTION_RETURN_TYPEOF(type), \
+        CMETA_FUNCTION_RETURN_ABI(type), CMETA_RESULT_VALUE, name)
+
+/* Exactly one publication/query per DSO. This list feeds the canonical Plugin
+ * declaration rather than maintaining a parallel manifest or mutable registry. */
+#define TOAD_PLUGIN_DETAIL_MODULE_EXPORTS(X) \
+    X(interface, (toad_plugin_module, &toad__module_adapter), \
+      TOAD_PLUGIN_MODULE_EXPORT_ID, TOAD_PLUGIN_MODULE_CONTRACT_ID, \
+      TOAD_PLUGIN_MODULE_CONTRACT_VERSION, 0u)
+#define TOAD_PLUGIN_DETAIL_EXPORT(plugin_name, load_fn, unload_fn) \
+    static char toad__module_adapter_token; \
+    static const toad_plugin_module_vtable toad__module_adapter_vtable = { \
+        #plugin_name, 0u, (load_fn), (unload_fn) \
+    }; \
+    static toad_plugin_module toad__module_adapter = { \
+        &toad__module_adapter_token, &toad__module_adapter_vtable \
+    }; \
+    CMETA_PLUGIN_DECLARE(toad__module, #plugin_name, (1u, 0u, 0u), \
+        TOAD_PLUGIN_DETAIL_MODULE_EXPORTS, CMETA_PLUGIN_PASSIVE());
 
 /* Stateless module: mount one toad_module_t into the target environment. */
 #define TOAD_PLUGIN_MODULE(plugin_name, module_fn)                                \

@@ -1,5 +1,5 @@
 /**
- * @strategy portfolio_optimization_suite.tbs
+ * @strategy portfolio_optimization_suite.toad
  *
  * Repurposed from QuantsPlaybook Category D (Optimization).
  * Demonstrates dynamic allocation using Risk Parity and Min-Variance.

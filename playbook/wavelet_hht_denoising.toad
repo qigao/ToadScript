@@ -1,5 +1,5 @@
 /**
- * @strategy wavelet_hht_denoising.tbs
+ * @strategy wavelet_hht_denoising.toad
  *
  * Implements Wavelet Denoising and HHT (Dragon) Trend Extraction.
  * Based on Category C research from QuantsPlaybook.

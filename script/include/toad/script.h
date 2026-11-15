@@ -2,6 +2,7 @@
 #define TOAD_SCRIPT_H
 
 #include <toad/export.h>
+#include <cmeta/plugin.h>
 #include "core/platform.h"
 #include <stdbool.h>
 #include <stddef.h>
@@ -31,8 +32,8 @@ typedef struct {
 
 #define TOAD_SCRIPT_VERSION_MAJOR 0
 #define TOAD_SCRIPT_VERSION_MINOR 1
-#define TOAD_SCRIPT_VERSION_PATCH 2
-#define TOAD_SCRIPT_VERSION_STRING "0.1.2"
+#define TOAD_SCRIPT_VERSION_PATCH 3
+#define TOAD_SCRIPT_VERSION_STRING "0.1.3"
 #define TOAD_SCRIPT_NATIVE_ABI_VERSION 3
 
 typedef enum {
@@ -660,6 +661,27 @@ TOAD_SCRIPT_C_API toad_script_status_t toad_script_instance_call(
 TOAD_SCRIPT_C_API toad_script_status_t toad_script_context_register_host_function(
     toad_script_ctx_t *ctx, const toad_script_host_function_descriptor_t *descriptor,
     toad_script_host_function_t callback, void *user_data, toad_script_result_t *result);
+
+/** Attach all scalar Function exports of one STARTED, passive CMeta plugin.
+ * The caller retains an address-stable registry until this context and all its
+ * retained modules/instances/results are destroyed. Toad acquires and owns one lease.
+ * This explicit host capability performs no loading, imports or policy changes.
+ * Run on the context owner thread before compiling modules. Admission is atomic:
+ * unsupported manifests/signatures, duplicate names or capacity failure publish
+ * no callbacks. Export IDs must be plain ASCII identifiers. Supports bool, int,
+ * long, float, double; up to 16 IN scalar arguments and scalar/void return.
+ * Native code remains trusted. Unregistering individual callbacks does not
+ * release the attached plugin's lease; it is held until final context cleanup.
+ * Returns OK on complete attachment; INVALID_ARGUMENT for missing inputs,
+ * WRONG_THREAD/CONTEXT_MISMATCH for ownership errors, INVALID_STATE for a closed
+ * context, active modules, name collisions or an unavailable plugin, VALIDATION_ERROR
+ * for unsupported exports, LIMIT_EXCEEDED for capacity, or OUT_OF_MEMORY.
+ * result owns diagnostic copies; native acquisition failures retain their CMeta
+ * status in cause_code. No Ref or Registry ownership is transferred.
+ */
+TOAD_SCRIPT_C_API toad_script_status_t toad_script_context_register_plugin(
+    toad_script_ctx_t *ctx, cmeta_plugin_registry *registry, cmeta_plugin_ref plugin,
+    toad_script_result_t *result);
 TOAD_SCRIPT_C_API toad_script_status_t toad_script_context_unregister_host_function(
     toad_script_ctx_t *ctx, toad_script_string_view_t name, toad_script_result_t *result);
 TOAD_SCRIPT_C_API toad_script_status_t toad_script_host_result_set_value(

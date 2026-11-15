@@ -61,15 +61,15 @@ spec("toad_script_io") {
       check_not_null(ctx);
 
       toad_script_run(ctx, ""
-                            "write_file(\"utils_dot.tbs\", \"func square(x) { return x * x; };\");");
+                            "write_file(\"utils_dot.toad\", \"func square(x) { return x * x; };\");");
 
-      const char *script = "import(\"utils_dot.tbs\"); "
+      const char *script = "import(\"utils_dot.toad\"); "
                            "res = square(7);";
 
       check((toad_script_run(ctx, script)) == (0));
       check(fabs((double)(toad_script_get_num(ctx, "res")) - (double)(49.0)) <= (double)(0.1));
 
-      toad_script_run(ctx, "file_remove(\"utils_dot.tbs\");");
+      toad_script_run(ctx, "file_remove(\"utils_dot.toad\");");
       toad_script_free(ctx);
     }
   }

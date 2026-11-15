@@ -37,12 +37,13 @@ The native SDK is named Toad. Its public entry points are:
 | Host | `<toad/script.h>` | `toad_script_*`, `TOAD_SCRIPT_*` | `Toad::Script` |
 
 Use `find_package(Toad CONFIG REQUIRED)` and run scripts with
-`toad --file hello.tbs`. The package metadata uses `Toad.Native`. This changes
+`toad --file hello.toad`. The package metadata uses `Toad.Native`. This changes
 native header paths and exported symbol names; update and rebuild hosts and
 plugins together. CMeta identities now use `toad.engine.*`, `toad.class.*`
 and `toad.dynamic.*`; the module contract is `toad.module`. Hosts and plugins
 using the former identities are incompatible with these names. Existing script
-names, `.tbs` files and optional `tbs_` plugin filenames are retained. The GitHub
+function names and optional `tbs_` plugin filenames are retained. Script files
+now use `.toad`; rename existing files and update their import paths. The GitHub
 repository address is unchanged. See the [migration details](docs/architecture/engine-layering.md).
 
 ## Upstream dependency versions
@@ -192,13 +193,15 @@ and native plugins against the new headers; script function names are retained.
 Run a script with:
 
 ```text
-toad --file hello.tbs
+toad --file hello.toad
 ```
 
 See [Getting Started](docs/getting-started.md), the
 [language guide](docs/language-guide.md), the
 [C API](script/include/toad/script.h), and the
 [plugin system](docs/PLUGIN_SYSTEM.md).
+For application-defined native functions, see the
+[CMeta C/C++ module example](examples/native_modules/README.md).
 
 ## License
 

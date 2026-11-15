@@ -49,8 +49,8 @@ shape 和类身份 hash 的命名域统一为 `toad.engine.*`、`toad.dynamic.*`
 没有添加版本分发、兼容别名或重试。宿主 API 从 `turbo_script_*` 改为
 `toad_script_*`，简写 `ts_bind_*`/`ts_get_*` 也归入 `toad_script_*`。
 CLI 从 `turbo_script_repl` 改为 `toad`，共享库名为 `toad_script`。
-脚本函数名、`.tbs` 扩展名和既有可选
-`tbs_` 插件文件名前缀保持，原生插件主输出仍为 `net`、`fin` 等逻辑名称。
+脚本扩展名进一步统一为 `.toad`，现有脚本文件及其导入路径需要同步迁移。
+脚本函数名和既有可选 `tbs_` 插件文件名前缀保持，原生插件主输出仍为 `net`、`fin` 等逻辑名称。
 
 这是原生源码及包入口的兼容性变更。宿主和插件必须更新 include、引擎符号和
 CMake target 后一起重编译。原有 `TurboScript::ExprTk/ExprTkSyntax`（中间态为

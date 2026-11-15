@@ -174,6 +174,10 @@ static void ts_context_destroy_final(toad_script_ctx_t *ctx) {
 
   toad_env_free(&ctx->env);
 
+  /* End all callback borrows before releasing provider code/metadata leases. */
+  ts_host_registry_destroy(ctx);
+  ts_host_plugins_destroy(ctx);
+
   // Unload plugins after env teardown, so module/function pointers are no longer referenced.
   for (size_t i = 0; i < ctx->plugin_count; ++i) {
     toad_plugin_unload(ctx->plugins[i]);
@@ -182,7 +186,6 @@ static void ts_context_destroy_final(toad_script_ctx_t *ctx) {
 
   free(ctx->current_script_dir);
   mem_destroy(&ctx->scratch_arena);
-  ts_host_registry_destroy(ctx);
   free(ctx);
 }
 
@@ -732,7 +735,9 @@ static int ts_is_script_import(const char *name) {
   size_t len;
   if (!name || !*name) return 0;
   len = strlen(name);
-  return len >= 4 && strcmp(name + len - 4, ".tbs") == 0;
+  static const char suffix[] = ".toad";
+  const size_t suffix_len = sizeof(suffix) - 1;
+  return len >= suffix_len && strcmp(name + len - suffix_len, suffix) == 0;
 }
 
 static int ts_script_already_imported(const toad_script_ctx_t *ctx, const char *name) {

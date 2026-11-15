@@ -1,5 +1,5 @@
 /**
- * @strategy market_regime_timing.tbs
+ * @strategy market_regime_timing.toad
  *
  * Repurposed from QuantsPlaybook Category C (Timing).
  * Uses RSRS (Relative Strength) + Alligator (Trend) + Efficiency (Noise).

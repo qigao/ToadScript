@@ -1,5 +1,5 @@
 /**
- * @strategy northbound_sentiment_timing.tbs
+ * @strategy northbound_sentiment_timing.toad
  *
  * Implements Northbound Flow Sentiment Timing.
  * Based on Category C research from QuantsPlaybook.

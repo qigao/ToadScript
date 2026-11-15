@@ -1,8 +1,29 @@
 if(BUILD_TESTS)
+add_test(NAME example_native_modules COMMAND $<TARGET_FILE:example_native_modules>
+    $<TARGET_FILE:example_calibration> $<TARGET_FILE:example_maintenance>)
+set_tests_properties(example_native_modules PROPERTIES LABELS "examples;plugins")
 cmake_add_test(TARGET test_script_host_policy
   SOURCES test_script_host_policy.c LIBS toad_script Salts::TinyTest FOLDER script/test)
 cmake_add_test(TARGET test_script_host_concurrency
   SOURCES test_script_host_concurrency.cpp LIBS toad_script Salts::TinyTest Threads::Threads FOLDER script/test)
+add_library(test_host_plugin_unknown_result MODULE host_plugin_unknown_result.c)
+target_link_libraries(test_host_plugin_unknown_result PRIVATE Toad::PluginABI)
+cmake_config_target(test_host_plugin_unknown_result FOLDER script/test)
+add_library(test_host_plugin_scalars MODULE host_plugin_scalars.c)
+target_link_libraries(test_host_plugin_scalars PRIVATE Toad::PluginABI)
+cmake_config_target(test_host_plugin_scalars FOLDER script/test)
+cmake_add_test(TARGET test_script_host_plugin
+  SOURCES test_script_host_plugin.cpp
+  LIBS toad_script Salts::TinyTest CMeta::Plugin Threads::Threads
+  DEPENDS example_calibration example_maintenance test_plugin_loader_fixture test_host_plugin_unknown_result test_host_plugin_scalars
+  FOLDER script/test)
+target_compile_definitions(test_script_host_plugin PRIVATE
+  CALIBRATION_PATH="$<TARGET_FILE:example_calibration>"
+  MAINTENANCE_PATH="$<TARGET_FILE:example_maintenance>"
+  INTERFACE_PATH="$<TARGET_FILE:test_plugin_loader_fixture>"
+  UNKNOWN_PATH="$<TARGET_FILE:test_host_plugin_unknown_result>"
+  SCALARS_PATH="$<TARGET_FILE:test_host_plugin_scalars>")
+set_tests_properties(test_script_host_plugin PROPERTIES LABELS "plugins")
 # Plugin loader fixtures use the same output layout as production plugins.
 add_library(test_plugin_loader_fixture SHARED plugin_loader_fixture.c)
 cmake_config_target(

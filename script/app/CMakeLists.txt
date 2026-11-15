@@ -8,11 +8,11 @@ add_dependencies(toad toad_fin_plugin toad_ta_plugin toad_ts_plugin)
 
 if(BUILD_TESTS)
   set(TOAD_SCRIPT_GOF_EXAMPLES
-    factory_builder.tbs
-    adapter_decorator.tbs
-    composite_visitor.tbs
-    command_memento.tbs
-    state_chain.tbs)
+    factory_builder.toad
+    adapter_decorator.toad
+    composite_visitor.toad
+    command_memento.toad
+    state_chain.toad)
 
   foreach(EXAMPLE_FILE IN LISTS TOAD_SCRIPT_GOF_EXAMPLES)
     get_filename_component(EXAMPLE_NAME ${EXAMPLE_FILE} NAME_WE)
@@ -27,14 +27,14 @@ if(BUILD_TESTS)
   add_test(
     NAME example_polymarket_patterns_load
     COMMAND $<TARGET_FILE:toad>
-            --file ${CMAKE_SOURCE_DIR}/examples/polymarket_patterns.tbs)
+            --file ${CMAKE_SOURCE_DIR}/examples/polymarket_patterns.toad)
   set_tests_properties(example_polymarket_patterns_load
     PROPERTIES LABELS "examples;polymarket")
 
   add_test(
     NAME example_getting_started
     COMMAND $<TARGET_FILE:toad>
-            --file ${CMAKE_SOURCE_DIR}/examples/getting_started.tbs)
+            --file ${CMAKE_SOURCE_DIR}/examples/getting_started.toad)
   set_tests_properties(example_getting_started
     PROPERTIES LABELS "examples;getting-started")
 
@@ -49,7 +49,7 @@ if(BUILD_TESTS)
     NAME toad_script_cli_reports_batch_errors
     COMMAND ${CMAKE_COMMAND}
             -DCLI=$<TARGET_FILE:toad>
-            -DINVALID_SCRIPT=${CMAKE_CURRENT_SOURCE_DIR}/test/invalid.tbs
+            -DINVALID_SCRIPT=${CMAKE_CURRENT_SOURCE_DIR}/test/invalid.toad
             -P ${CMAKE_CURRENT_SOURCE_DIR}/test/verify_cli_errors.cmake)
   set_tests_properties(toad_script_cli_reports_batch_errors
     PROPERTIES LABELS "toad_script;cli")
