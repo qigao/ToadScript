@@ -1,5 +1,18 @@
 # 上游拆分 SDK 迁移记录
 
+## Slate 的插件布局与 MSVC C++ 示例
+
+- Slate 在 `bin` 的同级目录 `plugins` 生成插件。Slate 编译插件加载器时
+  指定执行文件相对目录，正式加载器测试继续验证传统目录、显式安装根和
+  当前目录拒绝规则。测试夹具按各自角色放入独立的运行目录。
+- CMeta 0.1.7 的推导类型宏依赖 C11 `_Generic`。在 C++17 示例里使用
+  显式 descriptor、carrier 和 result flags，可由 MSVC 编译并保留原有
+  CMeta 函数元数据。
+- CFlow 基准的短采样在 Windows 上可能全部落在同一个 `clock()`
+  刻度内，导致计算正确仍退出。计时改用 Salts 的 `hrtime()`，
+  保留数据校验和迭代次数。该数值现在表示单调时钟的经过时间。
+  Slate 将基准放在独立 preset，对应 CMake 的 BUILD_BENCHMARK 开关。
+
 ## 2026-11-14：按用户授权重启 Toad 0.1.0 发布系列
 
 - **明确授权**：用户要求推送全部改动并发布，随后要求删除本仓库历史 releases/packages，

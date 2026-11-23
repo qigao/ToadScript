@@ -1,0 +1,1550 @@
+{
+  "targets": {
+    "ErrorPlugin.StorePlugin": {
+      "kind": "cmeta_plugin",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "outputPrefix": "",
+      "sources": {
+        "files": [
+          "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin.plugin.c",
+          "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin_native.c",
+          "fixtures/databind_service_error_business.c"
+        ]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "private": {
+        "includeDirs": ["$builddir/script/test/toad_databind_error_fixture.idl"],
+        "deps": ["toad_databind_error_fixture_codegen", "saltsutils_databind"]
+      }
+    },
+    "Image.ImageProcessor": {
+      "kind": "cmeta_plugin",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "outputPrefix": "",
+      "sources": {
+        "files": [
+          "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor.plugin.c",
+          "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor_native.c",
+          "fixtures/databind_service_business.c"
+        ]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "private": {
+        "includeDirs": ["$builddir/script/test/toad_databind_service_fixture.idl"],
+        "deps": ["toad_databind_service_fixture_codegen", "saltsutils_databind"]
+      }
+    },
+    "bench_script": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true,
+        "config": ["benchmark", "benchmark-msvc"]
+      },
+      "sources": {
+        "files": ["bench_script.c"]
+      },
+      "private": {
+        "deps": ["toad_script_lib", "saltsbase_tinytest", "cmeta_cstl", "toad_engine", "mir_jit"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "bench_script",
+        "labels": ["benchmark"]
+      }
+    },
+    "bench_script_cflow": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true,
+        "config": ["benchmark", "benchmark-msvc"]
+      },
+      "sources": {
+        "files": ["bench_script_cflow.c"]
+      },
+      "private": {
+        "deps": ["toad_script_lib", "cmeta_cmeta", "cmeta_cflow", "mir_jit", "toad_engine"],
+        "includeDirs": ["../src/graph", "../src/mir"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "bench_script_cflow",
+        "labels": ["benchmark"]
+      }
+    },
+    "bench_script_mir": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true,
+        "config": ["benchmark", "benchmark-msvc"]
+      },
+      "sources": {
+        "files": ["bench_script_mir.c"]
+      },
+      "private": {
+        "deps": ["toad_script_lib", "toad_engine", "mir_jit"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "bench_script_mir",
+        "labels": ["benchmark"]
+      }
+    },
+    "loader_bad_abi": {
+      "kind": "cmeta_plugin",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "outputPrefix": "",
+      "sources": {
+        "files": ["plugin_loader_fixture.c"]
+      },
+      "private": {
+        "deps": ["cmeta_plugin_abi"],
+        "includeDirs": ["../../engine/include"],
+        "defines": {
+          "FIXTURE_ABI_VERSION": "999",
+          "FIXTURE_PLUGIN_NAME": "\"loader_bad_abi\""
+        }
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    },
+    "loader_cwd_only": {
+      "kind": "cmeta_plugin",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "outputPrefix": "",
+      "sources": {
+        "files": ["plugin_loader_fixture.c"]
+      },
+      "private": {
+        "deps": ["cmeta_plugin_abi"],
+        "includeDirs": ["../../engine/include"],
+        "defines": {
+          "FIXTURE_PLUGIN_NAME": "\"loader_cwd_only\""
+        }
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    },
+    "loader_fixture": {
+      "kind": "cmeta_plugin",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "outputPrefix": "",
+      "sources": {
+        "files": ["plugin_loader_fixture.c"]
+      },
+      "private": {
+        "deps": ["cmeta_plugin_abi"],
+        "includeDirs": ["../../engine/include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    },
+    "loader_function": {
+      "kind": "cmeta_plugin",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "outputPrefix": "",
+      "sources": {
+        "files": ["plugin_loader_fixture.c"]
+      },
+      "private": {
+        "deps": ["cmeta_plugin_abi"],
+        "includeDirs": ["../../engine/include"],
+        "defines": {
+          "FIXTURE_FUNCTION_ONLY": null,
+          "FIXTURE_PLUGIN_NAME": "\"loader_function\""
+        }
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    },
+    "loader_init_failure": {
+      "kind": "cmeta_plugin",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "outputPrefix": "",
+      "sources": {
+        "files": ["plugin_loader_fixture.c"]
+      },
+      "private": {
+        "deps": ["cmeta_plugin_abi"],
+        "includeDirs": ["../../engine/include"],
+        "defines": {
+          "FIXTURE_INIT_FAILURE": null,
+          "FIXTURE_PLUGIN_NAME": "\"loader_init_failure\""
+        }
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    },
+    "loader_legacy": {
+      "kind": "cmeta_plugin",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "outputPrefix": "",
+      "sources": {
+        "files": ["plugin_loader_fixture.c"]
+      },
+      "private": {
+        "deps": ["cmeta_plugin_abi"],
+        "includeDirs": ["../../engine/include"],
+        "defines": {
+          "FIXTURE_PLUGIN_NAME": "\"loader_legacy\""
+        }
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    },
+    "loader_missing_entry": {
+      "kind": "cmeta_plugin",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "outputPrefix": "",
+      "sources": {
+        "files": ["plugin_loader_missing_entry.c"]
+      },
+      "private": {
+        "deps": ["cmeta_plugin_abi"],
+        "includeDirs": ["../../engine/include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    },
+    "loader_package": {
+      "kind": "cmeta_plugin",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "outputPrefix": "",
+      "sources": {
+        "files": ["plugin_loader_fixture.c"]
+      },
+      "private": {
+        "deps": ["cmeta_plugin_abi"],
+        "includeDirs": ["../../engine/include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    },
+    "loader_unknown_result": {
+      "kind": "cmeta_plugin",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "outputPrefix": "",
+      "sources": {
+        "files": ["plugin_loader_fixture.c"]
+      },
+      "private": {
+        "deps": ["cmeta_plugin_abi"],
+        "includeDirs": ["../../engine/include"],
+        "defines": {
+          "FIXTURE_FUNCTION_ONLY": null,
+          "FIXTURE_PLUGIN_NAME": "\"loader_unknown_result\"",
+          "FIXTURE_UNKNOWN_RESULT": null
+        }
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    },
+    "loader_wrong_name": {
+      "kind": "cmeta_plugin",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "outputPrefix": "",
+      "sources": {
+        "files": ["plugin_loader_fixture.c"]
+      },
+      "private": {
+        "deps": ["cmeta_plugin_abi"],
+        "includeDirs": ["../../engine/include"],
+        "defines": {
+          "FIXTURE_PLUGIN_NAME": "\"different_name\""
+        }
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    },
+    "test_host_plugin_scalars": {
+      "kind": "cmeta_plugin",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "outputPrefix": "",
+      "sources": {
+        "files": ["host_plugin_scalars.c"]
+      },
+      "private": {
+        "deps": ["toad_plugin_abi"],
+        "includeDirs": ["../../engine/include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    },
+    "test_host_plugin_unknown_result": {
+      "kind": "cmeta_plugin",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "outputPrefix": "",
+      "sources": {
+        "files": ["host_plugin_unknown_result.c"]
+      },
+      "private": {
+        "deps": ["toad_plugin_abi"],
+        "includeDirs": ["../../engine/include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    },
+    "test_script_basics": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_basics.c"]
+      },
+      "private": {
+        "deps": [
+          "toad_script_lib",
+          "saltsbase_tinytest",
+          "cmeta_cstl",
+          "saltsbase_coroutine",
+          "toad_engine",
+          "fin_core",
+          "mir_jit"
+        ]
+      },
+      "runtimeDeps": ["fin", "ta", "ts", "net", "loader_fixture", "toad_loader_fixture", "loader_function"],
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_basics"
+      }
+    },
+    "test_script_cflow_lower": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_cflow_lower.c"]
+      },
+      "private": {
+        "deps": ["toad_script_lib", "saltsbase_tinytest", "cmeta_cmeta", "cmeta_cflow", "toad_engine"],
+        "includeDirs": ["../src/graph"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_cflow_lower"
+      }
+    },
+    "test_script_cflow_mir_kernel": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_cflow_mir_kernel.c"]
+      },
+      "private": {
+        "deps": ["toad_script_lib", "saltsbase_tinytest", "cmeta_cmeta", "cmeta_cflow", "mir_jit", "toad_engine"],
+        "includeDirs": ["../src/graph", "../src/mir"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_cflow_mir_kernel"
+      }
+    },
+    "test_script_cflow_qualification": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_cflow_qualification.c"]
+      },
+      "private": {
+        "deps": ["toad_script_lib", "saltsbase_tinytest", "cmeta_cmeta", "cmeta_cflow", "mir_jit", "toad_engine"],
+        "includeDirs": ["../src/graph", "../src/mir"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_cflow_qualification"
+      }
+    },
+    "test_script_cflow_runtime": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_cflow_runtime.c"]
+      },
+      "private": {
+        "deps": ["toad_script_lib", "saltsbase_tinytest", "cmeta_cmeta", "cmeta_cflow", "mir_jit", "toad_engine"],
+        "includeDirs": ["../src/graph", "../src/mir"]
+      },
+      "runtimeDeps": ["loader_function"],
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_cflow_runtime"
+      }
+    },
+    "test_script_cmeta_bridge": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_cmeta_bridge.c"]
+      },
+      "private": {
+        "deps": ["toad_script_lib", "saltsbase_tinytest", "cmeta_cmeta", "toad_engine"],
+        "includeDirs": ["../src/graph"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_cmeta_bridge"
+      }
+    },
+    "test_script_databind_plugin": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_databind_plugin.c"]
+      },
+      "private": {
+        "deps": [
+          "toad_script_lib",
+          "saltsbase_tinytest",
+          "cmeta_cstl",
+          "saltsbase_coroutine",
+          "toad_engine",
+          "fin_core",
+          "mir_jit"
+        ]
+      },
+      "runtimeDeps": ["fin", "ta", "ts", "net", "Image.ImageProcessor", "ErrorPlugin.StorePlugin"],
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_databind_plugin"
+      }
+    },
+    "test_script_host_call": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_host_call.c"]
+      },
+      "private": {
+        "deps": ["toad_script_lib", "saltsbase_tinytest", "toad_engine", "fin_core", "mir_jit"],
+        "includeDirs": ["../src/host", "../src/mir"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_host_call"
+      }
+    },
+    "test_script_host_concurrency": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_host_concurrency.cpp"]
+      },
+      "private": {
+        "deps": ["toad_script", "saltsbase_tinytest", "cmeta_plugin"],
+        "defines": {
+          "TOAD_SCRIPT_USE_SHARED": null
+        }
+      },
+      "variants": [
+        {
+          "when": {
+            "os": ["linux", "android"]
+          },
+          "private": {
+            "linkFlags": ["-pthread"]
+          }
+        },
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_host_concurrency"
+      }
+    },
+    "test_script_host_instance": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_host_instance.c"]
+      },
+      "private": {
+        "deps": ["toad_script_lib", "saltsbase_tinytest", "cmeta_cstl", "toad_engine", "fin_core", "mir_jit"],
+        "includeDirs": ["../src/host", "../src/mir"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_host_instance"
+      }
+    },
+    "test_script_host_limits": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_host_limits.c"]
+      },
+      "private": {
+        "deps": ["toad_script_lib", "saltsbase_tinytest", "toad_engine", "fin_core", "mir_jit"],
+        "includeDirs": ["../src/host", "../src/mir"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_host_limits"
+      }
+    },
+    "test_script_host_module": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_host_module.c"]
+      },
+      "private": {
+        "deps": ["toad_script_lib", "saltsbase_tinytest", "cmeta_cstl", "toad_engine", "fin_core", "mir_jit"],
+        "includeDirs": ["../src/host", "../src/mir"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_host_module"
+      }
+    },
+    "test_script_host_plugin": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_host_plugin.cpp"]
+      },
+      "private": {
+        "deps": ["toad_script", "saltsbase_tinytest", "cmeta_plugin"],
+        "defines": {
+          "TOAD_SCRIPT_USE_SHARED": null
+        }
+      },
+      "variants": [
+        {
+          "when": {
+            "os": ["linux", "android"]
+          },
+          "private": {
+            "linkFlags": ["-pthread"],
+            "defines": {
+              "CALIBRATION_PATH": "\"$builddir/plugins/example_calibration.so\"",
+              "INTERFACE_PATH": "\"$builddir/plugins/loader_fixture.so\"",
+              "MAINTENANCE_PATH": "\"$builddir/plugins/example_maintenance.so\"",
+              "SCALARS_PATH": "\"$builddir/plugins/test_host_plugin_scalars.so\"",
+              "UNKNOWN_PATH": "\"$builddir/plugins/test_host_plugin_unknown_result.so\""
+            }
+          }
+        },
+        {
+          "when": {
+            "os": "windows"
+          },
+          "private": {
+            "defines": {
+              "CALIBRATION_PATH": "\"$builddir/plugins/example_calibration.dll\"",
+              "INTERFACE_PATH": "\"$builddir/plugins/loader_fixture.dll\"",
+              "MAINTENANCE_PATH": "\"$builddir/plugins/example_maintenance.dll\"",
+              "SCALARS_PATH": "\"$builddir/plugins/test_host_plugin_scalars.dll\"",
+              "UNKNOWN_PATH": "\"$builddir/plugins/test_host_plugin_unknown_result.dll\""
+            }
+          }
+        },
+        {
+          "when": {
+            "os": "macos"
+          },
+          "private": {
+            "defines": {
+              "CALIBRATION_PATH": "\"$builddir/plugins/example_calibration.dylib\"",
+              "INTERFACE_PATH": "\"$builddir/plugins/loader_fixture.dylib\"",
+              "MAINTENANCE_PATH": "\"$builddir/plugins/example_maintenance.dylib\"",
+              "SCALARS_PATH": "\"$builddir/plugins/test_host_plugin_scalars.dylib\"",
+              "UNKNOWN_PATH": "\"$builddir/plugins/test_host_plugin_unknown_result.dylib\""
+            }
+          }
+        },
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "runtimeDeps": [
+        "example_calibration",
+        "example_maintenance",
+        "loader_fixture",
+        "test_host_plugin_unknown_result",
+        "test_host_plugin_scalars"
+      ],
+      "test": {
+        "name": "test_script_host_plugin",
+        "labels": ["plugins"]
+      }
+    },
+    "test_script_host_policy": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_host_policy.c"]
+      },
+      "private": {
+        "deps": ["toad_script", "saltsbase_tinytest", "cmeta_plugin"],
+        "defines": {
+          "TOAD_SCRIPT_USE_SHARED": null
+        }
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_host_policy"
+      }
+    },
+    "test_script_host_registry": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_host_registry.c"]
+      },
+      "private": {
+        "deps": ["toad_script_lib", "saltsbase_tinytest", "cmeta_cstl", "toad_engine", "fin_core", "mir_jit"],
+        "includeDirs": ["../src/host"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_host_registry"
+      }
+    },
+    "test_script_host_result": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_host_result.c"]
+      },
+      "private": {
+        "deps": ["toad_script_lib", "saltsbase_tinytest", "cmeta_cstl", "toad_engine", "fin_core", "mir_jit"],
+        "includeDirs": ["../src/host"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_host_result"
+      }
+    },
+    "test_script_host_state": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_host_state.c"]
+      },
+      "private": {
+        "deps": ["toad_script_lib", "saltsbase_tinytest", "toad_engine", "fin_core", "mir_jit"],
+        "includeDirs": ["../src/host", "../src/mir"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_host_state"
+      }
+    },
+    "test_script_io": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_io.c"]
+      },
+      "private": {
+        "deps": [
+          "toad_script_lib",
+          "saltsbase_tinytest",
+          "cmeta_cstl",
+          "saltsbase_coroutine",
+          "toad_engine",
+          "fin_core",
+          "mir_jit"
+        ]
+      },
+      "runtimeDeps": ["fin", "ta", "ts", "net"],
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_io"
+      }
+    },
+    "test_script_mir_managed_slot_state": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_mir_managed_slot_state.c"]
+      },
+      "private": {
+        "deps": ["toad_script_lib", "saltsbase_tinytest", "cmeta_cstl", "toad_engine", "mir_jit"],
+        "includeDirs": ["../src/mir"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_mir_managed_slot_state"
+      }
+    },
+    "test_script_quant": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_quant.c"]
+      },
+      "private": {
+        "deps": [
+          "toad_script_lib",
+          "saltsbase_tinytest",
+          "cmeta_cstl",
+          "saltsbase_coroutine",
+          "toad_engine",
+          "fin_core",
+          "mir_jit"
+        ]
+      },
+      "runtimeDeps": ["fin", "ta", "ts", "net"],
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_quant"
+      }
+    },
+    "test_script_scientific": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_scientific.c"]
+      },
+      "private": {
+        "deps": [
+          "toad_script_lib",
+          "saltsbase_tinytest",
+          "cmeta_cstl",
+          "saltsbase_coroutine",
+          "toad_engine",
+          "fin_core",
+          "mir_jit"
+        ]
+      },
+      "runtimeDeps": ["fin", "ta", "ts", "net"],
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_scientific"
+      }
+    },
+    "test_script_task": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_task.c"]
+      },
+      "private": {
+        "deps": [
+          "toad_script_lib",
+          "saltsbase_tinytest",
+          "cmeta_cstl",
+          "saltsbase_coroutine",
+          "toad_engine",
+          "fin_core",
+          "mir_jit"
+        ]
+      },
+      "runtimeDeps": ["fin", "ta", "ts", "net"],
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_task"
+      }
+    },
+    "test_script_timer": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_script_timer.c"]
+      },
+      "private": {
+        "deps": [
+          "toad_script_lib",
+          "saltsbase_tinytest",
+          "cmeta_cstl",
+          "saltsbase_coroutine",
+          "toad_engine",
+          "fin_core",
+          "mir_jit"
+        ]
+      },
+      "runtimeDeps": ["fin", "ta", "ts", "net"],
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_script_timer"
+      }
+    },
+    "test_ts_plugin_loader": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_ts_plugin_loader.c"]
+      },
+      "private": {
+        "deps": ["toad_script_plugin_loader", "saltsbase_tinytest", "toad_engine"],
+        "includeDirs": ["../../engine/include"]
+      },
+      "runtimeDeps": [
+        "loader_fixture",
+        "loader_bad_abi",
+        "toad_loader_fixture",
+        "loader_wrong_name",
+        "loader_missing_entry",
+        "loader_init_failure",
+        "loader_function",
+        "loader_unknown_result",
+        "loader_legacy",
+        "loader_cwd_only",
+        "loader_package"
+      ],
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_ts_plugin_loader",
+        "tool": "cmake",
+        "args": [
+          "-P",
+          "$moduledir/PluginLoaderLayout.cmake",
+          "$builddir/script/plugin-loader-layout",
+          "$target",
+          "${artifact:loader_legacy}",
+          "${artifact:loader_cwd_only}",
+          "${artifact:loader_package}",
+          "${artifact:loader_fixture}",
+          "${artifact:loader_bad_abi}",
+          "${artifact:toad_loader_fixture}",
+          "${artifact:loader_wrong_name}",
+          "${artifact:loader_missing_entry}",
+          "${artifact:loader_init_failure}",
+          "${artifact:loader_function}",
+          "${artifact:loader_unknown_result}"
+        ]
+      }
+    },
+    "toad_databind_error_fixture_codegen": {
+      "kind": "header_only",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "public": {
+        "includeDirs": ["$builddir/script/test/toad_databind_error_fixture.idl"]
+      },
+      "variants": [
+        {
+          "when": {
+            "driver": "msvc"
+          },
+          "preTasks": [
+            {
+              "name": "idl",
+              "tool": "msvc-salts-idlc",
+              "inputs": [
+                "$moduledir/fixtures/databind_service_error.schema",
+                "${envPath:TURBOSCRIPT_MSVC_SALTS_UTILS_ROOT}/bin/salts-idlc${host:exe}"
+              ],
+              "outputs": [
+                "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin_native.h",
+                "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin_native.c",
+                "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin.plugin.h",
+                "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin.plugin.c",
+                "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin.plugin_client.h",
+                "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin.plugin_client.c"
+              ],
+              "args": [
+                "$moduledir/fixtures/databind_service_error.schema",
+                "--lang",
+                "c",
+                "--output",
+                "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin_native.h",
+                "--binary-codec",
+                "--artifact-name",
+                "ErrorPlugin.StorePlugin",
+                "--artifacts",
+                "plugin",
+                "--source-output",
+                "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin_native.c",
+                "--component",
+                "ErrorPlugin.StorePlugin",
+                "--artifact-version",
+                "1.0.0"
+              ]
+            }
+          ]
+        },
+        {
+          "when": {
+            "driver": ["llvm-mingw", "clang", "gcc"]
+          },
+          "preTasks": [
+            {
+              "name": "idl",
+              "tool": "salts-idlc",
+              "inputs": [
+                "$moduledir/fixtures/databind_service_error.schema",
+                "${envPath:SALTS_UTILS_ROOT}/bin/salts-idlc${host:exe}"
+              ],
+              "outputs": [
+                "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin_native.h",
+                "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin_native.c",
+                "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin.plugin.h",
+                "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin.plugin.c",
+                "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin.plugin_client.h",
+                "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin.plugin_client.c"
+              ],
+              "args": [
+                "$moduledir/fixtures/databind_service_error.schema",
+                "--lang",
+                "c",
+                "--output",
+                "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin_native.h",
+                "--binary-codec",
+                "--artifact-name",
+                "ErrorPlugin.StorePlugin",
+                "--artifacts",
+                "plugin",
+                "--source-output",
+                "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin_native.c",
+                "--component",
+                "ErrorPlugin.StorePlugin",
+                "--artifact-version",
+                "1.0.0"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "toad_databind_error_fixture_plugin_client": {
+      "kind": "static",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": [
+          "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin.plugin_client.c",
+          "$builddir/script/test/toad_databind_error_fixture.idl/ErrorPlugin.StorePlugin_native.c"
+        ]
+      },
+      "private": {
+        "includeDirs": ["$builddir/script/test/toad_databind_error_fixture.idl"],
+        "deps": ["toad_databind_error_fixture_codegen", "saltsutils_databind"]
+      }
+    },
+    "toad_databind_service_fixture_codegen": {
+      "kind": "header_only",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "public": {
+        "includeDirs": ["$builddir/script/test/toad_databind_service_fixture.idl"]
+      },
+      "variants": [
+        {
+          "when": {
+            "driver": "msvc"
+          },
+          "preTasks": [
+            {
+              "name": "idl",
+              "tool": "msvc-salts-idlc",
+              "inputs": [
+                "$moduledir/fixtures/databind_service.schema",
+                "${envPath:TURBOSCRIPT_MSVC_SALTS_UTILS_ROOT}/bin/salts-idlc${host:exe}"
+              ],
+              "outputs": [
+                "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor_native.h",
+                "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor_native.c",
+                "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor.plugin.h",
+                "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor.plugin.c",
+                "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor.plugin_client.h",
+                "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor.plugin_client.c"
+              ],
+              "args": [
+                "$moduledir/fixtures/databind_service.schema",
+                "--lang",
+                "c",
+                "--output",
+                "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor_native.h",
+                "--binary-codec",
+                "--artifact-name",
+                "Image.ImageProcessor",
+                "--artifacts",
+                "plugin",
+                "--source-output",
+                "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor_native.c",
+                "--component",
+                "Image.ImageProcessor",
+                "--artifact-version",
+                "1.0.0"
+              ]
+            }
+          ]
+        },
+        {
+          "when": {
+            "driver": ["llvm-mingw", "clang", "gcc"]
+          },
+          "preTasks": [
+            {
+              "name": "idl",
+              "tool": "salts-idlc",
+              "inputs": [
+                "$moduledir/fixtures/databind_service.schema",
+                "${envPath:SALTS_UTILS_ROOT}/bin/salts-idlc${host:exe}"
+              ],
+              "outputs": [
+                "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor_native.h",
+                "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor_native.c",
+                "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor.plugin.h",
+                "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor.plugin.c",
+                "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor.plugin_client.h",
+                "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor.plugin_client.c"
+              ],
+              "args": [
+                "$moduledir/fixtures/databind_service.schema",
+                "--lang",
+                "c",
+                "--output",
+                "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor_native.h",
+                "--binary-codec",
+                "--artifact-name",
+                "Image.ImageProcessor",
+                "--artifacts",
+                "plugin",
+                "--source-output",
+                "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor_native.c",
+                "--component",
+                "Image.ImageProcessor",
+                "--artifact-version",
+                "1.0.0"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "toad_databind_service_fixture_plugin_client": {
+      "kind": "static",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": [
+          "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor.plugin_client.c",
+          "$builddir/script/test/toad_databind_service_fixture.idl/Image.ImageProcessor_native.c"
+        ]
+      },
+      "private": {
+        "includeDirs": ["$builddir/script/test/toad_databind_service_fixture.idl"],
+        "deps": ["toad_databind_service_fixture_codegen", "saltsutils_databind"]
+      }
+    },
+    "toad_loader_fixture": {
+      "kind": "cmeta_plugin",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "outputPrefix": "",
+      "sources": {
+        "files": ["plugin_loader_fixture.c"]
+      },
+      "private": {
+        "deps": ["cmeta_plugin_abi"],
+        "includeDirs": ["../../engine/include"],
+        "defines": {
+          "FIXTURE_PLUGIN_NAME": "\"different_name\""
+        }
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    }
+  },
+  "forEach": [
+    {
+      "files": ["test_script_mir*.c"],
+      "target": {
+        "kind": "executable",
+        "testOnly": true,
+        "when": {
+          "native": true
+        },
+        "private": {
+          "deps": ["toad_script_lib", "saltsbase_tinytest", "cmeta_cstl", "toad_engine", "mir_jit"]
+        },
+        "variants": [
+          {
+            "when": {
+              "os": "android"
+            },
+            "private": {
+              "linkFlags": ["-Wl,-z,max-page-size=16384"]
+            }
+          }
+        ],
+        "test": {}
+      }
+    }
+  ]
+}

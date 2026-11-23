@@ -1,0 +1,17 @@
+{
+  "targets": {
+    "toad_cli_batch_errors": {
+      "kind": "header_only",
+      "when": {
+        "native": true
+      },
+      "runtimeDeps": ["toad", "fin", "ta", "ts", "net"],
+      "test": {
+        "name": "toad_script_cli_reports_batch_errors",
+        "tool": "cmake",
+        "args": ["-P", "$moduledir/verify_cli_errors.cmake", "${artifact:toad}", "$moduledir/invalid.toad"],
+        "labels": ["toad_script", "cli"]
+      }
+    }
+  }
+}

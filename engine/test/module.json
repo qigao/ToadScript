@@ -1,0 +1,357 @@
+{
+  "targets": {
+    "test_cmeta_class": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_cmeta_class.c"]
+      },
+      "private": {
+        "deps": ["toad_engine", "saltsbase_tinytest"],
+        "includeDirs": ["include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_cmeta_class"
+      }
+    },
+    "test_cmeta_function": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_cmeta_function.c"]
+      },
+      "private": {
+        "deps": ["toad_engine", "saltsbase_tinytest"],
+        "includeDirs": ["include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_cmeta_function"
+      }
+    },
+    "test_engine": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_engine.c"]
+      },
+      "private": {
+        "deps": ["toad_engine", "saltsbase_tinytest"],
+        "includeDirs": ["include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_engine"
+      }
+    },
+    "test_engine_checked_registration": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_engine_checked_registration.c"]
+      },
+      "private": {
+        "deps": ["toad_engine", "saltsbase_tinytest"],
+        "includeDirs": ["include", "../src"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_engine_checked_registration"
+      }
+    },
+    "test_engine_optimizations": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_optimizations.c"]
+      },
+      "private": {
+        "deps": ["toad_engine"],
+        "includeDirs": ["include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_engine_optimizations"
+      }
+    },
+    "test_engine_syntax": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_engine_syntax.c"]
+      },
+      "private": {
+        "deps": ["toad_syntax", "saltsbase_tinytest"],
+        "includeDirs": ["include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_engine_syntax"
+      }
+    },
+    "test_mod_io": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_mod_io.c"]
+      },
+      "private": {
+        "deps": ["toad_engine", "saltsbase_tinytest"],
+        "includeDirs": ["include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_mod_io"
+      }
+    },
+    "test_mod_math": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_mod_math.c"]
+      },
+      "private": {
+        "deps": ["toad_engine", "saltsbase_tinytest"],
+        "includeDirs": ["include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_mod_math"
+      }
+    },
+    "test_oop": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_oop.c"]
+      },
+      "private": {
+        "deps": ["toad_engine", "saltsbase_tinytest"],
+        "includeDirs": ["include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_oop"
+      }
+    },
+    "test_simd_helpers": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_simd_helpers.c"]
+      },
+      "private": {
+        "deps": ["toad_engine", "saltsbase_tinytest"],
+        "includeDirs": ["include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_simd_helpers"
+      }
+    },
+    "test_simd_perf": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true,
+        "config": ["benchmark", "benchmark-msvc"]
+      },
+      "sources": {
+        "files": ["test_simd_perf.c"]
+      },
+      "private": {
+        "deps": ["toad_engine"],
+        "includeDirs": ["include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_simd_perf",
+        "labels": ["benchmark"]
+      }
+    },
+    "test_simple_opt": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_simple_opt.c"]
+      },
+      "private": {
+        "deps": ["toad_engine"],
+        "includeDirs": ["include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_simple_opt"
+      }
+    },
+    "test_tiny_regex": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_re.c"]
+      },
+      "private": {
+        "deps": ["toad_engine", "saltsbase_tinytest"],
+        "includeDirs": ["../src"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_tiny_regex"
+      }
+    }
+  }
+}

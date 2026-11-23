@@ -1,10 +1,13 @@
 #include <toad/plugin.h>
 
-TOAD_PLUGIN_FUNCTION(double, plant_cost, (double, risk, CMETA_PARAM_IN),
-                     (double, unit_cost, CMETA_PARAM_IN));
+FunctionInvokeDeclAsAbiResult(
+    value, double, &cmeta_type_double, CMETA_ABI_SCALAR, CMETA_RESULT_VALUE, plant_cost,
+    (double, risk, CMETA_PARAM_IN, &cmeta_type_double, CMETA_ABI_SCALAR),
+    (double, unit_cost, CMETA_PARAM_IN, &cmeta_type_double, CMETA_ABI_SCALAR));
 double plant_cost(double risk, double unit_cost) { return risk * risk * unit_cost; }
 
-TOAD_PLUGIN_FUNCTION0(int, plant_limit);
+Function0InvokeDeclAsAbiResult(value, int, &cmeta_type_int, CMETA_ABI_SCALAR,
+                               CMETA_RESULT_VALUE, plant_limit);
 int plant_limit() { return 42; }
 
 #define MAINTENANCE_EXPORTS(X)                                                                     \

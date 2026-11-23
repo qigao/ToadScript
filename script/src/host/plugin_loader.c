@@ -357,6 +357,10 @@ static int plugin_path_exists(const char *path) {
 }
 #endif
 
+#ifndef TOAD_EXECUTABLE_PLUGIN_DIR
+#define TOAD_EXECUTABLE_PLUGIN_DIR "plugins"
+#endif
+
 static char *plugin_resolve_path(const char *path, toad_plugin_error_t *error) {
   char *exe_dir;
   char *plugins_dir;
@@ -384,7 +388,7 @@ static char *plugin_resolve_path(const char *path, toad_plugin_error_t *error) {
     return NULL;
   }
 
-  plugins_dir = plugin_join_path(exe_dir, "plugins");
+  plugins_dir = plugin_join_path(exe_dir, TOAD_EXECUTABLE_PLUGIN_DIR);
   candidate = plugins_dir ? plugin_join_path(plugins_dir, path) : NULL;
   free(plugins_dir);
   if (candidate && plugin_path_exists(candidate)) {

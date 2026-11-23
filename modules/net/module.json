@@ -1,0 +1,56 @@
+{
+  "include": ["test/module.json"],
+  "targets": {
+    "net": {
+      "kind": "cmeta_plugin",
+      "outputPrefix": "",
+      "sources": {
+        "files": ["src/mod_http.c", "src/net_plugin.c"]
+      },
+      "public": {
+        "deps": ["toad_engine", "chttp_client", "saltsutils_databind", "saltsbase_json", "toad_script"],
+        "includeDirs": ["include"]
+      },
+      "private": {
+        "defines": {
+          "TOAD_SCRIPT_USE_SHARED": null
+        },
+        "deps": ["cmeta_plugin"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "install": {
+        "headers": [
+          {
+            "from": "include",
+            "to": "include/net"
+          }
+        ]
+      }
+    },
+    "toad_net_plugin_lib": {
+      "kind": "static",
+      "sources": {
+        "files": ["src/mod_http.c", "src/net_plugin.c"]
+      },
+      "public": {
+        "deps": ["toad_engine", "chttp_client", "saltsutils_databind", "saltsbase_json", "toad_script"],
+        "includeDirs": ["include"]
+      },
+      "private": {
+        "defines": {
+          "TOAD_SCRIPT_USE_SHARED": null
+        },
+        "deps": ["cmeta_plugin"]
+      }
+    }
+  }
+}

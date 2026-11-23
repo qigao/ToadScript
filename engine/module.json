@@ -1,0 +1,129 @@
+{
+  "include": ["test/module.json"],
+  "targets": {
+    "toad_engine": {
+      "kind": "static",
+      "sources": {
+        "files": [
+          "src/class.c",
+          "src/cmeta_object.c",
+          "src/eval.c",
+          "src/map.c",
+          "src/mod_core.c",
+          "src/mod_io.c",
+          "src/mod_math.c",
+          "src/mod_regex.c",
+          "src/mod_stats.c",
+          "src/mod_string.c",
+          "src/re.c",
+          "src/registry.c",
+          "src/runtime.c",
+          "src/simd_helpers.c",
+          "src/validate.c",
+          "src/value.c"
+        ]
+      },
+      "public": {
+        "deps": [
+          "toad_syntax",
+          "saltsbase_core",
+          "saltsutils_databind",
+          "saltsbase_datetime",
+          "cmeta_cmeta",
+          "cmeta_plugin_abi"
+        ],
+        "includeDirs": ["include", "parser", "$builddir/engine"]
+      },
+      "private": {
+        "deps": ["cmeta_cstl", "saltsutils_mustache", "miniblas_linalg", "simde"],
+        "includeDirs": ["parser", "$builddir/engine", "src"]
+      },
+      "variants": [
+        {
+          "when": {
+            "arch": "x64",
+            "driver": "msvc"
+          },
+          "private": {
+            "flags": ["/arch:AVX2"]
+          }
+        },
+        {
+          "when": {
+            "arch": "x64",
+            "driver": ["llvm-mingw", "gcc", "clang"]
+          },
+          "private": {
+            "flags": ["-mavx2", "-mfma"]
+          }
+        }
+      ],
+      "install": {
+        "headers": [
+          {
+            "from": "include",
+            "to": "include"
+          }
+        ]
+      }
+    },
+    "toad_plugin_abi": {
+      "kind": "header_only",
+      "public": {
+        "includeDirs": ["include"],
+        "deps": ["cmeta_plugin_abi"]
+      }
+    },
+    "toad_syntax": {
+      "kind": "static",
+      "sources": {
+        "files": [
+          "src/grammar/parser.c",
+          "$builddir/engine/lexer_gen.c",
+          "$builddir/engine/toad/detail/grammar_gen.c"
+        ]
+      },
+      "public": {
+        "deps": ["saltsbase_core", "saltsutils_databind", "saltsbase_datetime", "cmeta_cmeta"],
+        "includeDirs": ["include", "$builddir/engine"]
+      },
+      "private": {
+        "includeDirs": ["parser", "$builddir/engine", "src"]
+      },
+      "preTasks": [
+        {
+          "name": "grammar_input",
+          "builtin": "copy",
+          "inputs": ["parser/grammar.y"],
+          "outputs": ["$builddir/engine/toad/detail/grammar_gen.y"]
+        },
+        {
+          "name": "grammar",
+          "tool": "lemon",
+          "inputs": [
+            "$builddir/engine/toad/detail/grammar_gen.y",
+            "${envPath:LEMON_ROOT}/bin/lemon${host:exe}",
+            "${envPath:LEMON_ROOT}/share/lemon/lempar.c"
+          ],
+          "outputs": ["$builddir/engine/toad/detail/grammar_gen.c", "$builddir/engine/toad/detail/grammar_gen.h"],
+          "args": ["-T${envPath:LEMON_ROOT}/share/lemon/lempar.c", "$builddir/engine/toad/detail/grammar_gen.y"]
+        },
+        {
+          "name": "lexer",
+          "tool": "re2c",
+          "inputs": ["parser/lexer.re", "${envPath:TURBOSCRIPT_RE2C_ROOT}/bin/re2c${host:exe}"],
+          "outputs": ["$builddir/engine/lexer_gen.c"],
+          "args": ["-o", "$builddir/engine/lexer_gen.c", "$moduledir/parser/lexer.re"]
+        }
+      ],
+      "install": {
+        "headers": [
+          {
+            "from": "$builddir/engine/toad/detail/grammar_gen.h",
+            "to": "include/toad/detail"
+          }
+        ]
+      }
+    }
+  }
+}

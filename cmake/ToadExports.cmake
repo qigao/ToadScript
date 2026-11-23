@@ -1,0 +1,27 @@
+function(toad_write_exports symbols format output)
+  file(STRINGS "${symbols}" names REGEX "^[A-Za-z_][A-Za-z0-9_]*$")
+  if(format STREQUAL "macho")
+    set(contents "")
+    foreach(name IN LISTS names)
+      string(APPEND contents "_${name}\n")
+    endforeach()
+  elseif(format STREQUAL "elf")
+    set(contents "{\n  global:\n")
+    foreach(name IN LISTS names)
+      string(APPEND contents "    ${name};\n")
+    endforeach()
+    string(APPEND contents "  local:\n    *;\n};\n")
+  else()
+    message(FATAL_ERROR "Unknown Toad symbol format: ${format}")
+  endif()
+  file(CONFIGURE OUTPUT "${output}" CONTENT "${contents}" @ONLY)
+endfunction()
+
+if(CMAKE_SCRIPT_MODE_FILE STREQUAL CMAKE_CURRENT_LIST_FILE)
+  toad_write_exports("${SYMBOLS}" "${FORMAT}" "${OUTPUT}")
+  # Linkers consume the platform export file via a flag. Compile its
+  # revision so an export-only edit also changes a Ninja link input.
+  file(SHA256 "${OUTPUT}" digest)
+  file(CONFIGURE OUTPUT "${REVISION}" CONTENT
+       "typedef char toad_exports_@digest@[1];\n" @ONLY)
+endif()

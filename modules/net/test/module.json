@@ -1,0 +1,33 @@
+{
+  "targets": {
+    "test_net_ctx": {
+      "kind": "executable",
+      "testOnly": true,
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": ["test_net_ctx.c"]
+      },
+      "private": {
+        "deps": ["saltsbase_tinytest", "toad_engine", "toad_net_plugin_lib", "saltsbase_core"],
+        "defines": {
+          "TOAD_SCRIPT_USE_SHARED": null
+        }
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ],
+      "test": {
+        "name": "test_net_ctx"
+      }
+    }
+  }
+}

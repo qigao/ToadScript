@@ -1,0 +1,96 @@
+{
+  "include": ["slates/Platforms.json", "slates/Tools.json"],
+  "env": [
+    "VCPKG_INSTALLED_DIR",
+    "SALTS_BASE_ROOT",
+    "CMETA_ROOT",
+    "SALTS_UTILS_ROOT",
+    "SALTSCORE_ROOT",
+    "CHTTP_ROOT",
+    "TURBOSCRIPT_MSVC_VCPKG_INSTALLED_DIR",
+    "TURBOSCRIPT_MSVC_SALTS_BASE_ROOT",
+    "TURBOSCRIPT_MSVC_CMETA_ROOT",
+    "TURBOSCRIPT_MSVC_SALTS_UTILS_ROOT",
+    "TURBOSCRIPT_MSVC_SALTSCORE_ROOT",
+    "TURBOSCRIPT_MSVC_CHTTP_ROOT",
+    "TURBOSCRIPT_RE2C_ROOT",
+    "LEMON_ROOT",
+    "LLVM_MINGW_ROOT",
+    "VSDEVCMD_BAT",
+    "ANDROID_NDK_TOOLCHAIN_DIR"
+  ],
+  "defaultPreset": "release",
+  "modules": ["third_party", "engine", "miniblas", "script", "modules", "examples/native_modules"],
+  "presets": {
+    "base": {
+      "cStd": "gnu11",
+      "cxxStd": "gnu++17",
+      "tests": false
+    },
+    "release": {
+      "config": "release",
+      "options": {
+        "optimization": "speed"
+      },
+      "defines": {
+        "NDEBUG": null
+      },
+      "inherits": "base"
+    },
+    "debug": {
+      "inherits": "base",
+      "config": "debug",
+      "options": {
+        "optimization": "none",
+        "debugInfo": "full"
+      }
+    },
+    "tests": {
+      "inherits": "release",
+      "tests": true
+    },
+    "debug-mingw": {
+      "inherits": "debug",
+      "targetPlatform": "windows-x64",
+      "toolchain": "llvm-mingw-x64"
+    },
+    "debug-msvc": {
+      "inherits": "debug",
+      "targetPlatform": "windows-x64",
+      "toolchain": "msvc-win64",
+      "vsDevCmd": "${envPath:VSDEVCMD_BAT}",
+      "config": "debug-msvc",
+      "cStd": "c11",
+      "cxxStd": "c++17"
+    },
+    "release-msvc": {
+      "inherits": "release",
+      "targetPlatform": "windows-x64",
+      "toolchain": "msvc-win64",
+      "vsDevCmd": "${envPath:VSDEVCMD_BAT}",
+      "cStd": "c11",
+      "cxxStd": "c++17"
+    },
+    "debug-tests": {
+      "inherits": "debug",
+      "tests": true
+    },
+    "tests-msvc": {
+      "inherits": "release-msvc",
+      "tests": true
+    },
+    "debug-tests-msvc": {
+      "inherits": "debug-msvc",
+      "tests": true
+    },
+    "benchmarks": {
+      "inherits": "release",
+      "config": "benchmark",
+      "tests": true
+    },
+    "benchmarks-msvc": {
+      "inherits": "tests-msvc",
+      "config": "benchmark-msvc"
+    }
+  }
+}

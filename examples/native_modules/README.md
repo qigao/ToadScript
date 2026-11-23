@@ -26,8 +26,9 @@ CMETA_PLUGIN_DECLARE(cost, "application.cost", (1u, 0u, 0u),
     COST_EXPORTS, CMETA_PLUGIN_PASSIVE());
 ```
 
-`TOAD_PLUGIN_FUNCTION` and `TOAD_PLUGIN_FUNCTION0` are scalar value-result
-conveniences over CMeta's exact-invoke declarations. CMeta remains the source
+`TOAD_PLUGIN_FUNCTION` and `TOAD_PLUGIN_FUNCTION0` infer scalar descriptors
+in C11. The [C++ example](maintenance.cpp) supplies its descriptors and ABI
+carriers explicitly through CMeta's exact-invoke declarations. CMeta remains the source
 of function metadata, ABI carriers and publication. Use canonical
 `Function0InvokeDecl(value, void, name)` for a void result. Publish exactly one
 `CMETA_PLUGIN_DECLARE` per DSO. Functions can be implemented in separate source
@@ -75,6 +76,9 @@ cmake --preset native-release-user
 cmake --build --preset native-release-user
 ctest --preset native-release-user -R '^example_native_modules$' --output-on-failure
 ```
+
+Slate also passes the artifact paths with
+`slate test --preset tests --filter example_native_modules`.
 
 CTest supplies the actual plugin paths. To use the executable directly, pass
 the calibration DSO path and maintenance DSO path in that order. It returns a

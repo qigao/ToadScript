@@ -3,6 +3,7 @@
 #include "../src/graph/cflow_runtime.h"
 
 #include <toad/engine.h>
+#include <core/clock.h>
 #include "file/fs.h"
 
 #include <cflow/plan.h>
@@ -11,7 +12,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 typedef struct ts_cflow_bench_case {
   size_t elements;
@@ -21,7 +21,7 @@ typedef struct ts_cflow_bench_case {
 } ts_cflow_bench_case;
 
 static double ts_bench_now_us(void) {
-  return ((double)clock() * 1000000.0) / (double)CLOCKS_PER_SEC;
+  return (double)hrtime() / 1000.0;
 }
 
 static void ts_bench_begin_eval(toad_script_ctx_t *ctx) {
@@ -467,7 +467,7 @@ int main(void) {
   };
 
   printf("Toad CFlow qualification telemetry\n");
-  printf("Timing uses process CPU clock; values are machine-specific and non-gating.\n");
+  printf("Timing uses a high-resolution monotonic clock. Values are machine-specific and non-gating.\n");
 
   for (size_t i = 0u; i < sizeof(cases) / sizeof(cases[0]); ++i) {
     if (ts_bench_count_case(cases[i]) != 0) return 1;

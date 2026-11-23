@@ -1,0 +1,3 @@
+{
+  "include": ["fin/module.json", "net/module.json"]
+}

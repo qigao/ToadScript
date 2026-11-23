@@ -1,0 +1,17 @@
+{
+  "forEach": [
+    {
+      "files": ["test_*.c"],
+      "target": {
+        "kind": "executable",
+        "when": {
+          "native": true
+        },
+        "private": {
+          "deps": ["fin_core", "saltsbase_tinytest", "saltsbase_core"]
+        },
+        "test": {}
+      }
+    }
+  ]
+}

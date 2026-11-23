@@ -1,0 +1,239 @@
+{
+  "include": ["app/module.json", "test/module.json"],
+  "targets": {
+    "toad_script": {
+      "kind": "shared",
+      "sources": {
+        "files": [
+          "src/graph/cflow_lower.c",
+          "src/graph/cflow_mir_kernel.c",
+          "src/graph/cflow_runtime.c",
+          "src/graph/cflow_text.c",
+          "src/graph/cflow_text_kernel.c",
+          "src/graph/cmeta_bridge.c",
+          "src/host/instance.c",
+          "src/host/limits.c",
+          "src/host/module.c",
+          "src/host/registry.c",
+          "src/host/plugin.c",
+          "src/host/result.c",
+          "src/mir_mod.c",
+          "src/script.c",
+          "src/closure_analysis.c",
+          "src/registry.c",
+          "src/task.c",
+          "src/timer.c",
+          "src/mir.c",
+          "src/mir/api.c",
+          "src/mir/cache.c",
+          "src/mir/compiler.c",
+          "src/mir/constant.c",
+          "src/mir/data.c",
+          "src/mir/functions.c",
+          "src/mir/oop.c",
+          "src/mir/runtime.c",
+          "src/mir/value_emit.c",
+          "src/mir/value_runtime.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "toad_engine",
+          "mir_jit",
+          "cmeta_cstl",
+          "cmeta_cmeta",
+          "cmeta_cflow",
+          "toad_script_plugin_loader",
+          "saltsbase_coroutine"
+        ],
+        "includeDirs": ["../engine/src", "src/host", "src/mir"],
+        "defines": {
+          "TOAD_SCRIPT_BUILD_SHARED": null
+        }
+      },
+      "public": {
+        "deps": ["saltsbase_core", "cmeta_plugin"],
+        "includeDirs": ["include"],
+        "defines": {
+          "TOAD_SCRIPT_USE_SHARED": null
+        }
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        },
+        {
+          "when": {
+            "os": "macos"
+          },
+          "sources": {
+            "files": ["$builddir/script/toad_exports_revision.c"]
+          },
+          "preTasks": [
+            {
+              "name": "toad_exports",
+              "tool": "cmake",
+              "inputs": ["$moduledir/exports/public-symbols.txt", "$root/cmake/ToadExports.cmake"],
+              "outputs": [
+                "$builddir/script/toad-exported-symbols.txt",
+                "$builddir/script/toad_exports_revision.c"
+              ],
+              "args": [
+                "-DSYMBOLS=$moduledir/exports/public-symbols.txt",
+                "-DFORMAT=macho",
+                "-DOUTPUT=$builddir/script/toad-exported-symbols.txt",
+                "-DREVISION=$builddir/script/toad_exports_revision.c",
+                "-P",
+                "$root/cmake/ToadExports.cmake"
+              ]
+            }
+          ],
+          "private": {
+            "linkFlags": ["-Wl,-exported_symbols_list,script/toad-exported-symbols.txt"]
+          }
+        },
+        {
+          "when": {
+            "os": ["linux", "android"]
+          },
+          "sources": {
+            "files": ["$builddir/script/toad_exports_revision.c"]
+          },
+          "preTasks": [
+            {
+              "name": "toad_exports",
+              "tool": "cmake",
+              "inputs": ["$moduledir/exports/public-symbols.txt", "$root/cmake/ToadExports.cmake"],
+              "outputs": ["$builddir/script/toad-version-script.map", "$builddir/script/toad_exports_revision.c"],
+              "args": [
+                "-DSYMBOLS=$moduledir/exports/public-symbols.txt",
+                "-DFORMAT=elf",
+                "-DOUTPUT=$builddir/script/toad-version-script.map",
+                "-DREVISION=$builddir/script/toad_exports_revision.c",
+                "-P",
+                "$root/cmake/ToadExports.cmake"
+              ]
+            }
+          ],
+          "private": {
+            "linkFlags": ["-Wl,--version-script=script/toad-version-script.map"]
+          }
+        }
+      ],
+      "install": {
+        "headers": [
+          {
+            "from": "include",
+            "to": "include"
+          }
+        ],
+        "assets": [
+          {
+            "from": "$root/LICENSE",
+            "to": "share/Toad"
+          },
+          {
+            "from": "$root/NOTICE",
+            "to": "share/Toad"
+          },
+          {
+            "from": "$root/THIRD_PARTY_NOTICES.md",
+            "to": "share/Toad"
+          }
+        ]
+      }
+    },
+    "toad_script_lib": {
+      "kind": "static",
+      "sources": {
+        "files": [
+          "src/graph/cflow_lower.c",
+          "src/graph/cflow_mir_kernel.c",
+          "src/graph/cflow_runtime.c",
+          "src/graph/cflow_text.c",
+          "src/graph/cflow_text_kernel.c",
+          "src/graph/cmeta_bridge.c",
+          "src/host/instance.c",
+          "src/host/limits.c",
+          "src/host/module.c",
+          "src/host/registry.c",
+          "src/host/plugin.c",
+          "src/host/result.c",
+          "src/mir_mod.c",
+          "src/script.c",
+          "src/closure_analysis.c",
+          "src/registry.c",
+          "src/task.c",
+          "src/timer.c",
+          "src/mir.c",
+          "src/mir/api.c",
+          "src/mir/cache.c",
+          "src/mir/compiler.c",
+          "src/mir/constant.c",
+          "src/mir/data.c",
+          "src/mir/functions.c",
+          "src/mir/oop.c",
+          "src/mir/runtime.c",
+          "src/mir/value_emit.c",
+          "src/mir/value_runtime.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "toad_engine",
+          "mir_jit",
+          "cmeta_cstl",
+          "cmeta_cmeta",
+          "cmeta_cflow",
+          "toad_script_plugin_loader",
+          "saltsbase_coroutine"
+        ],
+        "includeDirs": ["../engine/src", "src/graph", "src/host", "src/mir"]
+      },
+      "public": {
+        "deps": ["saltsbase_core", "saltsutils_databind", "cmeta_plugin"],
+        "includeDirs": ["include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "driver": "msvc"
+          },
+          "private": {
+            "flags": ["/W4"]
+          }
+        },
+        {
+          "when": {
+            "driver": ["llvm-mingw", "gcc", "clang"]
+          },
+          "private": {
+            "flags": ["-Wall", "-Wextra", "-Wpedantic"]
+          }
+        }
+      ]
+    },
+    "toad_script_plugin_loader": {
+      "kind": "static",
+      "sources": {
+        "files": ["src/host/plugin_loader.c", "src/host/plugin_function.c", "src/host/plugin_databind.c"]
+      },
+      "public": {
+        "deps": ["cmeta_plugin"],
+        "includeDirs": ["include"]
+      },
+      "private": {
+        "deps": ["toad_engine", "saltsutils_databind"],
+        "includeDirs": ["../engine/include", "../engine/src"],
+        "defines": {
+          "TOAD_EXECUTABLE_PLUGIN_DIR": "\"../plugins\""
+        }
+      }
+    }
+  }
+}

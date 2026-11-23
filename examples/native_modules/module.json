@@ -1,0 +1,82 @@
+{
+  "targets": {
+    "example_calibration": {
+      "kind": "cmeta_plugin",
+      "outputPrefix": "",
+      "sources": {
+        "files": ["calibration.c"]
+      },
+      "private": {
+        "deps": ["toad_plugin_abi"],
+        "includeDirs": ["../../engine/include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    },
+    "example_maintenance": {
+      "kind": "cmeta_plugin",
+      "outputPrefix": "",
+      "sources": {
+        "files": ["maintenance.cpp"]
+      },
+      "private": {
+        "deps": ["toad_plugin_abi"],
+        "includeDirs": ["../../engine/include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    },
+    "example_native_modules": {
+      "kind": "executable",
+      "sources": {
+        "files": ["host.c"]
+      },
+      "private": {
+        "deps": ["toad_script", "cmeta_plugin"],
+        "defines": {
+          "TOAD_SCRIPT_USE_SHARED": null
+        }
+      },
+      "runtimeDeps": ["example_calibration", "example_maintenance"],
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    },
+    "example_native_modules_case": {
+      "kind": "header_only",
+      "when": {
+        "native": true
+      },
+      "runtimeDeps": ["example_native_modules", "example_calibration", "example_maintenance"],
+      "test": {
+        "name": "example_native_modules",
+        "labels": ["examples", "plugins"],
+        "args": ["${artifact:example_calibration}", "${artifact:example_maintenance}"],
+        "program": "${artifact:example_native_modules}"
+      }
+    }
+  }
+}

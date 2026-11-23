@@ -203,6 +203,38 @@ See [Getting Started](docs/getting-started.md), the
 For application-defined native functions, see the
 [CMeta C/C++ module example](examples/native_modules/README.md).
 
+### Build with Slate
+
+Use Slate 0.1.14 or later, Ninja and CMake. Restore the pinned SDKs and
+host tools using the same release profile as above. Slate reads the paths
+in your `.env` directly. Set `TURBOSCRIPT_RE2C_ROOT` to the restored re2c
+root shown by the restore command. CMake CI also accepts `RE2C_ROOT`.
+Keep `pkgconf` on `PATH` for vcpkg package resolution.
+
+```sh
+slate doctor --preset release
+slate build --preset release
+slate run --preset release --target toad -- --file examples/getting_started.toad
+slate test --preset tests
+slate test --preset benchmarks --label benchmark
+slate install --preset release --prefix build/slate-stage
+```
+
+The [Slate project](slate.json) includes the Toad engine, CLI, MIR JIT,
+native modules, examples and tests. Use the Slate VS Code tree to select
+`release`, `debug`, or `tests`. For MSVC use `release-msvc`, `debug-msvc`,
+or `tests-msvc` with the `TURBOSCRIPT_MSVC_*` roots in your `.env`. Run MSVC
+benchmarks with `slate test --preset benchmarks-msvc --label benchmark`.
+[The environment example](.env.example) lists the fields. MSVC debug
+presets emit symbols with optimization disabled and use the release CRT
+to match the published SDKs.
+
+Slate places native plugins in `plugins` beside `bin`. Toad uses that
+executable-relative path for Slate builds. The loader regression suite
+also checks the legacy executable directory, the explicit package root,
+and rejection of the current working directory. DataBind fixture
+generation and native execution tests run on native toolchains.
+
 ## License
 
 Toad first-party code is licensed under the Apache License 2.0. See

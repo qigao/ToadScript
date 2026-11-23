@@ -1,0 +1,135 @@
+{
+  "include": ["test/module.json"],
+  "targets": {
+    "example_getting_started_case": {
+      "kind": "header_only",
+      "when": {
+        "native": true
+      },
+      "runtimeDeps": ["toad", "fin", "ta", "ts", "net"],
+      "test": {
+        "name": "example_getting_started",
+        "labels": ["examples", "getting-started"],
+        "args": ["--file", "$root/examples/getting_started.toad"],
+        "program": "${artifact:toad}"
+      }
+    },
+    "example_gof_adapter_decorator_case": {
+      "kind": "header_only",
+      "when": {
+        "native": true
+      },
+      "runtimeDeps": ["toad", "fin", "ta", "ts", "net"],
+      "test": {
+        "name": "example_gof_adapter_decorator",
+        "labels": ["examples", "gof"],
+        "args": ["--file", "$root/examples/gof/adapter_decorator.toad"],
+        "program": "${artifact:toad}"
+      }
+    },
+    "example_gof_command_memento_case": {
+      "kind": "header_only",
+      "when": {
+        "native": true
+      },
+      "runtimeDeps": ["toad", "fin", "ta", "ts", "net"],
+      "test": {
+        "name": "example_gof_command_memento",
+        "labels": ["examples", "gof"],
+        "args": ["--file", "$root/examples/gof/command_memento.toad"],
+        "program": "${artifact:toad}"
+      }
+    },
+    "example_gof_composite_visitor_case": {
+      "kind": "header_only",
+      "when": {
+        "native": true
+      },
+      "runtimeDeps": ["toad", "fin", "ta", "ts", "net"],
+      "test": {
+        "name": "example_gof_composite_visitor",
+        "labels": ["examples", "gof"],
+        "args": ["--file", "$root/examples/gof/composite_visitor.toad"],
+        "program": "${artifact:toad}"
+      }
+    },
+    "example_gof_factory_builder_case": {
+      "kind": "header_only",
+      "when": {
+        "native": true
+      },
+      "runtimeDeps": ["toad", "fin", "ta", "ts", "net"],
+      "test": {
+        "name": "example_gof_factory_builder",
+        "labels": ["examples", "gof"],
+        "args": ["--file", "$root/examples/gof/factory_builder.toad"],
+        "program": "${artifact:toad}"
+      }
+    },
+    "example_gof_state_chain_case": {
+      "kind": "header_only",
+      "when": {
+        "native": true
+      },
+      "runtimeDeps": ["toad", "fin", "ta", "ts", "net"],
+      "test": {
+        "name": "example_gof_state_chain",
+        "labels": ["examples", "gof"],
+        "args": ["--file", "$root/examples/gof/state_chain.toad"],
+        "program": "${artifact:toad}"
+      }
+    },
+    "example_polymarket_patterns_load_case": {
+      "kind": "header_only",
+      "when": {
+        "native": true
+      },
+      "runtimeDeps": ["toad", "fin", "ta", "ts", "net"],
+      "test": {
+        "name": "example_polymarket_patterns_load",
+        "labels": ["examples", "polymarket"],
+        "args": ["--file", "$root/examples/polymarket_patterns.toad"],
+        "program": "${artifact:toad}"
+      }
+    },
+    "toad": {
+      "kind": "executable",
+      "sources": {
+        "files": ["main.c"]
+      },
+      "private": {
+        "deps": ["toad_script", "saltsutils_databind", "cmeta_plugin"],
+        "defines": {
+          "TOAD_SCRIPT_USE_SHARED": null
+        }
+      },
+      "runtimeDeps": ["fin", "ta", "ts", "net"],
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    },
+    "toad_script_cli_uses_actual_module_names_case": {
+      "kind": "header_only",
+      "when": {
+        "native": true
+      },
+      "runtimeDeps": ["toad", "fin", "ta", "ts", "net"],
+      "test": {
+        "name": "toad_script_cli_uses_actual_module_names",
+        "labels": ["cli", "plugins", "toad_script"],
+        "args": [
+          "--eval",
+          "import(\"fin\"); import(\"ts\"); module_names_ok = 1;"
+        ],
+        "program": "${artifact:toad}"
+      }
+    }
+  }
+}

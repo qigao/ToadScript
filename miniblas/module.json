@@ -1,0 +1,19 @@
+{
+  "targets": {
+    "miniblas_linalg": {
+      "kind": "static",
+      "sources": {
+        "files": ["miniblas.c", "linalg.c"]
+      },
+      "public": {
+        "includeDirs": ["."]
+      },
+      "private": {
+        "defines": {
+          "MINIBLAS_USE_SIMDE": null
+        },
+        "deps": ["simde"]
+      }
+    }
+  }
+}

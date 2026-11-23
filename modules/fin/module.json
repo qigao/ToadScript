@@ -1,0 +1,115 @@
+{
+  "include": ["test/module.json"],
+  "targets": {
+    "fin": {
+      "kind": "cmeta_plugin",
+      "outputPrefix": "",
+      "sources": {
+        "files": ["src/strategy_plugin.c"]
+      },
+      "private": {
+        "deps": ["fin_core", "simde"],
+        "includeDirs": ["include"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    },
+    "fin_core": {
+      "kind": "static",
+      "sources": {
+        "files": [
+          "src/backtest.c",
+          "src/bar_window.c",
+          "src/factor.c",
+          "src/finance.c",
+          "src/graph.c",
+          "src/market_rules.c",
+          "src/mod_fin.c",
+          "src/mod_strategy.c",
+          "src/mod_ta.c",
+          "src/mod_timeseries.c",
+          "src/nash.c",
+          "src/order_manager.c",
+          "src/portfolio.c",
+          "src/provider_csv.c",
+          "src/risk.c",
+          "src/strategy.c",
+          "src/strategy_optimizer.c",
+          "src/ta_indicators_1.c",
+          "src/ta_indicators_2.c",
+          "src/ta_indicators_3.c",
+          "src/ta_math.c",
+          "src/ta_options.c",
+          "src/ta_others.c",
+          "src/timeseries.c",
+          "src/ts_rolling.c",
+          "src/universe.c",
+          "src/universe_bindings.c"
+        ]
+      },
+      "public": {
+        "deps": ["toad_engine", "saltsbase_core"],
+        "includeDirs": ["include"]
+      },
+      "private": {
+        "deps": ["simde"]
+      },
+      "install": {
+        "headers": [
+          {
+            "from": "include",
+            "to": "include/fin"
+          }
+        ]
+      }
+    },
+    "ta": {
+      "kind": "cmeta_plugin",
+      "outputPrefix": "",
+      "sources": {
+        "files": ["src/ta_plugin.c"]
+      },
+      "private": {
+        "deps": ["fin_core"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    },
+    "ts": {
+      "kind": "cmeta_plugin",
+      "outputPrefix": "",
+      "sources": {
+        "files": ["src/timeseries_plugin.c"]
+      },
+      "private": {
+        "deps": ["fin_core"]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "linkFlags": ["-Wl,-z,max-page-size=16384"]
+          }
+        }
+      ]
+    }
+  }
+}

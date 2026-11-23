@@ -128,30 +128,17 @@ target_compile_definitions(
 
 set(_toad_public_symbols_file
     "${CMAKE_CURRENT_SOURCE_DIR}/exports/public-symbols.txt")
-file(STRINGS "${_toad_public_symbols_file}" _toad_public_symbols
-     REGEX "^[A-Za-z_][A-Za-z0-9_]*$")
-
+include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/ToadExports.cmake")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+             "${_toad_public_symbols_file}")
 if(APPLE)
-  set(_toad_export_file
-      "${CMAKE_CURRENT_BINARY_DIR}/toad-exported-symbols.txt")
-  file(WRITE "${_toad_export_file}" "")
-  foreach(_toad_symbol IN LISTS _toad_public_symbols)
-    file(APPEND "${_toad_export_file}" "_${_toad_symbol}\n")
-  endforeach()
-  target_link_options(
-    ${TARGET_NAME}
-    PRIVATE "-Wl,-exported_symbols_list,${_toad_export_file}")
+  set(_toad_export_file "${CMAKE_CURRENT_BINARY_DIR}/toad-exported-symbols.txt")
+  toad_write_exports("${_toad_public_symbols_file}" macho "${_toad_export_file}")
+  target_link_options(${TARGET_NAME} PRIVATE "-Wl,-exported_symbols_list,${_toad_export_file}")
 elseif(UNIX)
-  set(_toad_export_file
-      "${CMAKE_CURRENT_BINARY_DIR}/toad-version-script.map")
-  file(WRITE "${_toad_export_file}" "{\n  global:\n")
-  foreach(_toad_symbol IN LISTS _toad_public_symbols)
-    file(APPEND "${_toad_export_file}" "    ${_toad_symbol};\n")
-  endforeach()
-  file(APPEND "${_toad_export_file}" "  local:\n    *;\n};\n")
-  target_link_options(
-    ${TARGET_NAME}
-    PRIVATE "-Wl,--version-script=${_toad_export_file}")
+  set(_toad_export_file "${CMAKE_CURRENT_BINARY_DIR}/toad-version-script.map")
+  toad_write_exports("${_toad_public_symbols_file}" elf "${_toad_export_file}")
+  target_link_options(${TARGET_NAME} PRIVATE "-Wl,--version-script=${_toad_export_file}")
 endif()
 
 target_link_libraries(
